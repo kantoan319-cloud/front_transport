@@ -1,0 +1,14 @@
+.record-details { width:min(760px,100%); }
+.record-details .modal-heading { position:sticky; top:-21px; z-index:1; padding:2px 0 12px; background:#fff; }
+.detail-section { padding:13px 0; border-top:1px solid #edf1ee; }
+.detail-section h3 { margin:0 0 10px; color:#385046; font:700 12px Manrope,sans-serif; }
+.detail-rows { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:9px 18px; margin:0; }
+.detail-rows>div { min-width:0; }
+.detail-rows dt { color:#89968f; font-size:9px; }
+.detail-rows dd { margin:3px 0 0; overflow-wrap:anywhere; color:#374a40; font-size:11px; font-weight:600; }
+.detail-list { display:grid; gap:7px; margin:0; padding:0; list-style:none; }
+.detail-list li { display:grid; gap:3px; border-radius:6px; padding:9px 10px; background:#f7f9f8; }
+.detail-list li b { color:#45574e; font-size:10px; }
+.detail-list li span,.detail-empty { color:#849089; font-size:10px; line-height:1.45; }
+.detail-empty { margin:0; }
+@media (max-width:560px) { .detail-rows { grid-template-columns:1fr; }.record-details { padding:17px; }.record-details .modal-heading { top:-17px; } }

@@ -1,0 +1,22 @@
+.qr-batch-backdrop { z-index:12; }
+.qr-batch-dialog { display:flex; flex-direction:column; width:min(900px,100%); max-height:calc(100vh - 40px); overflow:hidden; border-radius:11px; padding:22px; background:#fff; box-shadow:0 20px 60px #10291d38; }
+.qr-batch-heading { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; padding-bottom:15px; }
+.qr-batch-heading h2 { margin:6px 0 0; color:#2a3c33; font:700 19px Manrope,sans-serif; }
+.qr-batch-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:12px; overflow:auto; padding:4px; }
+.qr-batch-card { display:flex; min-height:205px; flex-direction:column; align-items:center; justify-content:center; gap:7px; border:1px solid #e8eeeb; border-radius:8px; padding:12px; text-align:center; }
+.qr-batch-card img { width:140px; height:140px; max-width:100%; object-fit:contain; }
+.qr-batch-card b { color:#34443c; font-size:12px; }
+.qr-batch-card small { color:#89968f; font-size:9px; }
+.qr-batch-loading { display:flex; min-height:200px; align-items:center; justify-content:center; gap:10px; color:#89968f; font-size:11px; }
+.qr-batch-actions { display:flex; justify-content:flex-end; gap:8px; border-top:1px solid #edf1ee; padding-top:14px; margin-top:14px; }
+@media (max-width:560px) { .qr-batch-dialog { padding:15px; }.qr-batch-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@media print {
+  body * { visibility:hidden!important; }
+  .qr-batch-backdrop,.qr-batch-backdrop * { visibility:visible!important; }
+  .qr-batch-backdrop { position:absolute; inset:0; display:block; padding:0; background:#fff; }
+  .qr-batch-dialog { width:100%; max-height:none; overflow:visible; padding:0; box-shadow:none; }
+  .qr-batch-heading,.qr-batch-actions,.qr-batch-close { display:none!important; }
+  .qr-batch-grid { grid-template-columns:repeat(4,1fr); gap:5mm; overflow:visible; padding:0; }
+  .qr-batch-card { min-height:0; break-inside:avoid; border:1px dashed #bbb; padding:5mm; }
+  .qr-batch-card img { width:34mm; height:34mm; }
+}
