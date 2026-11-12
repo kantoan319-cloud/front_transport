@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import QRCode from 'qrcode'
+import { downloadBlob, stickerBlob, stickerFilename } from './qrSticker'
 
 interface VehicleQrDialogProps {
   immatriculation: string
@@ -9,6 +10,7 @@ interface VehicleQrDialogProps {
 export default function VehicleQrDialog({ immatriculation, onClose }: VehicleQrDialogProps) {
   const [image, setImage] = useState('')
   const [error, setError] = useState('')
+  const [downloading, setDownloading] = useState(false)
 
   useEffect(() => {
     let active = true
@@ -26,6 +28,18 @@ export default function VehicleQrDialog({ immatriculation, onClose }: VehicleQrD
     return () => { active = false }
   }, [immatriculation])
 
+  async function download() {
+    if (!image) return
+    setDownloading(true)
+    try {
+      downloadBlob(await stickerBlob(image, immatriculation), stickerFilename(immatriculation))
+    } catch (reason: unknown) {
+      setError(reason instanceof Error ? reason.message : 'Téléchargement impossible.')
+    } finally {
+      setDownloading(false)
+    }
+  }
+
   return (
     <div className="modal-backdrop qr-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}>
       <section className="qr-dialog" role="dialog" aria-modal="true" aria-labelledby="qr-title">
@@ -39,6 +53,7 @@ export default function VehicleQrDialog({ immatriculation, onClose }: VehicleQrD
         </div>
         <div className="qr-dialog-actions">
           <button className="button secondary" onClick={onClose}>Fermer</button>
+          <button className="button secondary" disabled={!image || Boolean(error) || downloading} onClick={() => void download()}>{downloading ? 'Téléchargement…' : 'Télécharger le PNG'}</button>
           <button className="button primary" disabled={!image || Boolean(error)} onClick={() => window.print()}>Imprimer le QR code</button>
         </div>
       </section>

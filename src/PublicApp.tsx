@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import cityLogo from './assets/logo.png'
 import busPhoto from './assets/bus.jpg'
 import bajajPhoto from './assets/bajaj.jpg'
-import { api, type Vehicle } from './api'
+import { api, photoUrl, type Vehicle } from './api'
 import { usePreferences } from './Preferences'
 
 const publicFields: { key: string; label: string }[] = [
@@ -210,7 +210,7 @@ export default function PublicApp() {
           <div className="public-detail-grid">
             {publicFields.map(({ key, label }) => <div className="public-detail" key={key}><small>{t(label)}</small><b>{t(valueOf(vehicle, key))}</b></div>)}
           </div>
-          {typeof vehicle.photo === 'string' && vehicle.photo.length > 0 && <img className="public-vehicle-photo" src={`/${vehicle.photo.split('/').map(encodeURIComponent).join('/')}`} alt={`Véhicule ${vehicle.immatriculation}`} />}
+          {photoUrl(typeof vehicle.photo === 'string' ? vehicle.photo : null) && <img className="public-vehicle-photo" src={photoUrl(typeof vehicle.photo === 'string' ? vehicle.photo : null)} alt={`Véhicule ${vehicle.immatriculation}`} />}
           <form className="public-report" onSubmit={(event) => void report(event)}>
             <h3>{t('Signaler un problème')}</h3>
             <label>{t('Motif')}<select name="motif" required><option value="">{t('Choisir un motif')}</option>{['Stationnement gênant', 'Conduite dangereuse', 'Véhicule en mauvais état', 'Tarif abusif', 'Comportement du conducteur', 'Autre'].map((reason) => <option key={reason} value={reason}>{t(reason)}</option>)}</select></label>

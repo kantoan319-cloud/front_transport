@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
 import QRCode from 'qrcode'
+import JSZip from 'jszip'
+import { downloadBlob, stickerBlob, stickerFilename } from './qrSticker'
 import './VehicleQrBatchDialog.css'
 
 interface VehicleQrBatchDialogProps {
@@ -16,6 +18,7 @@ export default function VehicleQrBatchDialog({ registrations, onClose }: Vehicle
   const [items, setItems] = useState<QrItem[]>([])
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
+  const [downloading, setDownloading] = useState(false)
 
   useEffect(() => {
     let active = true
@@ -39,6 +42,37 @@ export default function VehicleQrBatchDialog({ registrations, onClose }: Vehicle
     return () => { active = false }
   }, [registrations])
 
+  async function downloadOne(item: QrItem) {
+    try {
+      downloadBlob(await stickerBlob(item.image, item.registration), stickerFilename(item.registration))
+    } catch (reason: unknown) {
+      setError(reason instanceof Error ? reason.message : 'Téléchargement impossible.')
+    }
+  }
+
+  async function downloadAll() {
+    setDownloading(true)
+    try {
+      if (items.length === 1) {
+        await downloadOne(items[0])
+        return
+      }
+      const zip = new JSZip()
+      const used = new Set<string>()
+      for (const item of items) {
+        let name = stickerFilename(item.registration)
+        if (used.has(name)) name = `${used.size}_${name}`
+        used.add(name)
+        zip.file(name, await stickerBlob(item.image, item.registration))
+      }
+      downloadBlob(await zip.generateAsync({ type: 'blob' }), `QR_codes_${items.length}.zip`)
+    } catch (reason: unknown) {
+      setError(reason instanceof Error ? reason.message : 'Téléchargement impossible.')
+    } finally {
+      setDownloading(false)
+    }
+  }
+
   return (
     <div className="modal-backdrop qr-batch-backdrop" role="presentation" onMouseDown={(event) => {
       if (event.target === event.currentTarget) onClose()
@@ -55,10 +89,12 @@ export default function VehicleQrBatchDialog({ registrations, onClose }: Vehicle
                 <img src={item.image} alt={`QR code pour ${item.registration}`} />
                 <b>{item.registration}</b>
                 <small>Scannez pour consulter la fiche</small>
+                <button type="button" className="table-action qr-batch-download" onClick={() => void downloadOne(item)}>Télécharger</button>
               </article>
             ))}</div>}
         <div className="qr-batch-actions">
           <button className="button secondary" onClick={onClose}>Fermer</button>
+          <button className="button secondary" disabled={loading || Boolean(error) || items.length === 0 || downloading} onClick={() => void downloadAll()}>{downloading ? 'Préparation…' : items.length > 1 ? 'Télécharger (.zip)' : 'Télécharger le PNG'}</button>
           <button className="button primary" disabled={loading || Boolean(error) || items.length === 0} onClick={() => window.print()}>Imprimer la sélection</button>
         </div>
       </section>

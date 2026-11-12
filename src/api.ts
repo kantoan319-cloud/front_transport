@@ -270,6 +270,18 @@ interface AuthResponse {
 
 const API_BASE = '/api'
 
+/**
+ * URL d'une photo stockee en base (`PhotoCycloPousses/xxx.jpg`), servie par
+ * l'API (/api/photos/...). Les fichiers ne sont pas dans le depot.
+ */
+export function photoUrl(path?: string | null): string {
+  if (!path) return ''
+  const parts = path.replace(/^\/+/, '').split('/')
+  const folder = parts.shift() ?? ''
+  if (!parts.length || !['PhotoCycloPousses', 'PhotoConducteurs'].includes(folder)) return ''
+  return `${API_BASE}/photos/${encodeURIComponent(folder)}/${parts.map(encodeURIComponent).join('/')}`
+}
+
 export class ApiError extends Error {
   readonly status: number
 
