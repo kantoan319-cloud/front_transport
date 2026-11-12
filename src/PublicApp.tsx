@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
-import cityLogo from '../../logo.png'
-import busPhoto from '../../bus.jpg'
-import bajajPhoto from '../../bajaj.jpg'
+import cityLogo from './assets/logo.png'
+import busPhoto from './assets/bus.jpg'
+import bajajPhoto from './assets/bajaj.jpg'
 import { api, type Vehicle } from './api'
 import { usePreferences } from './Preferences'
 
