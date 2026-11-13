@@ -1,17 +1,12 @@
 import { useEffect, useRef } from 'react'
-import { Map as MapLibreMap, setWorkerUrl } from 'maplibre-gl'
+import { Map as MapLibreMap } from 'maplibre-gl'
 import type {
   FilterSpecification,
   GeoJSONSource,
   MapLayerMouseEvent,
   StyleSpecification,
 } from 'maplibre-gl'
-import workerUrl from 'maplibre-gl/dist/maplibre-gl-csp-worker.js?url'
 import 'maplibre-gl/dist/maplibre-gl.css'
-
-// MapLibre analyse les tuiles vectorielles dans un Web Worker : l'URL doit etre
-// fournie explicitement pour que Vite (dev et build) serve le bon fichier.
-setWorkerUrl(workerUrl)
 
 export interface MapPoint {
   key: string
