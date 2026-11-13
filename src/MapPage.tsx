@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent } from 'react'
+import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react'
+import MapCanvas, { type MapPoint } from './MapCanvas'
 import './MapPage.css'
 
 interface MapVehicle {
@@ -41,17 +42,16 @@ interface MapItem {
   scan?: MapScan
 }
 
-interface Tile {
-  key: string
-  url: string
-  left: number
-  top: number
-}
+type Basemap = 'plan' | 'satellite'
+type ViewMode = '2d' | '3d'
 
-const TILE_SIZE = 256
-const MIN_ZOOM = 2
-const MAX_ZOOM = 19
+const LIST_PAGE_SIZE = 8
 const DEFAULT_CENTER: Coordinates = { latitude: -19.87, longitude: 47.03 }
+
+function isNightAt(date: Date): boolean {
+  const hour = date.getHours()
+  return hour < 6 || hour >= 18
+}
 
 function coordinatesOf(value: { latitude?: number | string | null; longitude?: number | string | null }): Coordinates | null {
   if (value.latitude == null || value.longitude == null || (typeof value.latitude === 'string' && !value.latitude.trim()) || (typeof value.longitude === 'string' && !value.longitude.trim())) {
@@ -65,30 +65,12 @@ function coordinatesOf(value: { latitude?: number | string | null; longitude?: n
   return { latitude, longitude }
 }
 
-function worldPoint({ latitude, longitude }: Coordinates, zoom: number) {
-  const scale = TILE_SIZE * 2 ** zoom
-  const boundedLatitude = Math.max(-85.05112878, Math.min(85.05112878, latitude))
-  const sin = Math.sin((boundedLatitude * Math.PI) / 180)
-  return {
-    x: ((longitude + 180) / 360) * scale,
-    y: (0.5 - Math.log((1 + sin) / (1 - sin)) / (4 * Math.PI)) * scale,
-  }
-}
-
-function coordinatesFromWorld(x: number, y: number, zoom: number): Coordinates {
-  const scale = TILE_SIZE * 2 ** zoom
-  const longitude = (x / scale) * 360 - 180
-  const n = Math.PI - (2 * Math.PI * y) / scale
-  const latitude = (180 / Math.PI) * Math.atan(Math.sinh(n))
-  return { latitude, longitude }
-}
-
 function vehicleColor(type?: string | null): string {
   const normalized = (type ?? '').toLocaleLowerCase()
-  if (normalized.includes('bus')) return '#df7946'
-  if (normalized.includes('bajaj')) return '#8767c4'
-  if (normalized.includes('cyclo')) return '#2b9c78'
-  return '#3478b8'
+  if (normalized.includes('bus')) return '#e8a33d'
+  if (normalized.includes('bajaj')) return '#1f2b25'
+  if (normalized.includes('cyclo')) return '#3f7d5f'
+  return '#2b3a32'
 }
 
 function formatCoordinates(value: Coordinates | null): string {
@@ -117,16 +99,16 @@ export default function MapPage() {
   const [query, setQuery] = useState('')
   const [showVehicles, setShowVehicles] = useState(true)
   const [showScans, setShowScans] = useState(true)
+  const [basemap, setBasemap] = useState<Basemap>('plan')
+  const [viewMode, setViewMode] = useState<ViewMode>('2d')
+  const [night, setNight] = useState(() => isNightAt(new Date()))
+  const [listPage, setListPage] = useState(1)
   const [selectedKey, setSelectedKey] = useState('')
   const [center, setCenter] = useState<Coordinates>(DEFAULT_CENTER)
   const [zoom, setZoom] = useState(13)
-  const [mapSize, setMapSize] = useState({ width: 900, height: 560 })
-  const [tilesUnavailable, setTilesUnavailable] = useState(false)
   const [updatingRegistration, setUpdatingRegistration] = useState('')
   const [updateMessage, setUpdateMessage] = useState<{ registration: string; text: string; error: boolean } | null>(null)
-  const mapRef = useRef<HTMLDivElement>(null)
-  const initialCameraSet = useRef(false)
-  const dragRef = useRef<{ pointerId: number; x: number; y: number; worldX: number; worldY: number } | null>(null)
+  const initialCameraSet = useMemo(() => ({ current: false }), [])
 
   const loadMap = useCallback(async () => {
     setLoading(true)
@@ -152,18 +134,14 @@ export default function MapPage() {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [initialCameraSet])
 
   useEffect(() => { void loadMap() }, [loadMap])
 
+  // Bascule automatique jour/nuit selon l'heure locale.
   useEffect(() => {
-    const element = mapRef.current
-    if (!element) return
-    const measure = () => setMapSize({ width: element.clientWidth, height: element.clientHeight })
-    measure()
-    const observer = new ResizeObserver(measure)
-    observer.observe(element)
-    return () => observer.disconnect()
+    const timer = window.setInterval(() => setNight(isNightAt(new Date())), 60_000)
+    return () => window.clearInterval(timer)
   }, [])
 
   const items = useMemo<MapItem[]>(() => {
@@ -193,48 +171,22 @@ export default function MapPage() {
     })
   }, [query, scans, showScans, showVehicles, vehicles])
 
+  const points = useMemo<MapPoint[]>(() => items.flatMap((item) => {
+    if (!item.coordinates) return []
+    return [{
+      key: item.key,
+      label: item.label,
+      kind: item.kind,
+      color: item.kind === 'vehicle' ? vehicleColor(item.vehicle?.type) : '#e8a33d',
+      latitude: item.coordinates.latitude,
+      longitude: item.coordinates.longitude,
+    }]
+  }), [items])
+
   const selectedItem = items.find((item) => item.key === selectedKey) ?? null
-  const centerWorld = worldPoint(center, zoom)
-  const mapTiles = useMemo<Tile[]>(() => {
-    const minX = Math.floor((centerWorld.x - mapSize.width / 2) / TILE_SIZE)
-    const maxX = Math.floor((centerWorld.x + mapSize.width / 2) / TILE_SIZE)
-    const minY = Math.floor((centerWorld.y - mapSize.height / 2) / TILE_SIZE)
-    const maxY = Math.floor((centerWorld.y + mapSize.height / 2) / TILE_SIZE)
-    const tileCount = 2 ** zoom
-    const result: Tile[] = []
-    for (let x = minX; x <= maxX; x += 1) {
-      for (let y = minY; y <= maxY; y += 1) {
-        if (y < 0 || y >= tileCount) continue
-        const wrappedX = ((x % tileCount) + tileCount) % tileCount
-        result.push({
-          key: `${zoom}:${x}:${y}`,
-          url: `https://tile.openstreetmap.org/${zoom}/${wrappedX}/${y}.png`,
-          left: x * TILE_SIZE - centerWorld.x + mapSize.width / 2,
-          top: y * TILE_SIZE - centerWorld.y + mapSize.height / 2,
-        })
-      }
-    }
-    return result
-  }, [centerWorld.x, centerWorld.y, mapSize.height, mapSize.width, zoom])
-
-  const visibleItems = items.filter((item) => {
-    if (!item.coordinates) return false
-    const point = worldPoint(item.coordinates, zoom)
-    const dx = point.x - centerWorld.x
-    const wrappedDx = dx - Math.round(dx / (TILE_SIZE * 2 ** zoom)) * (TILE_SIZE * 2 ** zoom)
-    const x = mapSize.width / 2 + wrappedDx
-    const y = mapSize.height / 2 + point.y - centerWorld.y
-    return x >= -32 && x <= mapSize.width + 32 && y >= -32 && y <= mapSize.height + 32
-  })
-
-  function markerPosition(item: MapItem) {
-    if (!item.coordinates) return { left: -100, top: -100 }
-    const point = worldPoint(item.coordinates, zoom)
-    const worldWidth = TILE_SIZE * 2 ** zoom
-    const dx = point.x - centerWorld.x
-    const wrappedDx = dx - Math.round(dx / worldWidth) * worldWidth
-    return { left: mapSize.width / 2 + wrappedDx, top: mapSize.height / 2 + point.y - centerWorld.y }
-  }
+  const pageCount = Math.max(1, Math.ceil(items.length / LIST_PAGE_SIZE))
+  const currentPage = Math.min(listPage, pageCount)
+  const pagedItems = items.slice((currentPage - 1) * LIST_PAGE_SIZE, currentPage * LIST_PAGE_SIZE)
 
   function selectItem(item: MapItem) {
     setSelectedKey(item.key)
@@ -242,25 +194,9 @@ export default function MapPage() {
     if (item.coordinates) setCenter(item.coordinates)
   }
 
-  function zoomBy(amount: number) {
-    setZoom((current) => Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, current + amount)))
-  }
-
-  function onMapPointerDown(event: PointerEvent<HTMLDivElement>) {
-    if ((event.target as HTMLElement).closest('button, a')) return
-    const point = worldPoint(center, zoom)
-    dragRef.current = { pointerId: event.pointerId, x: event.clientX, y: event.clientY, worldX: point.x, worldY: point.y }
-    event.currentTarget.setPointerCapture(event.pointerId)
-  }
-
-  function onMapPointerMove(event: PointerEvent<HTMLDivElement>) {
-    const drag = dragRef.current
-    if (!drag || drag.pointerId !== event.pointerId) return
-    setCenter(coordinatesFromWorld(drag.worldX - (event.clientX - drag.x), drag.worldY - (event.clientY - drag.y), zoom))
-  }
-
-  function endMapDrag(event: PointerEvent<HTMLDivElement>) {
-    if (dragRef.current?.pointerId === event.pointerId) dragRef.current = null
+  function selectByKey(key: string) {
+    const item = items.find((entry) => entry.key === key)
+    if (item) selectItem(item)
   }
 
   async function updateVehicleLocation(vehicle: MapVehicle) {
@@ -319,14 +255,38 @@ export default function MapPage() {
         <label className="map-page__search">
           <span className="map-page__search-icon" aria-hidden="true">⌕</span>
           <span className="visually-hidden">Rechercher un véhicule ou un scan</span>
-          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Rechercher une immatriculation, un nom…" />
-          {query && <button type="button" aria-label="Effacer la recherche" onClick={() => setQuery('')}>×</button>}
+          <input value={query} onChange={(event) => { setQuery(event.target.value); setListPage(1) }} placeholder="Rechercher une immatriculation, un nom…" />
+          {query && <button type="button" aria-label="Effacer la recherche" onClick={() => { setQuery(''); setListPage(1) }}>×</button>}
         </label>
+        <div className="map-page__basemap" role="group" aria-label="Fond de carte">
+          <button type="button" className={basemap === 'plan' ? 'is-active' : ''} aria-pressed={basemap === 'plan'} onClick={() => setBasemap('plan')}>
+            <span className="map-page__basemap-icon" aria-hidden="true">▦</span> Plan
+          </button>
+          <button type="button" className={basemap === 'satellite' ? 'is-active' : ''} aria-pressed={basemap === 'satellite'} onClick={() => setBasemap('satellite')}>
+            <span className="map-page__basemap-icon" aria-hidden="true">◍</span> Satellite
+          </button>
+        </div>
+        <div className="map-page__viewmode" role="group" aria-label="Mode d’affichage">
+          <button type="button" className={viewMode === '2d' ? 'is-active' : ''} aria-pressed={viewMode === '2d'} onClick={() => setViewMode('2d')}>
+            <span className="map-page__basemap-icon" aria-hidden="true">▱</span> 2D
+          </button>
+          <button type="button" className={viewMode === '3d' ? 'is-active' : ''} aria-pressed={viewMode === '3d'} onClick={() => setViewMode('3d')}>
+            <span className="map-page__basemap-icon" aria-hidden="true">◈</span> 3D
+          </button>
+        </div>
+        <div className="map-page__viewmode" role="group" aria-label="Moment de la journée">
+          <button type="button" className={!night ? 'is-active' : ''} aria-pressed={!night} onClick={() => setNight(false)}>
+            <span className="map-page__basemap-icon" aria-hidden="true">☀</span> Jour
+          </button>
+          <button type="button" className={night ? 'is-active' : ''} aria-pressed={night} onClick={() => setNight(true)}>
+            <span className="map-page__basemap-icon" aria-hidden="true">☾</span> Nuit
+          </button>
+        </div>
         <div className="map-page__layers" role="group" aria-label="Couches de la carte">
-          <button type="button" className={showVehicles ? 'is-active' : ''} aria-pressed={showVehicles} onClick={() => setShowVehicles((value) => !value)}>
+          <button type="button" className={showVehicles ? 'is-active' : ''} aria-pressed={showVehicles} onClick={() => { setShowVehicles((value) => !value); setListPage(1) }}>
             <span className="map-page__layer-dot map-page__layer-dot--vehicle" aria-hidden="true" /> Véhicules
           </button>
-          <button type="button" className={showScans ? 'is-active' : ''} aria-pressed={showScans} onClick={() => setShowScans((value) => !value)}>
+          <button type="button" className={showScans ? 'is-active' : ''} aria-pressed={showScans} onClick={() => { setShowScans((value) => !value); setListPage(1) }}>
             <span className="map-page__layer-dot map-page__layer-dot--scan" aria-hidden="true" /> Scans
           </button>
         </div>
@@ -342,61 +302,30 @@ export default function MapPage() {
       <section className="map-page__workspace" aria-label="Carte et détails">
         <div className="map-page__map-column">
           <div
-            ref={mapRef}
-            className={`map-page__map${tilesUnavailable ? ' map-page__map--fallback' : ''}`}
+            className={`map-page__map${viewMode === '3d' ? ' is-3d' : ''}${night ? ' is-night' : ''}`}
             aria-label="Carte interactive. Faites glisser pour déplacer la carte."
-            onPointerDown={onMapPointerDown}
-            onPointerMove={onMapPointerMove}
-            onPointerUp={endMapDrag}
-            onPointerCancel={endMapDrag}
           >
-            {!tilesUnavailable && mapTiles.map((tile) => (
-              <img
-                key={tile.key}
-                className="map-page__tile"
-                src={tile.url}
-                alt=""
-                aria-hidden="true"
-                draggable={false}
-                style={{ left: tile.left, top: tile.top }}
-                onError={() => setTilesUnavailable(true)}
-              />
-            ))}
-            <div className="map-page__fallback-grid" aria-hidden="true">
-              <span>Carte géographique · {center.latitude.toFixed(3)}, {center.longitude.toFixed(3)}</span>
-            </div>
-            {visibleItems.map((item) => {
-              const position = markerPosition(item)
-              const color = item.kind === 'vehicle' ? vehicleColor(item.vehicle?.type) : '#c45d9c'
-              const active = selectedKey === item.key
-              return (
-                <button
-                  type="button"
-                  key={item.key}
-                  className={`map-page__marker map-page__marker--${item.kind}${active ? ' is-selected' : ''}`}
-                  style={{ left: position.left, top: position.top, '--marker-color': color } as CSSProperties}
-                  aria-label={`${item.kind === 'vehicle' ? 'Véhicule' : 'Scan'} ${item.label}${item.subtitle ? `, ${item.subtitle}` : ''}`}
-                  aria-pressed={active}
-                  onClick={() => selectItem(item)}
-                  onPointerDown={(event) => event.stopPropagation()}
-                >
-                  {item.kind === 'vehicle' ? <span aria-hidden="true" /> : <span aria-hidden="true">•</span>}
-                </button>
-              )
-            })}
-            <div className="map-page__zoom" role="group" aria-label="Zoom de la carte">
-              <button type="button" aria-label="Zoom avant" onClick={() => zoomBy(1)} disabled={zoom >= MAX_ZOOM}>+</button>
-              <button type="button" aria-label="Zoom arrière" onClick={() => zoomBy(-1)} disabled={zoom <= MIN_ZOOM}>−</button>
-            </div>
+            <MapCanvas
+              points={points}
+              selectedKey={selectedKey}
+              center={center}
+              zoom={zoom}
+              basemap={basemap}
+              viewMode={viewMode}
+              night={night}
+              onSelect={selectByKey}
+              onMove={(nextCenter, nextZoom) => { setCenter(nextCenter); setZoom(nextZoom) }}
+            />
             <div className="map-page__attribution">
-              <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">© OpenStreetMap</a>
+              {basemap === 'satellite'
+                ? <a href="https://www.esri.com/" target="_blank" rel="noreferrer">© Esri, Maxar, Earthstar Geographics</a>
+                : <a href="https://openfreemap.org/" target="_blank" rel="noreferrer">© OpenFreeMap · © OpenMapTiles · © OpenStreetMap</a>}
             </div>
-            {tilesUnavailable && <div className="map-page__tile-note" role="status">Le fond de carte n’a pas pu être chargé. Les marqueurs restent disponibles.</div>}
             {loading && <div className="map-page__loading" role="status">Chargement des positions…</div>}
           </div>
           <div className="map-page__map-caption">
-            <span>{visibleItems.length} position{visibleItems.length === 1 ? '' : 's'} affichée{visibleItems.length === 1 ? '' : 's'}</span>
-            <span>Déplacez la carte par glisser-déposer · Zoom avec les boutons</span>
+            <span>{points.length} position{points.length === 1 ? '' : 's'} affichée{points.length === 1 ? '' : 's'}</span>
+            <span>Déplacez la carte par glisser-déposer · Fond {basemap === 'satellite' ? 'satellite' : 'plan'} · Vue {viewMode.toUpperCase()} · {night ? 'Nuit' : 'Jour'}</span>
           </div>
         </div>
 
@@ -448,8 +377,9 @@ export default function MapPage() {
           ) : items.length === 0 ? (
             <p className="map-page__empty">{query ? 'Aucun résultat pour cette recherche.' : 'Aucune position disponible.'}</p>
           ) : (
+            <>
             <ul className="map-page__results">
-              {items.map((item) => (
+              {pagedItems.map((item) => (
                 <li key={item.key}>
                   <button type="button" className="map-page__result" onClick={() => selectItem(item)}>
                     <span className={`map-page__result-icon map-page__result-icon--${item.kind}`} style={item.kind === 'vehicle' ? { '--marker-color': vehicleColor(item.vehicle?.type) } as CSSProperties : undefined} aria-hidden="true">
@@ -461,15 +391,23 @@ export default function MapPage() {
                 </li>
               ))}
             </ul>
+            {items.length > LIST_PAGE_SIZE && (
+              <div className="map-page__pagination" role="navigation" aria-label="Pagination des résultats">
+                <button type="button" onClick={() => setListPage(Math.max(1, currentPage - 1))} disabled={currentPage <= 1} aria-label="Page précédente">‹</button>
+                <span>Page <b>{currentPage}</b> sur {pageCount}</span>
+                <button type="button" onClick={() => setListPage(Math.min(pageCount, currentPage + 1))} disabled={currentPage >= pageCount} aria-label="Page suivante">›</button>
+              </div>
+            )}
+            </>
           )}
         </aside>
       </section>
 
       <footer className="map-page__legend" aria-label="Légende des marqueurs">
-        <span><i className="map-page__legend-dot" style={{ backgroundColor: '#2b9c78' }} /> Cyclo-pousse</span>
-        <span><i className="map-page__legend-dot" style={{ backgroundColor: '#df7946' }} /> Bus</span>
-        <span><i className="map-page__legend-dot" style={{ backgroundColor: '#8767c4' }} /> Bajaj</span>
-        <span><i className="map-page__legend-dot" style={{ backgroundColor: '#3478b8' }} /> Autre véhicule</span>
+        <span><i className="map-page__legend-dot" style={{ backgroundColor: '#3f7d5f' }} /> Cyclo-pousse</span>
+        <span><i className="map-page__legend-dot" style={{ backgroundColor: '#e8a33d' }} /> Bus</span>
+        <span><i className="map-page__legend-dot" style={{ backgroundColor: '#1f2b25' }} /> Bajaj</span>
+        <span><i className="map-page__legend-dot" style={{ backgroundColor: '#2b3a32' }} /> Autre véhicule</span>
         <span><i className="map-page__legend-dot map-page__legend-dot--scan" /> Scan</span>
       </footer>
     </div>

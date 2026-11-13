@@ -275,14 +275,27 @@
   flex: 1;
   min-height: 480px;
   overflow: hidden;
-  touch-action: none;
-  cursor: grab;
   background: #e8eee8;
-  user-select: none;
 }
 
-.map-page__map:active {
-  cursor: grabbing;
+/* Carte vectorielle (MapLibre) : le canvas occupe toute la zone. */
+.map-page__canvas {
+  position: absolute;
+  inset: 0;
+}
+
+.map-page__canvas .maplibregl-canvas {
+  outline: none;
+}
+
+/* Nuit : fond sombre derriere les tuiles pendant le chargement. */
+.map-page__map.is-night {
+  background: #0b1220;
+}
+
+.map-page__map.is-night .maplibregl-ctrl-attrib {
+  background: rgba(12, 20, 32, .7);
+  color: #cbd5e1;
 }
 
 .map-page__tile {
@@ -812,4 +825,182 @@
   .map-page__legend {
     gap: 10px 13px;
   }
+}
+
+/* ------------------------------ Vue 3D -------------------------------- */
+.map-page__map {
+  perspective: 1400px;
+}
+
+.map-page__scene {
+  position: absolute;
+  inset: 0;
+  transform-origin: 50% 62%;
+  transition: transform .7s cubic-bezier(.22, 1, .36, 1);
+  will-change: transform;
+}
+
+.map-page__map.is-3d {
+  background:
+    linear-gradient(180deg, #b9c8bd 0%, #dfe8df 32%, #eef2ea 100%);
+}
+
+.map-page__map.is-3d::after {
+  content: '';
+  position: absolute;
+  z-index: 3;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(180deg, rgba(31, 43, 37, .24), transparent 36%),
+    radial-gradient(120% 90% at 50% 105%, transparent 46%, rgba(31, 43, 37, .2) 100%);
+  opacity: 0;
+  transition: opacity .5s ease;
+}
+
+.map-page__map.is-3d::after { opacity: 1; }
+
+.map-page__map.is-3d .map-page__scene {
+  transform: rotateX(48deg) scale(1.62) translateY(-1%);
+}
+
+.map-page__map.is-3d .map-page__marker {
+  filter: drop-shadow(0 10px 10px rgba(23, 34, 28, .38));
+}
+
+.map-page__map.is-3d .map-page__marker:hover,
+.map-page__map.is-3d .map-page__marker.is-selected {
+  filter: drop-shadow(0 14px 14px rgba(23, 34, 28, .48));
+}
+
+.map-page__map.is-3d .map-page__zoom {
+  z-index: 6;
+}
+
+.map-page__viewmode {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.map-page__viewmode button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid #d6e3db;
+  border-radius: 8px;
+  background: #fff;
+  color: #5b7165;
+  font-size: 12px;
+  font-weight: 600;
+  transition: background .2s, border-color .2s, color .2s, transform .2s;
+}
+
+.map-page__viewmode button:hover {
+  border-color: #b8d6c7;
+  background: #f6fbf8;
+  transform: translateY(-1px);
+}
+
+.map-page__viewmode button.is-active {
+  border-color: #2b3a32;
+  background: #2b3a32;
+  color: #fbf9f4;
+  box-shadow: 0 10px 20px -14px rgba(31, 43, 37, .9);
+}
+
+.map-page__viewmode button.is-active .map-page__basemap-icon {
+  color: #f4c270;
+}
+
+/* --------------------------- Pagination ------------------------------- */
+.map-page__results {
+  flex: 1;
+  min-height: 0;
+}
+
+.map-page__pagination {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 11px 14px;
+  border-top: 1px solid #edf0ee;
+  background: #fbfaf6;
+}
+
+.map-page__pagination span {
+  color: #7b877f;
+  font-size: 11.5px;
+  letter-spacing: .02em;
+}
+
+.map-page__pagination span b {
+  color: #2b3a32;
+  font-size: 12px;
+}
+
+.map-page__pagination button {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  place-items: center;
+  border: 1px solid #d8d4c8;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #2b3a32;
+  font-size: 16px;
+  line-height: 1;
+  transition: background .2s, border-color .2s, transform .2s;
+}
+
+.map-page__pagination button:hover:not(:disabled) {
+  border-color: #bfb5a0;
+  background: #f4f1e8;
+  transform: translateY(-1px);
+}
+
+.map-page__pagination button:disabled {
+  opacity: .4;
+  cursor: not-allowed;
+}
+
+:root[data-theme='dark'] .map-page__viewmode button {
+  border-color: #38473d;
+  background: #1c2620;
+  color: #dce6de;
+}
+
+:root[data-theme='dark'] .map-page__viewmode button.is-active {
+  border-color: #f0b45c;
+  background: #f0b45c;
+  color: #1f2b25;
+}
+
+:root[data-theme='dark'] .map-page__pagination {
+  border-top-color: #2c3931;
+  background: #1a231e;
+}
+
+:root[data-theme='dark'] .map-page__pagination span {
+  color: #a4b0a7;
+}
+
+:root[data-theme='dark'] .map-page__pagination span b {
+  color: #f2f5f1;
+}
+
+:root[data-theme='dark'] .map-page__pagination button {
+  border-color: #38473d;
+  background: #1c2620;
+  color: #e9efe9;
+}
+
+:root[data-theme='dark'] .map-page__pagination button:hover:not(:disabled) {
+  background: #233028;
+  border-color: #4a5a4e;
 }
