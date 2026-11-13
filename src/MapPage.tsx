@@ -102,6 +102,7 @@ export default function MapPage() {
   const [basemap, setBasemap] = useState<Basemap>('plan')
   const [viewMode, setViewMode] = useState<ViewMode>('2d')
   const [night, setNight] = useState(() => isNightAt(new Date()))
+  const [autoNight, setAutoNight] = useState(true)
   const [listPage, setListPage] = useState(1)
   const [selectedKey, setSelectedKey] = useState('')
   const [center, setCenter] = useState<Coordinates>(DEFAULT_CENTER)
@@ -138,11 +139,13 @@ export default function MapPage() {
 
   useEffect(() => { void loadMap() }, [loadMap])
 
-  // Bascule automatique jour/nuit selon l'heure locale.
+  // Bascule automatique jour/nuit selon l'heure locale, tant que l'utilisateur
+  // n'a pas choisi lui-même le mode (son choix reste sinon ecrase).
   useEffect(() => {
+    if (!autoNight) return
     const timer = window.setInterval(() => setNight(isNightAt(new Date())), 60_000)
     return () => window.clearInterval(timer)
-  }, [])
+  }, [autoNight])
 
   const items = useMemo<MapItem[]>(() => {
     const term = query.trim().toLocaleLowerCase()
@@ -275,10 +278,10 @@ export default function MapPage() {
           </button>
         </div>
         <div className="map-page__viewmode" role="group" aria-label="Moment de la journée">
-          <button type="button" className={!night ? 'is-active' : ''} aria-pressed={!night} onClick={() => setNight(false)}>
+          <button type="button" className={!night ? 'is-active' : ''} aria-pressed={!night} onClick={() => { setAutoNight(false); setNight(false) }}>
             <span className="map-page__basemap-icon" aria-hidden="true">☀</span> Jour
           </button>
-          <button type="button" className={night ? 'is-active' : ''} aria-pressed={night} onClick={() => setNight(true)}>
+          <button type="button" className={night ? 'is-active' : ''} aria-pressed={night} onClick={() => { setAutoNight(false); setNight(true) }}>
             <span className="map-page__basemap-icon" aria-hidden="true">☾</span> Nuit
           </button>
         </div>

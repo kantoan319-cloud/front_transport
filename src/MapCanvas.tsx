@@ -6,7 +6,7 @@ import type {
   MapLayerMouseEvent,
   StyleSpecification,
 } from 'maplibre-gl'
-import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url'
+import workerUrl from 'maplibre-gl/dist/maplibre-gl-csp-worker.js?url'
 import 'maplibre-gl/dist/maplibre-gl.css'
 
 // MapLibre analyse les tuiles vectorielles dans un Web Worker : l'URL doit etre
@@ -41,7 +41,58 @@ interface MapCanvasProps {
 
 // Styles vectoriels libres (aucune cle d'API), avec batiments et routes.
 const STYLE_DAY = 'https://tiles.openfreemap.org/styles/positron'
-const STYLE_NIGHT = 'https://tiles.openfreemap.org/styles/dark'
+
+interface LooseLayer {
+  id: string
+  type: string
+  'source-layer'?: string
+  paint?: Record<string, unknown>
+}
+
+/**
+ * Le style "dark" d'OpenFreeMap ne termine pas son chargement (aucun cache de
+ * tuiles cree, carte vide) : on deroule donc le style clair et on le recolorie.
+ */
+function toNightStyle(style: StyleSpecification): StyleSpecification {
+  const clone = JSON.parse(JSON.stringify(style)) as StyleSpecification
+  const layers = clone.layers as unknown as LooseLayer[]
+  for (const layer of layers) {
+    const sourceLayer = layer['source-layer']
+    const paint = (layer.paint ??= {})
+    if (layer.type === 'background') {
+      paint['background-color'] = '#070c14'
+    } else if (layer.type === 'fill') {
+      if (sourceLayer === 'water') paint['fill-color'] = '#0b1624'
+      else if (sourceLayer === 'building') paint['fill-color'] = '#141d29'
+      else if (sourceLayer) paint['fill-color'] = '#0a121b'
+    } else if (layer.type === 'line') {
+      if (sourceLayer === 'transportation') paint['line-color'] = '#242e3b'
+      else if (sourceLayer === 'waterway') paint['line-color'] = '#0b1624'
+      else paint['line-color'] = '#1c2634'
+    } else if (layer.type === 'symbol') {
+      paint['text-color'] = '#cdd7e3'
+      paint['text-halo-color'] = 'rgba(5, 10, 18, 0.92)'
+      if (paint['icon-color']) paint['icon-color'] = '#9fb0c4'
+    } else if (layer.type === 'fill-extrusion') {
+      paint['fill-extrusion-color'] = '#1a2532'
+    }
+  }
+  clone.name = 'carte-nuit'
+  return clone
+}
+
+let nightStylePromise: Promise<StyleSpecification> | null = null
+
+function nightStyle(): Promise<StyleSpecification> {
+  nightStylePromise ??= fetch(STYLE_DAY)
+    .then((response) => response.json() as Promise<StyleSpecification>)
+    .then(toNightStyle)
+    .catch((error: unknown) => {
+      nightStylePromise = null
+      throw error
+    })
+  return nightStylePromise
+}
 
 const ROADS_FILTER: FilterSpecification = [
   'match',
@@ -68,9 +119,12 @@ function satelliteStyle(): StyleSpecification {
   }
 }
 
-function styleFor(basemap: MapCanvasProps['basemap'], night: boolean): string | StyleSpecification {
+function styleFor(
+  basemap: MapCanvasProps['basemap'],
+  night: boolean,
+): string | StyleSpecification | Promise<StyleSpecification> {
   if (basemap === 'satellite') return satelliteStyle()
-  return night ? STYLE_NIGHT : STYLE_DAY
+  return night ? nightStyle() : STYLE_DAY
 }
 
 /** Retire une couche et sa source si elles existent. */
@@ -134,6 +188,8 @@ function applyDecorations(map: MapLibreMap, props: MapCanvasProps) {
           'symbol-placement': 'line',
           'symbol-spacing': ['interpolate', ['linear'], ['zoom'], 13, 90, 17, 45],
           'text-field': '•',
+          // Police presente dans les styles OpenFreeMap (sinon les glyphes manquent).
+          'text-font': ['Noto Sans Regular'],
           'text-size': ['interpolate', ['linear'], ['zoom'], 13, 8, 18, 16],
           'text-allow-overlap': true,
           'text-ignore-placement': true,
@@ -239,53 +295,87 @@ export default function MapCanvas(props: MapCanvasProps) {
   useEffect(() => {
     const container = containerRef.current
     if (!container || mapRef.current) return
-    const map = new MapLibreMap({
-      container,
-      style: styleFor(props.basemap, props.night),
-      center: [props.center.longitude, props.center.latitude],
-      zoom: props.zoom,
-      attributionControl: false,
-      pitchWithRotate: false,
-      dragRotate: false,
-    })
-    mapRef.current = map
+    let disposed = false
+    let map: MapLibreMap | null = null
 
-    map.on('load', () => {
-      installPointLayers(map)
-      applyDecorations(map, propsRef.current)
-    })
-    map.on('click', 'points', (event: MapLayerMouseEvent) => {
-      const feature = event.features?.[0]
-      if (feature && typeof feature.properties?.key === 'string') {
-        propsRef.current.onSelect(feature.properties.key)
-      }
-    })
-    map.on('mouseenter', 'points', () => { map.getCanvas().style.cursor = 'pointer' })
-    map.on('mouseleave', 'points', () => { map.getCanvas().style.cursor = '' })
-    map.on('moveend', () => {
-      const center = map.getCenter()
-      propsRef.current.onMove({ latitude: center.lat, longitude: center.lng }, map.getZoom())
-    })
+    const start = async () => {
+      // Le style de nuit est construit a partir du style clair : il faut
+      // attendre sa resolution avant de creer la carte.
+      const style = await styleFor(props.basemap, props.night)
+      if (disposed) return
+      const instance = new MapLibreMap({
+        container,
+        style,
+        center: [props.center.longitude, props.center.latitude],
+        zoom: props.zoom,
+        attributionControl: false,
+        pitchWithRotate: false,
+        dragRotate: false,
+      })
+      map = instance
+      mapRef.current = instance
+      if (propsRef.current.viewMode === '3d') instance.jumpTo({ pitch: 55 })
+
+      instance.on('load', () => {
+        installPointLayers(instance)
+        applyDecorations(instance, propsRef.current)
+        updatePoints(instance, propsRef.current)
+        updateSelected(instance, propsRef.current.selectedKey)
+      })
+      instance.on('click', 'points', (event: MapLayerMouseEvent) => {
+        const feature = event.features?.[0]
+        if (feature && typeof feature.properties?.key === 'string') {
+          propsRef.current.onSelect(feature.properties.key)
+        }
+      })
+      instance.on('error', (event) => {
+        console.error('[carte] erreur MapLibre', event.error)
+      })
+      instance.on('mouseenter', 'points', () => { instance.getCanvas().style.cursor = 'pointer' })
+      instance.on('mouseleave', 'points', () => { instance.getCanvas().style.cursor = '' })
+      instance.on('moveend', () => {
+        const center = instance.getCenter()
+        propsRef.current.onMove({ latitude: center.lat, longitude: center.lng }, instance.getZoom())
+      })
+    }
+
+    void start()
+
     return () => {
-      map.remove()
+      disposed = true
+      map?.remove()
       mapRef.current = null
     }
     // La carte est creee une seule fois ; les changements passent par les effets.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Fond de carte / jour-nuit : nouveau style, puis redecorations.
+  // Fond de carte et heure : nouveau style, puis remise en place des couches
+  // une fois le style completement charge (style.load, pas styledata).
   useEffect(() => {
     const map = mapRef.current
     if (!map) return
-    map.setStyle(styleFor(props.basemap, props.night), { diff: false })
-    map.once('styledata', () => {
-      installPointLayers(map)
-      applyDecorations(map, propsRef.current)
-      updatePoints(map, propsRef.current)
-      updateSelected(map, propsRef.current.selectedKey)
-      map.easeTo({ pitch: propsRef.current.viewMode === '3d' ? 55 : 0, duration: 600 })
-    })
+    let cancelled = false
+    const apply = async () => {
+      const style = await styleFor(props.basemap, props.night)
+      if (cancelled) return
+      let reinstalled = false
+      const reinstall = () => {
+        if (reinstalled) return
+        reinstalled = true
+        installPointLayers(map)
+        applyDecorations(map, propsRef.current)
+        updatePoints(map, propsRef.current)
+        updateSelected(map, propsRef.current.selectedKey)
+      }
+      // L'ecouteur doit exister avant setStyle : un style objet peut se charger
+      // de facon synchrone et emettre style.load immediatement.
+      map.once('style.load', reinstall)
+      map.setStyle(style)
+      map.once('idle', reinstall)
+    }
+    void apply()
+    return () => { cancelled = true }
   }, [props.basemap, props.night])
 
   useEffect(() => {
