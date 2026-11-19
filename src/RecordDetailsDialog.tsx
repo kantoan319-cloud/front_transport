@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react'
-import { api, type DriverProfile, type VehicleDetails } from './api'
+import { api, photoUrl, type DriverProfile, type VehicleDetails } from './api'
 import './RecordDetailsDialog.css'
+import './premium.css'
 
 interface RecordDetailsDialogProps {
   kind: 'vehicle' | 'driver'
@@ -33,6 +34,14 @@ function DetailSection({ title, children }: { title: string; children: ReactNode
 
 function DetailRows({ rows }: { rows: [string, string][] }) {
   return <dl className="detail-rows">{rows.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>
+}
+
+/** Photo de la fiche ; masquee si le fichier est introuvable. */
+function DetailPhoto({ path, alt }: { path?: string | null; alt: string }) {
+  const [failed, setFailed] = useState(false)
+  const src = photoUrl(path)
+  if (!src || failed) return null
+  return <img className="detail-photo" src={src} alt={alt} onError={() => setFailed(true)} />
 }
 
 export default function RecordDetailsDialog({ kind, id, onClose }: RecordDetailsDialogProps) {
@@ -72,6 +81,7 @@ export default function RecordDetailsDialog({ kind, id, onClose }: RecordDetails
           : error ? <div className="alert error" role="alert">{error}</div>
             : record && isVehicleDetails(record) ? (
               <>
+                <DetailPhoto path={typeof record.photo === 'string' ? record.photo : null} alt={`Véhicule ${record.immatriculation ?? id}`} />
                 <DetailSection title="Véhicule"><DetailRows rows={[
                   ['Immatriculation', show(record.immatriculation)],
                   ['Type', show(record.type)],
@@ -92,6 +102,22 @@ export default function RecordDetailsDialog({ kind, id, onClose }: RecordDetails
                 <DetailSection title="Conducteurs affectés">
                   {record.drivers?.length ? <ul className="detail-list">{record.drivers.map((driver) => <li key={driver.id}><b>{driver.nom}</b><span>{driver.role} · {show(driver.telephone)}</span></li>)}</ul> : <p className="detail-empty">Aucun conducteur associé.</p>}
                 </DetailSection>
+                {record.bus && (
+                  <DetailSection title="Bus, équipage et licence">
+                    <DetailRows rows={[
+                      ['Ligne', show(record.bus.ligne)],
+                      ['Coopérative', show(record.bus.cooperative)],
+                      ['Conducteur', show(record.bus.conducteurNom)],
+                      ['Téléphone conducteur', show(record.bus.conducteurTelephone)],
+                      ['Receveur', show(record.bus.receveurNom)],
+                      ['Téléphone receveur', show(record.bus.receveurTelephone)],
+                      ['Licence', record.bus.licence ? `${show(record.bus.licence.numeroLicence)} · ${record.bus.licence.annee}` : 'Sans licence'],
+                      ['Validité de la licence', record.bus.licence ? `${date(record.bus.licence.dateDebut)} → ${date(record.bus.licence.dateFin)}` : '—'],
+                      ['Statut de la licence', record.bus.licence?.statut ?? 'Sans licence'],
+                      ['Vignette / visite médicale', 'Comprises dans la licence annuelle'],
+                    ]} />
+                  </DetailSection>
+                )}
                 <DetailSection title="Visites médicales">
                   {record.inspections?.length ? <ul className="detail-list">{record.inspections.map((visit, index) => <li key={`${visit.date}-${index}`}><b>{date(visit.date)} · valable jusqu’au {date(visit.expiration)}</b><span>{visit.dureeMois} mois · {show(visit.observation)}</span></li>)}</ul> : <p className="detail-empty">Aucune visite enregistrée.</p>}
                 </DetailSection>

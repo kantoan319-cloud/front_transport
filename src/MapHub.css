@@ -1,0 +1,4 @@
+.map-hub { display: flex; flex-direction: column; gap: 14px; }
+.map-hub__tabs { display: inline-flex; gap: 6px; padding: 5px; border-radius: 14px; background: rgba(15, 23, 42, .06); align-self: flex-start; }
+.map-hub__tabs button { border: 0; background: transparent; padding: 9px 16px; border-radius: 10px; font: inherit; font-weight: 600; color: inherit; cursor: pointer; }
+.map-hub__tabs button.active { background: var(--surface, #fff); box-shadow: 0 1px 4px rgba(15, 23, 42, .14); }

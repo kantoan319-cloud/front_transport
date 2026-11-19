@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import QRCode from 'qrcode'
 import JSZip from 'jszip'
 import { downloadBlob, stickerBlob, stickerFilename } from './qrSticker'
+import { downloadQrSheetPdf } from './documentPdf'
 import './VehicleQrBatchDialog.css'
 
 interface VehicleQrBatchDialogProps {
@@ -19,6 +20,7 @@ export default function VehicleQrBatchDialog({ registrations, onClose }: Vehicle
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
   const [downloading, setDownloading] = useState(false)
+  const [downloadingPdf, setDownloadingPdf] = useState(false)
 
   useEffect(() => {
     let active = true
@@ -73,29 +75,43 @@ export default function VehicleQrBatchDialog({ registrations, onClose }: Vehicle
     }
   }
 
+  async function downloadSheet() {
+    setDownloadingPdf(true)
+    try {
+      await downloadQrSheetPdf(items, `QR_codes_A4_${items.length}.pdf`)
+    } catch (reason: unknown) {
+      setError(reason instanceof Error ? reason.message : 'Téléchargement du PDF impossible.')
+    } finally {
+      setDownloadingPdf(false)
+    }
+  }
+
   return (
     <div className="modal-backdrop qr-batch-backdrop" role="presentation" onMouseDown={(event) => {
       if (event.target === event.currentTarget) onClose()
     }}>
       <section className="qr-batch-dialog" role="dialog" aria-modal="true" aria-labelledby="qr-batch-title">
         <div className="qr-batch-heading">
-          <div><span className="eyebrow">IMPRESSION GROUPÉE</span><h2 id="qr-batch-title">{registrations.length} QR code{registrations.length === 1 ? '' : 's'} sélectionné{registrations.length === 1 ? '' : 's'}</h2></div>
+          <div><span className="eyebrow">IMPRESSION GROUPÉE · 6 QR PAR PAGE A4</span><h2 id="qr-batch-title">{registrations.length} QR code{registrations.length === 1 ? '' : 's'} sélectionné{registrations.length === 1 ? '' : 's'}</h2></div>
           <button className="modal-close qr-batch-close" onClick={onClose} aria-label="Fermer">×</button>
         </div>
         {error ? <div className="alert error" role="alert">{error}</div>
           : loading ? <div className="qr-batch-loading"><span className="spinner" /> Génération des QR codes…</div>
             : <div className="qr-batch-grid">{items.map((item) => (
               <article className="qr-batch-card" key={item.registration}>
-                <img src={item.image} alt={`QR code pour ${item.registration}`} />
-                <b>{item.registration}</b>
+                <div className="qr-batch-code">
+                  <img src={item.image} alt={`QR code pour ${item.registration}`} />
+                  <b>{item.registration}</b>
+                </div>
                 <small>Scannez pour consulter la fiche</small>
-                <button type="button" className="table-action qr-batch-download" onClick={() => void downloadOne(item)}>Télécharger</button>
+                <button type="button" className="table-action qr-batch-download" onClick={() => void downloadOne(item)}>Télécharger le PNG</button>
               </article>
             ))}</div>}
         <div className="qr-batch-actions">
           <button className="button secondary" onClick={onClose}>Fermer</button>
-          <button className="button secondary" disabled={loading || Boolean(error) || items.length === 0 || downloading} onClick={() => void downloadAll()}>{downloading ? 'Préparation…' : items.length > 1 ? 'Télécharger (.zip)' : 'Télécharger le PNG'}</button>
-          <button className="button primary" disabled={loading || Boolean(error) || items.length === 0} onClick={() => window.print()}>Imprimer la sélection</button>
+          <button className="button secondary" disabled={loading || Boolean(error) || items.length === 0 || downloading} onClick={() => void downloadAll()}>{downloading ? 'Préparation…' : items.length > 1 ? 'Télécharger les PNG (.zip)' : 'Télécharger le PNG'}</button>
+          <button className="button secondary" disabled={loading || Boolean(error) || items.length === 0 || downloadingPdf} onClick={() => void downloadSheet()}>{downloadingPdf ? 'Préparation…' : 'Télécharger la feuille A4 (PDF)'}</button>
+          <button className="button primary" disabled={loading || Boolean(error) || items.length === 0} onClick={() => window.print()}>Imprimer (6 par page)</button>
         </div>
       </section>
     </div>

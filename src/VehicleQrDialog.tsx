@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import QRCode from 'qrcode'
 import { downloadBlob, stickerBlob, stickerFilename } from './qrSticker'
+import { downloadQrSheetPdf } from './documentPdf'
 
 interface VehicleQrDialogProps {
   immatriculation: string
@@ -11,6 +12,7 @@ export default function VehicleQrDialog({ immatriculation, onClose }: VehicleQrD
   const [image, setImage] = useState('')
   const [error, setError] = useState('')
   const [downloading, setDownloading] = useState(false)
+  const [downloadingPdf, setDownloadingPdf] = useState(false)
 
   useEffect(() => {
     let active = true
@@ -40,6 +42,18 @@ export default function VehicleQrDialog({ immatriculation, onClose }: VehicleQrD
     }
   }
 
+  async function downloadPdf() {
+    if (!image) return
+    setDownloadingPdf(true)
+    try {
+      await downloadQrSheetPdf([{ registration: immatriculation, image }], `QR_${immatriculation.replace(/[^\w-]+/g, '_')}_A4.pdf`)
+    } catch (reason: unknown) {
+      setError(reason instanceof Error ? reason.message : 'Téléchargement du PDF impossible.')
+    } finally {
+      setDownloadingPdf(false)
+    }
+  }
+
   return (
     <div className="modal-backdrop qr-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}>
       <section className="qr-dialog" role="dialog" aria-modal="true" aria-labelledby="qr-title">
@@ -48,12 +62,13 @@ export default function VehicleQrDialog({ immatriculation, onClose }: VehicleQrD
             <div><span className="eyebrow">FICHE PUBLIQUE DU VÉHICULE</span><h2 id="qr-title">{immatriculation}</h2></div>
             <button className="modal-close qr-close" onClick={onClose} aria-label="Fermer">×</button>
           </div>
-          {error ? <div className="alert error" role="alert">{error}</div> : image ? <img className="qr-image" src={image} alt={`QR code pour ${immatriculation}`} /> : <div className="qr-loading"><span className="spinner" /><span>Génération du QR code…</span></div>}
+          {error ? <div className="alert error" role="alert">{error}</div> : image ? <div className="qr-code-block"><img className="qr-image" src={image} alt={`QR code pour ${immatriculation}`} /><b className="qr-code-plate">{immatriculation}</b></div> : <div className="qr-loading"><span className="spinner" /><span>Génération du QR code…</span></div>}
           <p>Scannez ce code pour vérifier les informations du véhicule.</p>
         </div>
         <div className="qr-dialog-actions">
           <button className="button secondary" onClick={onClose}>Fermer</button>
           <button className="button secondary" disabled={!image || Boolean(error) || downloading} onClick={() => void download()}>{downloading ? 'Téléchargement…' : 'Télécharger le PNG'}</button>
+          <button className="button secondary" disabled={!image || Boolean(error) || downloadingPdf} onClick={() => void downloadPdf()}>{downloadingPdf ? 'Préparation…' : 'Télécharger le PDF A4'}</button>
           <button className="button primary" disabled={!image || Boolean(error)} onClick={() => window.print()}>Imprimer le QR code</button>
         </div>
       </section>

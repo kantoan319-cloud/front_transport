@@ -1,0 +1,14 @@
+.exports-page { display: flex; flex-direction: column; gap: 18px; }
+.exports-page__header h1 { margin: 6px 0 6px; font-size: 1.6rem; }
+.exports-page__header p { margin: 0; opacity: .72; max-width: 720px; }
+.exports-page__message { padding: 10px 14px; border-radius: 12px; background: #eaf5ee; color: #23603f; font-size: .85rem; }
+.exports-page__empty { opacity: .65; }
+.exports-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; }
+.export-card { border: 1px solid var(--border, #e2e8f0); border-radius: 14px; background: var(--surface, #fff); padding: 16px; display: flex; flex-direction: column; gap: 10px; }
+.export-card__head { display: flex; align-items: center; gap: 10px; }
+.export-card__icon { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 9px; background: rgba(217, 119, 6, .12); color: #b45309; font-weight: 700; }
+.export-card h2 { margin: 0; font-size: 1rem; }
+.export-card p { margin: 0; font-size: .82rem; opacity: .7; flex: 1; }
+.export-card__actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.export-card__actions .button { padding: 8px 12px; font-size: .78rem; }
+.exports-page__note { margin: 0; font-size: .8rem; opacity: .62; }

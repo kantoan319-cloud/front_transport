@@ -23,15 +23,16 @@ export async function stickerBlob(qrImage: string, registration: string): Promis
   context.fillRect(0, 0, width, height)
   context.drawImage(image, 40, 20, 180, 180)
 
-  context.textAlign = 'center'
+  context.textAlign = 'right'
   context.fillStyle = '#111111'
   let size = 34
   do {
     context.font = `bold ${size}px "Segoe UI", Arial, sans-serif`
     size -= 2
-  } while (context.measureText(registration).width > 220 && size > 12)
-  context.fillText(registration, width / 2, 250)
+  } while (context.measureText(registration).width > 210 && size > 12)
+  context.fillText(registration, width - 20, 248)
 
+  context.textAlign = 'center'
   context.font = '15px "Segoe UI", Arial, sans-serif'
   context.fillStyle = '#555555'
   context.fillText('Scannez pour consulter la fiche', width / 2, 285)

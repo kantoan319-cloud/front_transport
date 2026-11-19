@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { Map as MapLibreMap } from 'maplibre-gl'
+import { Map as MapLibreMap, Marker } from 'maplibre-gl'
 import type {
   FilterSpecification,
   GeoJSONSource,
@@ -11,10 +11,24 @@ import 'maplibre-gl/dist/maplibre-gl.css'
 export interface MapPoint {
   key: string
   label: string
-  kind: 'vehicle' | 'scan'
+  kind: 'vehicle' | 'scan' | 'arret' | 'trace' | 'signal' | 'parking'
   color: string
   latitude: number
   longitude: number
+}
+
+export interface MapLine {
+  key: string
+  color: string
+  points: { latitude: number; longitude: number }[]
+}
+
+/** Bus simule : position, cap et phares allumes la nuit. */
+export interface MapVehiclePosition {
+  latitude: number
+  longitude: number
+  bearing: number
+  headlights: boolean
 }
 
 interface Coordinates {
@@ -24,6 +38,11 @@ interface Coordinates {
 
 interface MapCanvasProps {
   points: MapPoint[]
+  lines?: MapLine[]
+  vehicle?: MapVehiclePosition | null
+  follow?: boolean
+  terrain?: boolean
+  focus?: { latitude: number; longitude: number; zoom: number; pitch: number; bearing: number; key: number } | null
   selectedKey: string
   center: Coordinates
   zoom: number
@@ -32,6 +51,7 @@ interface MapCanvasProps {
   night: boolean
   onSelect: (key: string) => void
   onMove: (center: Coordinates, zoom: number) => void
+  onMapClick?: (coordinates: Coordinates) => void
 }
 
 // Styles vectoriels libres (aucune cle d'API), avec batiments et routes.
@@ -122,6 +142,32 @@ function styleFor(
   return night ? nightStyle() : STYLE_DAY
 }
 
+/**
+ * Relief reel : modele d'elevation (tuiles Terrarium Mapzen/AWS) + ombrage.
+ * La carte se deforme alors en 3D et suit le relief du terrain.
+ */
+function installTerrain(map: MapLibreMap, actif: boolean) {
+  if (!actif) {
+    if (map.getTerrain()) map.setTerrain(null)
+    removeLayer(map, 'relief')
+    return
+  }
+  if (!map.getSource('terrain-dem')) {
+    map.addSource('terrain-dem', {
+      type: 'raster-dem',
+      tiles: ['https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png'],
+      encoding: 'terrarium',
+      tileSize: 256,
+      maxzoom: 15,
+      attribution: 'Relief © Mapzen / AWS Terrain Tiles',
+    })
+  }
+  // Le relief est deja ombre par le moteur de terrain : une couche hillshade
+  // sur la meme source est inutile et declenche un avertissement MapLibre.
+  removeLayer(map, 'relief')
+  map.setTerrain({ source: 'terrain-dem', exaggeration: 1.5 });
+}
+
 /** Retire une couche et sa source si elles existent. */
 function removeLayer(map: MapLibreMap, id: string) {
   if (map.getLayer(id)) map.removeLayer(id)
@@ -203,12 +249,47 @@ function applyDecorations(map: MapLibreMap, props: MapCanvasProps) {
     removeLayer(map, 'routes-eclairees')
   }
 
-  // Points (vehicules et scans) au-dessus du fond.
-  const beforeId = ['lampadaires', 'bati-3d', 'routes-eclairees'].find((id) => map.getLayer(id))
-  const layerIds = ['points-halo', 'points', 'points-selected', 'points-labels']
+  // Traces et points au-dessus des batiments 3D (lisibilite en navigation).
+  const layerIds = ['trajets-casing', 'trajets', 'points-halo', 'points', 'points-selected', 'points-labels', 'points-arrets']
   for (const id of layerIds) {
-    if (map.getLayer(id)) map.moveLayer(id, beforeId)
-    else if (!map.getLayer(id)) break
+    if (map.getLayer(id)) map.moveLayer(id)
+  }
+
+  installTerrain(map, Boolean(props.terrain))
+}
+
+function installLineLayers(map: MapLibreMap) {
+  if (!map.getSource('trajets')) {
+    map.addSource('trajets', {
+      type: 'geojson',
+      data: { type: 'FeatureCollection', features: [] },
+    })
+  }
+  if (!map.getLayer('trajets-casing')) {
+    map.addLayer({
+      id: 'trajets-casing',
+      type: 'line',
+      source: 'trajets',
+      layout: { 'line-cap': 'round', 'line-join': 'round' },
+      paint: {
+        'line-color': '#ffffff',
+        'line-width': 9,
+        'line-opacity': 0.8,
+      },
+    })
+  }
+  if (!map.getLayer('trajets')) {
+    map.addLayer({
+      id: 'trajets',
+      type: 'line',
+      source: 'trajets',
+      layout: { 'line-cap': 'round', 'line-join': 'round' },
+      paint: {
+        'line-color': ['get', 'color'],
+        'line-width': 5,
+        'line-opacity': 0.95,
+      },
+    })
   }
 }
 
@@ -279,11 +360,27 @@ function installPointLayers(map: MapLibreMap) {
       },
     })
   }
+  if (!map.getLayer('points-arrets')) {
+    map.addLayer({
+      id: 'points-arrets',
+      type: 'circle',
+      source: 'points',
+      filter: ['==', ['get', 'kind'], 'arret'],
+      paint: {
+        'circle-radius': ['interpolate', ['linear'], ['zoom'], 10, 6, 16, 11],
+        'circle-color': '#ffffff',
+        'circle-stroke-color': ['get', 'color'],
+        'circle-stroke-width': 3,
+      },
+    })
+  }
 }
 
 export default function MapCanvas(props: MapCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<MapLibreMap | null>(null)
+  const markerRef = useRef<Marker | null>(null)
+  const markerElementRef = useRef<HTMLDivElement | null>(null)
   const propsRef = useRef(props)
   propsRef.current = props
 
@@ -311,17 +408,29 @@ export default function MapCanvas(props: MapCanvasProps) {
       mapRef.current = instance
       if (propsRef.current.viewMode === '3d') instance.jumpTo({ pitch: 55 })
 
+      let dernierClicPoint = 0
       instance.on('load', () => {
+        installLineLayers(instance)
         installPointLayers(instance)
         applyDecorations(instance, propsRef.current)
+        updateLines(instance, propsRef.current)
         updatePoints(instance, propsRef.current)
         updateSelected(instance, propsRef.current.selectedKey)
       })
       instance.on('click', 'points', (event: MapLayerMouseEvent) => {
         const feature = event.features?.[0]
         if (feature && typeof feature.properties?.key === 'string') {
+          dernierClicPoint = Date.now()
           propsRef.current.onSelect(feature.properties.key)
         }
+      })
+      instance.on('click', (event) => {
+        if (!propsRef.current.onMapClick) return
+        if (Date.now() - dernierClicPoint < 300) return
+        propsRef.current.onMapClick({
+          latitude: event.lngLat.lat,
+          longitude: event.lngLat.lng,
+        })
       })
       instance.on('error', (event) => {
         console.error('[carte] erreur MapLibre', event.error)
@@ -358,8 +467,10 @@ export default function MapCanvas(props: MapCanvasProps) {
       const reinstall = () => {
         if (reinstalled) return
         reinstalled = true
+        installLineLayers(map)
         installPointLayers(map)
         applyDecorations(map, propsRef.current)
+        updateLines(map, propsRef.current)
         updatePoints(map, propsRef.current)
         updateSelected(map, propsRef.current.selectedKey)
       }
@@ -383,14 +494,77 @@ export default function MapCanvas(props: MapCanvasProps) {
   useEffect(() => {
     const map = mapRef.current
     if (!map) return
+    installTerrain(map, Boolean(props.terrain))
+  }, [props.terrain])
+
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map) return
     updatePoints(map, props)
   }, [props.points])
 
   useEffect(() => {
     const map = mapRef.current
     if (!map) return
+    updateLines(map, props)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [props.lines])
+
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map) return
     updateSelected(map, props.selectedKey)
   }, [props.selectedKey])
+
+  // Camera de navigation : zoom maximal, vue inclinee, orientation du bus.
+  useEffect(() => {
+    const map = mapRef.current
+    const focus = props.focus
+    if (!map || !focus) return
+    map.jumpTo({
+      center: [focus.longitude, focus.latitude],
+      zoom: focus.zoom,
+      pitch: focus.pitch,
+      bearing: focus.bearing,
+    })
+  }, [props.focus])
+
+  // Bus simule : marqueur HTML (le faisceau des phares est dessine en CSS).
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map) return
+    const vehicule = props.vehicle
+    if (!vehicule) {
+      markerRef.current?.remove()
+      markerRef.current = null
+      markerElementRef.current = null
+      return
+    }
+    if (!markerRef.current) {
+      const element = document.createElement('div')
+      element.className = 'map-bus'
+      element.innerHTML = '<div class="map-bus__beam"></div><div class="map-bus__body">🚌</div>'
+      markerRef.current = new Marker({ element, anchor: 'center' })
+        .setLngLat([vehicule.longitude, vehicule.latitude])
+        .addTo(map)
+      markerElementRef.current = element
+    } else {
+      markerRef.current.setLngLat([vehicule.longitude, vehicule.latitude])
+    }
+    if (props.follow) {
+      map.jumpTo({
+        center: [vehicule.longitude, vehicule.latitude],
+        bearing: vehicule.bearing,
+      })
+    }
+    const element = markerElementRef.current
+    if (!element) return
+    element.classList.toggle('is-night', vehicule.headlights)
+    const beam = element.querySelector('.map-bus__beam') as HTMLElement | null
+    if (beam) {
+      beam.style.transform = `translate(-50%, -100%) rotate(${vehicule.bearing}deg)`
+    }
+  }, [props.vehicle, props.follow])
 
   // Recentrage demande par la page (selection dans la liste, actualisation).
   useEffect(() => {
@@ -430,6 +604,24 @@ function updatePoints(map: MapLibreMap, props: MapCanvasProps) {
         color: point.color,
       },
     })),
+  })
+}
+
+function updateLines(map: MapLibreMap, props: MapCanvasProps) {
+  const source = map.getSource('trajets') as GeoJSONSource | undefined
+  if (!source) return
+  source.setData({
+    type: 'FeatureCollection',
+    features: (props.lines ?? [])
+      .filter((line) => line.points.length > 1)
+      .map((line) => ({
+        type: 'Feature' as const,
+        geometry: {
+          type: 'LineString' as const,
+          coordinates: line.points.map((point) => [point.longitude, point.latitude]),
+        },
+        properties: { key: line.key, color: line.color },
+      })),
   })
 }
 

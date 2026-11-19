@@ -1,0 +1,146 @@
+.busmap { display: flex; flex-direction: column; gap: 18px; }
+
+.busmap__header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.busmap__eyebrow { font-size: .72rem; letter-spacing: .14em; text-transform: uppercase; opacity: .65; }
+.busmap__header h1 { margin: 6px 0 4px; font-size: 1.6rem; }
+.busmap__header p { margin: 0; opacity: .7; }
+
+.busmap__toolbar { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 14px; padding: 14px 16px; border: 1px solid var(--border, #e2e8f0); border-radius: 14px; background: var(--surface, #fff); }
+.busmap__field { display: flex; flex-direction: column; gap: 6px; font-size: .8rem; font-weight: 600; }
+.busmap__field.small { font-size: .75rem; }
+.busmap__field select, .busmap__field input { padding: 8px 10px; border-radius: 9px; border: 1px solid var(--border, #e2e8f0); font: inherit; background: var(--surface, #fff); color: inherit; }
+.busmap__stats { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-left: auto; }
+.busmap__stats > span { padding: 6px 10px; border-radius: 999px; background: rgba(15, 23, 42, .05); font-size: .78rem; }
+.busmap__stats b { margin-right: 3px; }
+.busmap__source { opacity: .75; }
+.busmap__basemap { display: inline-flex; padding: 3px; border-radius: 10px; background: rgba(15, 23, 42, .06); }
+.busmap__basemap button { border: 0; background: transparent; padding: 7px 12px; border-radius: 8px; font: inherit; font-weight: 600; cursor: pointer; color: inherit; }
+.busmap__basemap button.is-active { background: var(--surface, #fff); box-shadow: 0 1px 4px rgba(15, 23, 42, .14); }
+
+.busmap__message { display: flex; justify-content: space-between; gap: 12px; padding: 10px 14px; border-radius: 12px; background: #eaf5ee; color: #23603f; font-size: .85rem; }
+.busmap__message button { border: 0; background: transparent; cursor: pointer; color: inherit; font-size: 1rem; }
+
+.busmap__workspace { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 16px; align-items: stretch; }
+.busmap__map { position: relative; min-height: 540px; border-radius: 16px; overflow: hidden; border: 1px solid var(--border, #e2e8f0); background: #eef2f1; }
+.busmap__map.is-editing { box-shadow: 0 0 0 3px rgba(217, 79, 79, .25); }
+.busmap__hint { position: absolute; left: 16px; bottom: 16px; z-index: 2; padding: 8px 14px; border-radius: 999px; background: rgba(15, 23, 42, .82); color: #fff; font-size: .8rem; }
+.busmap__loading { position: absolute; inset: 0; display: grid; place-items: center; background: rgba(255, 255, 255, .55); font-size: .9rem; z-index: 2; }
+
+.busmap__side { display: flex; flex-direction: column; gap: 14px; max-height: 720px; overflow: auto; padding-right: 2px; }
+.busmap__tools, .busmap__form, .busmap__stops, .busmap__detail { border: 1px solid var(--border, #e2e8f0); border-radius: 14px; padding: 14px; background: var(--surface, #fff); display: flex; flex-direction: column; gap: 10px; }
+.busmap__tools h2, .busmap__form h2, .busmap__stops h2, .busmap__detail h2 { margin: 0; font-size: .95rem; }
+.busmap__buttons { display: flex; flex-wrap: wrap; gap: 8px; }
+.busmap__buttons .button { padding: 8px 12px; font-size: .78rem; }
+.busmap__coords { margin: 0; font-size: .75rem; opacity: .65; }
+
+.busmap__stops-heading { display: flex; align-items: center; justify-content: space-between; }
+.busmap__stops-heading span { padding: 2px 9px; border-radius: 999px; background: rgba(15, 23, 42, .07); font-size: .78rem; font-weight: 700; }
+.busmap__stop-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.busmap__stop { display: flex; align-items: center; gap: 6px; border-radius: 10px; }
+.busmap__stop.is-selected { background: rgba(31, 111, 235, .08); }
+.busmap__stop-main { flex: 1; display: flex; align-items: center; gap: 9px; padding: 7px 8px; border: 0; background: transparent; border-radius: 10px; font: inherit; color: inherit; text-align: left; cursor: pointer; }
+.busmap__stop-index { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: #1f6feb; color: #fff; font-size: .72rem; font-weight: 700; flex: none; }
+.busmap__stop-name { font-size: .86rem; }
+.busmap__stop-delete { border: 0; background: transparent; color: #a95550; font-size: 1rem; cursor: pointer; padding: 4px 8px; border-radius: 8px; }
+.busmap__stop-delete:hover { background: #fbeeea; }
+.busmap__empty { margin: 0; font-size: .82rem; opacity: .6; }
+
+.busmap__detail dl { margin: 0; display: grid; gap: 6px; font-size: .82rem; }
+.busmap__detail dl div { display: flex; justify-content: space-between; gap: 10px; }
+.busmap__detail dt { opacity: .6; }
+.busmap__detail dd { margin: 0; text-align: right; }
+
+.busmap__legend { display: flex; flex-wrap: wrap; gap: 16px; font-size: .78rem; opacity: .8; }
+.busmap__legend i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; }
+
+.busmap .button.danger, .busmap__buttons .button.danger { color: #a95550; }
+
+.busmap__simulation { border: 1px solid var(--border, #e2e8f0); border-radius: 14px; padding: 14px; background: var(--surface, #fff); display: flex; flex-direction: column; gap: 10px; }
+.busmap__simulation-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.busmap__simulation h2 { margin: 0; font-size: .95rem; }
+.busmap__night-badge { padding: 3px 9px; border-radius: 999px; background: #fdf3dd; color: #8a5a12; font-size: .72rem; font-weight: 700; }
+.busmap__night-badge.is-night { background: #1c2637; color: #ffe6b8; }
+.busmap__progress { height: 8px; border-radius: 999px; background: rgba(15, 23, 42, .08); overflow: hidden; }
+.busmap__progress > div { height: 100%; border-radius: 999px; background: linear-gradient(90deg, #e8a33d, #d97706); transition: width .1s linear; }
+.busmap__simulation-note { margin: 0; font-size: .72rem; opacity: .6; }
+
+/* Bus simulé : marqueur HTML, faisceau des phares en CSS. */
+.map-bus { position: relative; width: 36px; height: 36px; display: grid; place-items: center; pointer-events: none; }
+.map-bus__body { font-size: 22px; line-height: 1; filter: drop-shadow(0 3px 5px rgba(0, 0, 0, .45)); transition: filter .25s; }
+.map-bus.is-night .map-bus__body { filter: drop-shadow(0 0 8px rgba(255, 214, 102, .9)) drop-shadow(0 3px 5px rgba(0, 0, 0, .5)); }
+.map-bus__beam { position: absolute; left: 50%; top: 50%; width: 120px; height: 120px; transform-origin: 50% 100%; transform: translate(-50%, -100%); clip-path: polygon(50% 100%, 0 0, 100% 0); background: linear-gradient(to top, rgba(255, 224, 130, .75), rgba(255, 224, 130, .28) 45%, rgba(255, 224, 130, 0) 100%); opacity: 0; transition: opacity .3s; pointer-events: none; }
+.map-bus.is-night .map-bus__beam { opacity: 1; }
+
+/* Plein ecran : la carte occupe tout l'ecran, un bandeau flottant la pilote. */
+.busmap.is-fullscreen .busmap__header,
+.busmap.is-fullscreen .busmap__toolbar,
+.busmap.is-fullscreen .busmap__side,
+.busmap.is-fullscreen .busmap__legend,
+.busmap.is-fullscreen > .alert,
+.busmap.is-fullscreen > .busmap__message { display: none; }
+.busmap.is-fullscreen .busmap__workspace { display: block; }
+.busmap.is-fullscreen .busmap__map {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  min-height: 100vh;
+  border: 0;
+  border-radius: 0;
+}
+.busmap__fullscreen {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  z-index: 4;
+  padding: 8px 13px;
+  border-radius: 999px;
+  border: 1px solid rgba(15, 23, 42, .12);
+  background: rgba(255, 255, 255, .94);
+  color: #1f2b25;
+  font: inherit;
+  font-size: .78rem;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, .18);
+}
+.busmap__fullscreen:hover { background: #fff; }
+.busmap__hud {
+  position: fixed;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 95;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, .88);
+  color: #fff;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, .35);
+  backdrop-filter: blur(10px);
+}
+.busmap__hud-title { font-size: .8rem; font-weight: 700; margin-right: 4px; }
+.busmap__hud button {
+  border: 0;
+  border-radius: 999px;
+  padding: 7px 12px;
+  background: rgba(255, 255, 255, .14);
+  color: #fff;
+  font: inherit;
+  font-size: .76rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.busmap__hud button:hover { background: rgba(255, 255, 255, .24); }
+.busmap__hud button.is-active { background: #e8a33d; color: #1a1205; }
+@media (max-width: 700px) {
+  .busmap__hud { border-radius: 16px; max-width: calc(100% - 24px); justify-content: center; }
+}
+
+@media (max-width: 1000px) {
+  .busmap__workspace { grid-template-columns: 1fr; }
+  .busmap__side { max-height: none; }
+  .busmap__map { min-height: 420px; }
+}

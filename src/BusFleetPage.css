@@ -1,0 +1,438 @@
+.bus-page { display: flex; flex-direction: column; gap: 18px; }
+
+.bus-tabs { display: inline-flex; gap: 6px; padding: 5px; border-radius: 14px; background: var(--surface-soft, rgba(15, 23, 42, .05)); align-self: flex-start; }
+.bus-tabs.inline { padding: 3px; border-radius: 11px; }
+.bus-tabs button { border: 0; background: transparent; padding: 9px 16px; border-radius: 10px; font: inherit; font-weight: 600; color: inherit; cursor: pointer; }
+.bus-tabs button span { margin-left: 8px; font-weight: 500; opacity: .6; font-size: .82em; }
+.bus-tabs button.active { background: var(--surface, #fff); box-shadow: 0 1px 4px rgba(15, 23, 42, .12); }
+
+.bus-summary { display: flex; flex-wrap: wrap; gap: 10px; }
+.bus-chip { display: flex; flex-direction: column; gap: 2px; padding: 10px 16px; border-radius: 12px; border: 1px solid var(--border, #e2e8f0); background: var(--surface, #fff); color: inherit; font: inherit; cursor: pointer; text-align: left; }
+.bus-chip b { font-size: 1rem; }
+.bus-chip span { font-size: .8rem; opacity: .65; }
+.bus-chip.active { border-color: #d97706; box-shadow: 0 0 0 2px rgba(217, 119, 6, .18); }
+.bus-chip.neutral { cursor: default; }
+
+.bus-table td { vertical-align: top; }
+.bus-line { display: inline-block; padding: 3px 9px; border-radius: 999px; background: rgba(217, 119, 6, .12); color: #b45309; font-weight: 700; font-size: .78rem; white-space: nowrap; }
+.bus-year { display: block; font-size: .75rem; opacity: .6; }
+.bus-sub { display: block; font-size: .75rem; opacity: .6; }
+.bus-empty { padding: 28px 22px; opacity: .7; }
+
+.bus-form { display: grid; gap: 16px; }
+.bus-form fieldset { border: 1px solid var(--border, #e2e8f0); border-radius: 12px; padding: 14px 16px 16px; display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+.bus-form legend { padding: 0 6px; font-weight: 700; font-size: .85rem; text-transform: uppercase; letter-spacing: .06em; opacity: .7; }
+.bus-form label { display: flex; flex-direction: column; gap: 6px; font-size: .85rem; font-weight: 600; }
+.bus-form input { padding: 9px 11px; border-radius: 9px; border: 1px solid var(--border, #e2e8f0); font: inherit; background: var(--surface, #fff); color: inherit; }
+.bus-form .form-actions { display: flex; justify-content: flex-end; gap: 10px; }
+
+.bus-licence-list { display: flex; flex-wrap: wrap; gap: 8px; grid-column: 1 / -1; }
+.bus-licence-pill { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; padding: 8px 12px; border-radius: 10px; border: 1px solid var(--border, #e2e8f0); background: var(--surface, #fff); color: inherit; font: inherit; cursor: pointer; text-align: left; }
+.bus-licence-pill b { font-size: .95rem; }
+.bus-licence-pill > span:not(.status-pill) { font-size: .78rem; opacity: .7; }
+.bus-licence-pill.active { border-color: #d97706; box-shadow: 0 0 0 2px rgba(217, 119, 6, .18); }
+.bus-licence-pill.add { justify-content: center; border-style: dashed; opacity: .85; }
+.bus-licence-empty { grid-column: 1 / -1; opacity: .65; font-size: .85rem; }
+.bus-licence-delete { margin-right: auto; color: #a95550; border-color: #f0cfca; }
+.bus-form fieldset:first-of-type { grid-template-columns: 1fr; }
+.bus-form fieldset > .form-note { grid-column: 1 / -1; margin: 0; }
+
+/* ------------------------------------------------------------------
+   Thème « moderne clair » des pages flotte (Bus & licences, Bajaj).
+   Ces pages forment un espace de travail clair, y compris quand le
+   reste de l'application utilise le thème sombre.
+------------------------------------------------------------------ */
+.bus-page {
+  --fl-bg: #f4f6f9;
+  --fl-card: #ffffff;
+  --fl-line: #e7ecf2;
+  --fl-line-soft: #f0f3f7;
+  --fl-ink: #17241f;
+  --fl-ink-soft: #5d6d66;
+  --fl-muted: #8b98a2;
+  --fl-accent: #12795a;
+  --fl-accent-dark: #0d6047;
+  --fl-accent-soft: #eaf5f0;
+  gap: 20px;
+  padding: 20px;
+  border-radius: 24px;
+  background: var(--fl-bg);
+  color: var(--fl-ink);
+  box-shadow: inset 0 0 0 1px var(--fl-line);
+}
+
+/* Onglets (Bus & licences / Attestations) */
+.bus-page .bus-tabs {
+  padding: 5px;
+  border-radius: 14px;
+  background: #ffffff;
+  border: 1px solid var(--fl-line);
+  box-shadow: 0 1px 2px rgba(16, 32, 26, .04);
+  gap: 4px;
+}
+.bus-page .bus-tabs button {
+  padding: 9px 17px;
+  border-radius: 10px;
+  color: var(--fl-ink-soft);
+  font-weight: 600;
+  font-size: 12px;
+  transition: background .15s ease, color .15s ease;
+}
+.bus-page .bus-tabs button:hover { background: #f5f8f7; color: var(--fl-accent-dark); }
+.bus-page .bus-tabs button.active {
+  background: var(--fl-accent-soft);
+  color: var(--fl-accent-dark);
+  box-shadow: none;
+}
+.bus-page .bus-tabs button span { opacity: .55; }
+
+/* Pastilles de synthèse -> cartes statistiques */
+.bus-page .bus-summary { gap: 12px; }
+.bus-page .bus-chip {
+  min-width: 132px;
+  padding: 14px 18px;
+  border-radius: 16px;
+  border: 1px solid var(--fl-line);
+  background: var(--fl-card);
+  color: var(--fl-ink);
+  box-shadow: 0 1px 2px rgba(16, 32, 26, .04), 0 10px 24px rgba(16, 32, 26, .04);
+  transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease;
+}
+.bus-page .bus-chip:hover { transform: translateY(-2px); box-shadow: 0 12px 28px rgba(16, 32, 26, .09); }
+.bus-page .bus-chip b { font: 700 17px/1.2 Manrope, sans-serif; letter-spacing: -.3px; color: var(--fl-ink); }
+.bus-page .bus-chip span { font-size: 10px; color: var(--fl-muted); font-weight: 600; letter-spacing: .02em; }
+.bus-page .bus-chip.active {
+  border-color: var(--fl-accent);
+  background: var(--fl-accent-soft);
+  box-shadow: 0 0 0 3px rgba(18, 121, 90, .12);
+}
+.bus-page .bus-chip.neutral { cursor: default; }
+.bus-page .bus-chip.neutral b { color: var(--fl-accent-dark); }
+
+/* Carte principale et barre d'outils */
+.bus-page .content-card {
+  border: 1px solid var(--fl-line);
+  border-radius: 18px;
+  overflow: hidden;
+  background: var(--fl-card);
+  box-shadow: 0 1px 2px rgba(16, 32, 26, .04), 0 14px 34px rgba(16, 32, 26, .05);
+  color: var(--fl-ink);
+}
+.bus-page .list-toolbar {
+  padding: 18px 20px;
+  border-bottom: 1px solid var(--fl-line-soft);
+  gap: 14px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.bus-page .list-title { flex-wrap: nowrap; white-space: nowrap; }
+.bus-page .list-filters { flex-wrap: wrap; justify-content: flex-end; row-gap: 8px; }
+.bus-page .list-filters .button { white-space: nowrap; }
+.bus-page .list-title h2 { color: var(--fl-ink); font: 700 14px Manrope, sans-serif; letter-spacing: -.2px; }
+.bus-page .record-count {
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: var(--fl-accent-soft);
+  color: var(--fl-accent-dark);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+/* Champs */
+.bus-page .search-field {
+  height: 36px;
+  flex: 1 1 210px;
+  min-width: 190px;
+  max-width: 320px;
+  padding: 0 11px;
+  border-radius: 10px;
+  border: 1px solid var(--fl-line);
+  background: #f8fafb;
+  color: var(--fl-muted);
+  transition: border-color .15s ease, box-shadow .15s ease, background .15s ease;
+}
+.bus-page .search-field input { color: var(--fl-ink); font-size: 11px; background: transparent; }
+.bus-page .search-field input::placeholder { color: #a3aeb6; }
+.bus-page .search-field:focus-within {
+  border-color: #9dcbb9;
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(18, 121, 90, .1);
+}
+.bus-page .list-filters select,
+.bus-page .bus-form select {
+  height: 36px;
+  border-radius: 10px;
+  border: 1px solid var(--fl-line);
+  background: #f8fafb;
+  color: var(--fl-ink);
+  font-size: 11px;
+  padding: 0 10px;
+}
+.bus-page .view-toggle {
+  height: 36px;
+  padding: 3px;
+  border-radius: 10px;
+  border: 1px solid var(--fl-line);
+  background: #f8fafb;
+}
+.bus-page .view-toggle button { width: 32px; height: 28px; border-radius: 7px; color: var(--fl-muted); }
+.bus-page .view-toggle button.selected { background: #fff; color: var(--fl-accent-dark); box-shadow: 0 1px 3px rgba(16, 32, 26, .12); }
+
+/* Boutons */
+.bus-page .button { border-radius: 10px; padding: 9px 15px; font-size: 11px; font-weight: 700; }
+.bus-page .list-filters .button { padding: 9px 12px; }
+.bus-page .button.primary {
+  border: 1px solid var(--fl-accent);
+  background: linear-gradient(180deg, #158764, var(--fl-accent-dark));
+  color: #fff;
+  box-shadow: 0 2px 6px rgba(13, 96, 71, .25);
+}
+.bus-page .button.primary:hover { filter: brightness(1.05); }
+.bus-page .button.secondary {
+  border: 1px solid var(--fl-line);
+  background: #fff;
+  color: var(--fl-ink-soft);
+}
+.bus-page .button.secondary:hover { border-color: #b6d8c8; color: var(--fl-accent-dark); background: #fbfdfc; }
+.bus-page .button:disabled { opacity: .5; }
+
+/* Tableau */
+.bus-page .table-scroll { background: #fff; }
+.bus-page .bus-table { border-collapse: separate; border-spacing: 0; }
+.bus-page .bus-table thead { background: #fbfcfd; }
+.bus-page .bus-table th {
+  padding: 12px 18px;
+  color: var(--fl-muted);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--fl-line-soft);
+}
+.bus-page .bus-table td {
+  padding: 13px 18px;
+  color: #3c4b45;
+  font-size: 11.5px;
+  border-top: 1px solid var(--fl-line-soft);
+  vertical-align: middle;
+}
+.bus-page .bus-table tbody tr { transition: background .12s ease; }
+.bus-page .bus-table tbody tr:hover { background: #f7fbf9; }
+.bus-page .plate {
+  border: 1px solid #d5e8de;
+  border-radius: 8px;
+  padding: 4px 9px;
+  background: #f1f8f4;
+  color: #14664a;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: .02em;
+}
+.bus-page .bus-line {
+  background: #fdf3e3;
+  color: #a96f1c;
+  border-radius: 999px;
+  font-size: 10px;
+  padding: 4px 10px;
+}
+.bus-page .bus-sub, .bus-page .bus-year { color: var(--fl-muted); font-size: 10px; }
+.bus-page .bus-empty { padding: 34px 20px; color: var(--fl-muted); font-size: 12px; text-align: center; }
+
+/* Statuts */
+.bus-page .status-pill { gap: 6px; padding: 5px 10px; border-radius: 999px; font-size: 10px; font-weight: 700; }
+.bus-page .status-pill i { width: 6px; height: 6px; }
+.bus-page .status-pill.ok, .bus-page .status-pill.success { color: #0f7a52; background: #e9f7f0; }
+.bus-page .status-pill.warn, .bus-page .status-pill.warning { color: #a9741c; background: #fdf4e4; }
+.bus-page .status-pill.danger { color: #b04a44; background: #fdf0ee; }
+.bus-page .status-pill.muted, .bus-page .status-pill.neutral { color: #74827a; background: #f2f5f3; }
+
+/* Actions de ligne */
+.bus-page .table-action {
+  padding: 6px 11px;
+  border: 1px solid var(--fl-line);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--fl-ink-soft);
+  font-size: 10.5px;
+  font-weight: 600;
+  transition: .15s ease;
+}
+.bus-page .table-action + .table-action { margin-left: 6px; }
+.bus-page .table-action:hover {
+  border-color: #b6d8c8;
+  background: var(--fl-accent-soft);
+  color: var(--fl-accent-dark);
+  text-decoration: none;
+}
+
+/* Mosaïque */
+.bus-page .record-mosaic { padding: 18px; gap: 14px; }
+.bus-page .record-card {
+  border: 1px solid var(--fl-line);
+  border-radius: 16px;
+  background: #fff;
+  color: var(--fl-ink);
+  box-shadow: 0 1px 2px rgba(16, 32, 26, .04);
+  transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease;
+}
+.bus-page .record-card:hover {
+  transform: translateY(-2px);
+  border-color: #cfe6da;
+  box-shadow: 0 14px 30px rgba(16, 32, 26, .09);
+}
+.bus-page .record-card-avatar { border-radius: 12px; background: var(--fl-accent-soft); color: var(--fl-accent-dark); }
+.bus-page .record-card-title b { color: var(--fl-ink); }
+.bus-page .record-card-title small { color: var(--fl-muted); text-transform: uppercase; letter-spacing: .07em; font-size: 9px; }
+.bus-page .record-card-facts dt { color: var(--fl-muted); font-size: 9px; text-transform: uppercase; letter-spacing: .06em; }
+.bus-page .record-card-facts dd { color: #33433c; font-size: 11.5px; }
+.bus-page .record-card-actions { border-top: 1px solid var(--fl-line-soft); padding-top: 10px; }
+
+/* Pagination */
+.bus-page .pagination {
+  padding: 14px 20px;
+  border-top: 1px solid var(--fl-line-soft);
+  color: var(--fl-muted);
+  font-size: 10.5px;
+  background: #fcfdfd;
+}
+.bus-page .pagination button {
+  border: 1px solid var(--fl-line);
+  border-radius: 9px;
+  padding: 7px 12px;
+  background: #fff;
+  color: var(--fl-ink-soft);
+  font-size: 10.5px;
+  font-weight: 600;
+}
+.bus-page .pagination button:not(:disabled):hover {
+  border-color: #b6d8c8;
+  background: var(--fl-accent-soft);
+  color: var(--fl-accent-dark);
+}
+.bus-page .pagination button:disabled { opacity: .45; }
+
+/* Alertes */
+.bus-page .alert.error {
+  border: 1px solid #f2d9d6;
+  border-radius: 12px;
+  background: #fdf3f1;
+  color: #a14a45;
+  font-size: 11.5px;
+}
+
+/* Modale d'édition */
+.bus-page .modal {
+  border-radius: 20px;
+  background: #fff;
+  color: var(--fl-ink);
+  box-shadow: 0 24px 70px rgba(10, 30, 22, .28);
+  border: 1px solid #eef1f4;
+}
+.bus-page .modal-heading h2 { color: var(--fl-ink); }
+.bus-page .modal-heading .eyebrow { color: var(--fl-muted); letter-spacing: .1em; }
+.bus-page .modal-close { border-radius: 9px; background: #f4f7f5; color: var(--fl-ink-soft); }
+.bus-page .modal-close:hover { background: #eef3f0; }
+.bus-page .bus-form fieldset {
+  border: 1px solid var(--fl-line);
+  border-radius: 14px;
+  background: #fcfdfd;
+  padding: 16px 18px 18px;
+}
+.bus-page .bus-form legend {
+  padding: 0 8px;
+  color: var(--fl-muted);
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: .1em;
+}
+.bus-page .bus-form label { color: #46564e; font-size: 11px; }
+.bus-page .bus-form input,
+.bus-page .bus-form select {
+  min-height: 38px;
+  border: 1px solid var(--fl-line);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--fl-ink);
+  font-size: 11.5px;
+}
+.bus-page .bus-form input:focus,
+.bus-page .bus-form select:focus {
+  border-color: #8cc6ae;
+  box-shadow: 0 0 0 3px rgba(18, 121, 90, .12);
+  outline: none;
+}
+.bus-page .bus-form .form-actions { padding-top: 4px; }
+.bus-page .bus-licence-pill {
+  border-radius: 12px;
+  border: 1px solid var(--fl-line);
+  background: #fff;
+  color: var(--fl-ink);
+}
+.bus-page .bus-licence-pill.active {
+  border-color: var(--fl-accent);
+  background: var(--fl-accent-soft);
+  box-shadow: 0 0 0 3px rgba(18, 121, 90, .1);
+}
+.bus-page .bus-licence-pill > span:not(.status-pill) { color: var(--fl-muted); }
+.bus-page .bus-licence-delete { color: #b04a44; border-color: #f0d5d2; }
+.bus-page .form-note {
+  border-radius: 10px;
+  background: #fdf8ec;
+  color: #8a6d2e;
+  font-size: 10.5px;
+  border: 1px solid #f3e7cd;
+}
+
+@media (max-width: 700px) {
+  .bus-page { padding: 12px; border-radius: 18px; }
+  .bus-page .list-toolbar { padding: 14px; }
+  .bus-page .bus-table th, .bus-page .bus-table td { padding-left: 12px; padding-right: 12px; }
+  .bus-page .record-mosaic { padding: 12px; }
+}
+
+/* Le thème sombre global applique ses couleurs aux composants communs :
+   ces pages imposent leur palette claire quel que soit le thème choisi. */
+.bus-page, .bus-page .content-card, .bus-page .modal, .bus-page .table-scroll,
+.bus-page .pagination, .bus-page .view-toggle { background-color: #fff !important; color: #17241f !important; }
+.bus-page { background-color: #f4f6f9 !important; }
+.bus-page .content-card, .bus-page .modal, .bus-page .view-toggle { border-color: #e7ecf2 !important; }
+.bus-page .bus-table th { background-color: #fbfcfd !important; color: #8b98a2 !important; }
+.bus-page .bus-table td { color: #3c4b45 !important; border-color: #f0f3f7 !important; }
+.bus-page .bus-table tbody tr:hover { background-color: #f7fbf9 !important; }
+.bus-page .plate { background-color: #f1f8f4 !important; color: #14664a !important; border-color: #d5e8de !important; }
+.bus-page .button.secondary { background-color: #fff !important; color: #5d6d66 !important; border-color: #e7ecf2 !important; }
+.bus-page .list-filters select, .bus-page .bus-form select,
+.bus-page .bus-form input, .bus-page .search-field { background-color: #f8fafb !important; color: #17241f !important; border-color: #e7ecf2 !important; }
+.bus-page .search-field input { color: #17241f !important; }
+.bus-page .pagination button { background-color: #fff !important; color: #5d6d66 !important; }
+.bus-page .modal-close { background-color: #f4f7f5 !important; color: #5d6d66 !important; }
+.bus-page .form-note { background-color: #fdf8ec !important; color: #8a6d2e !important; }
+.bus-page .alert.error { background-color: #fdf3f1 !important; color: #a14a45 !important; }
+.bus-page .modal-heading h2, .bus-page .list-title h2 { color: #17241f !important; }
+.bus-page .record-card { background-color: #fff !important; color: #17241f !important; }
+.bus-page .list-toolbar { background-color: #ffffff !important; border-bottom-color: #f0f3f7 !important; }
+.bus-page .bus-table thead { background-color: #fbfcfd !important; }
+.bus-page .record-count { background-color: #eaf5f0 !important; color: #0d6047 !important; border-color: #d5e8de !important; }
+.bus-page .view-toggle { background-color: #f8fafb !important; border-color: #e7ecf2 !important; }
+.bus-page .view-toggle button { color: #8b98a2 !important; }
+.bus-page .view-toggle button.selected { background-color: #ffffff !important; color: #0d6047 !important; }
+.bus-page .pagination button { background-color: #ffffff !important; color: #5d6d66 !important; border-color: #e7ecf2 !important; }
+.bus-page .table-action { background-color: #ffffff !important; color: #5d6d66 !important; border-color: #e7ecf2 !important; }
+.bus-page .table-action:hover { background-color: #eaf5f0 !important; color: #0d6047 !important; }
+.bus-page .record-card { background-color: #ffffff !important; border-color: #e7ecf2 !important; }
+.bus-page .record-card-avatar { background: #eaf5f0 !important; color: #0d6047 !important; }
+.bus-page .record-card-title b { color: #17241f !important; }
+.bus-page .record-card-facts dd { color: #33433c !important; }
+.bus-page .record-card-actions .table-action { background-color: #ffffff !important; color: #5d6d66 !important; border-color: #e7ecf2 !important; }
+.bus-page .status-pill.ok, .bus-page .status-pill.success { background-color: #e9f7f0 !important; color: #0f7a52 !important; }
+.bus-page .status-pill.warn, .bus-page .status-pill.warning { background-color: #fdf4e4 !important; color: #a9741c !important; }
+.bus-page .status-pill.danger { background-color: #fdf0ee !important; color: #b04a44 !important; }
+.bus-page .status-pill.muted, .bus-page .status-pill.neutral { background-color: #f2f5f3 !important; color: #74827a !important; }
+.bus-page .search-field input::placeholder { color: #a3aeb6 !important; }
+.bus-page .table-action.danger-action { color: #b04a44 !important; border-color: #f0d5d2 !important; background: #fff !important; }
+.bus-page .table-action.danger-action:hover { background: #fdf0ee !important; color: #9c3f39 !important; border-color: #e9c3be !important; }
+.bus-page .record-mosaic { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); }
+.bus-page .record-card .plate { width: max-content; max-width: 100%; }
+.bus-page .record-card-facts { border-top: 1px solid #f0f3f7 !important; margin-top: 10px; padding-top: 12px; }
+.bus-page .record-card-head { align-items: center; }
+.bus-page .record-card-facts div { border: 0; }

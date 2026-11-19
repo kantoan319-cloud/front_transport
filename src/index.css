@@ -1,9 +1,9 @@
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Poppins:wght@400;500;600;700;800&display=swap');
 
 :root {
-  font-family: 'DM Sans', 'Segoe UI', sans-serif;
-  color: #23322d;
-  background: #f7f9f8;
+  font-family: 'Geist', 'DM Sans', 'Segoe UI', sans-serif;
+  color: #22302a;
+  background: #faf9f6;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -14,12 +14,12 @@
 
 [data-theme='dark'] {
   color-scheme: dark;
-  color: #e4ece8;
-  background: #111a16;
+  color: #e8efe9;
+  background: #131a16;
 }
 
 * { box-sizing: border-box; }
-body { margin: 0; min-width: 320px; min-height: 100vh; background:#f7f9f8; }
+body { margin: 0; min-width: 320px; min-height: 100vh; background:#faf9f6; }
 button, input, select, textarea { font: inherit; }
 button { cursor: pointer; }
 button:disabled { cursor: not-allowed; opacity: .56; }

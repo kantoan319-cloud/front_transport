@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { api, type Vehicle } from './api'
 import { usePreferences } from './Preferences'
+import VehicleCompliance from './VehicleCompliance'
+import SignalDialog from './SignalDialog'
 
 interface ScanPageProps {
   onVehicleFound: (registration: string) => void
@@ -31,6 +33,8 @@ export default function ScanPage({ onVehicleFound }: ScanPageProps) {
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const [cameraActive, setCameraActive] = useState(false)
+  const [signalOpen, setSignalOpen] = useState(false)
+  const [signalNotice, setSignalNotice] = useState('')
   const videoRef = useRef<HTMLVideoElement>(null)
   const streamRef = useRef<MediaStream | null>(null)
   const scanLoopRef = useRef<number | null>(null)
@@ -51,10 +55,35 @@ export default function ScanPage({ onVehicleFound }: ScanPageProps) {
     if (!clean) return
     setBusy(true)
     setError('')
+    setSignalNotice('')
     setVehicle(null)
     setRegistration(clean)
     try {
-      setVehicle(await api.publicVehicle(clean))
+      const found = await api.publicVehicle(clean)
+      setVehicle(found)
+      // Chaque scan enregistre aussi la position : elle alimente le tracé des
+      // lignes de bus (page « Lignes & arrêts »).
+      const enregistrer = (position: GeolocationPosition | null) => {
+        void api.recordPublicScan({
+          immatriculation: found.immatriculation ?? clean,
+          ...(position
+            ? {
+                latitude: position.coords.latitude,
+                longitude: position.coords.longitude,
+                precision: Math.round(position.coords.accuracy),
+              }
+            : {}),
+        }).catch(() => undefined)
+      }
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          (position) => enregistrer(position),
+          () => enregistrer(null),
+          { maximumAge: 30_000, timeout: 5_000 },
+        )
+      } else {
+        enregistrer(null)
+      }
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : t('Véhicule introuvable.'))
     } finally {
@@ -155,12 +184,20 @@ export default function ScanPage({ onVehicleFound }: ScanPageProps) {
       </div>
       <div className="scan-camera-frame" hidden={!cameraActive}><video ref={videoRef} autoPlay playsInline muted /></div>
       {error && <div className="alert error" role="alert">{error}</div>}
-      {vehicle && <article className="scan-result">
-        <div><span className="eyebrow">{t('Transport identifié')}</span><h3>{vehicle.immatriculation}</h3>
-          <p>{t(String(vehicle.type ?? ''))} · {vehicle.nom || '—'} · {t(String(vehicle.statut ?? ''))}</p>
-        </div>
-        <button type="button" className="button primary" onClick={() => onVehicleFound(String(vehicle.immatriculation ?? registration))}>{t('Ouvrir la fiche')}</button>
-      </article>}
+      {signalNotice && <div className="alert success" role="status">{signalNotice}</div>}
+      {vehicle && <>
+        <article className="scan-result">
+          <div><span className="eyebrow">{t('Transport identifié')}</span><h3>{vehicle.immatriculation}</h3>
+            <p>{t(String(vehicle.type ?? ''))} · {vehicle.nom || '—'} · {t(String(vehicle.statut ?? ''))}</p>
+          </div>
+          <div className="scan-result-actions">
+            <button type="button" className="button secondary" onClick={() => setSignalOpen(true)}>{t('Signaler un problème')}</button>
+            <button type="button" className="button primary" onClick={() => onVehicleFound(String(vehicle.immatriculation ?? registration))}>{t('Ouvrir la fiche')}</button>
+          </div>
+        </article>
+        <VehicleCompliance vehicle={vehicle} />
+      </>}
+      {signalOpen && vehicle && <SignalDialog defaultRegistration={String(vehicle.immatriculation ?? registration)} onClose={() => setSignalOpen(false)} onCreated={() => setSignalNotice('Signalement transmis à l’administration.')} />}
     </section>
   )
 }

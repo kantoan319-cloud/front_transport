@@ -1004,3 +1004,271 @@
   background: #233028;
   border-color: #4a5a4e;
 }
+
+/* ====================================================================
+   Fiche enrichie : synthèse, filtres, photo, statuts, impôt synthétique
+   ==================================================================== */
+
+/* La carte MapLibre est déjà en relief : on retire le voile de l'ancienne
+   vue 3D en CSS. */
+.map-page__map.is-3d::after { display: none; }
+.map-page__map.is-3d { perspective: none; }
+
+.map-page__stamp {
+  display: inline-block;
+  margin-top: 7px;
+  color: #98a49c;
+  font-size: 11px;
+  letter-spacing: .01em;
+}
+
+/* ------------------------------- Synthèse ------------------------------ */
+.map-page__summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(148px, 1fr));
+  gap: 11px;
+  margin-bottom: 15px;
+}
+
+.map-page__summary-tile {
+  position: relative;
+  display: grid;
+  gap: 2px;
+  overflow: hidden;
+  padding: 13px 15px 13px 18px;
+  border: 1px solid var(--map-border);
+  border-radius: 12px;
+  background: #fff;
+}
+
+.map-page__summary-tile::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: var(--tile-accent, #2b3a32);
+}
+
+.map-page__summary-tile.is-warning { --tile-accent: #c9722f; }
+.map-page__summary-tile.is-scan { --tile-accent: #e8a33d; }
+
+.map-page__summary-label {
+  color: #788b80;
+  font-size: 9.5px;
+  font-weight: 750;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+
+.map-page__summary-tile strong {
+  color: #25352e;
+  font-family: Manrope, 'DM Sans', sans-serif;
+  font-size: 24px;
+  font-weight: 750;
+  letter-spacing: -.035em;
+  line-height: 1.12;
+}
+
+.map-page__summary-tile small {
+  color: #8a968f;
+  font-size: 10.5px;
+  line-height: 1.3;
+}
+
+/* -------------------------------- Filtres ------------------------------ */
+.map-page__toolbar { flex-wrap: wrap; }
+
+.map-page__selects {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.map-page__select {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 4px 0 11px;
+  border: 1px solid #e4eae6;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.map-page__select > span {
+  color: #87958d;
+  font-size: 9.5px;
+  font-weight: 750;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+}
+
+.map-page__select select {
+  max-width: 152px;
+  padding: 8px 4px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: #33433a;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.map-page__select:focus-within {
+  border-color: #b8d6c7;
+  box-shadow: 0 0 0 3px rgba(63, 125, 95, .14);
+}
+
+/* --------------------------- Photo et statuts -------------------------- */
+.map-page__photo {
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  margin: 2px 0 12px;
+  border: 1px solid #e4eae6;
+  border-radius: 12px;
+  background: #f1f4ef;
+  aspect-ratio: 16 / 10;
+}
+
+.map-page__photo img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.map-page__photo > span {
+  color: #9aa79f;
+  font-size: 12px;
+}
+
+.map-page__badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.map-page__status {
+  display: inline-block;
+  padding: 4px 9px;
+  border-radius: 999px;
+  background: #eef1ec;
+  color: #5a6a60;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .02em;
+}
+
+.map-page__status.is-ok { background: #e7f3ea; color: #2c6b48; }
+.map-page__status.is-warn { background: #fbeedc; color: #8f5a12; }
+.map-page__status.is-neutral { background: #eef1ec; color: #5a6a60; }
+
+.map-page__expired {
+  margin-left: 7px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: #fbe6c3;
+  color: #8f5a12;
+  font-size: 9.5px;
+  font-style: normal;
+  font-weight: 700;
+  letter-spacing: .03em;
+}
+
+/* -------------------------- Impôt synthétique -------------------------- */
+.map-page__tax {
+  margin-top: 15px;
+  padding: 12px 13px 8px;
+  border: 1px dashed #d8d4c8;
+  border-radius: 11px;
+  background: #fbf7ee;
+}
+
+.map-page__tax-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 2px;
+}
+
+.map-page__tax-head > span {
+  color: #8a7a4f;
+  font-size: 9.5px;
+  font-weight: 750;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+
+.map-page__tax-head b {
+  font-size: 10.5px;
+  font-weight: 700;
+}
+
+.map-page__tax-head b.is-success { color: #2c6b48; }
+.map-page__tax-head b.is-warning { color: #a4621a; }
+.map-page__tax-head b.is-neutral { color: #75817a; }
+
+.map-page__facts--compact div {
+  padding: 6px 0;
+}
+
+.map-page__legend-note {
+  color: #98a49c;
+  font-style: italic;
+}
+
+/* ------------------------------- Mode nuit ----------------------------- */
+:root[data-theme='dark'] .map-page__summary-tile,
+:root[data-theme='dark'] .map-page__select,
+:root[data-theme='dark'] .map-page__photo,
+:root[data-theme='dark'] .map-page__tax {
+  background: #19241f;
+  border-color: #35483e;
+}
+
+:root[data-theme='dark'] .map-page__summary-tile strong { color: #eef3ee; }
+:root[data-theme='dark'] .map-page__summary-label,
+:root[data-theme='dark'] .map-page__summary-tile small { color: #9caaa1; }
+:root[data-theme='dark'] .map-page__select > span { color: #93a29a; }
+:root[data-theme='dark'] .map-page__select select { color: #e4ece8; }
+:root[data-theme='dark'] .map-page__select select option { background: #19241f; color: #e4ece8; }
+:root[data-theme='dark'] .map-page__photo { background: #1e2a24; }
+:root[data-theme='dark'] .map-page__photo > span { color: #87968e; }
+:root[data-theme='dark'] .map-page__status { background: #24312a; color: #b3c1b8; }
+:root[data-theme='dark'] .map-page__status.is-ok { background: #1f3529; color: #82c9a1; }
+:root[data-theme='dark'] .map-page__status.is-warn { background: #382b1b; color: #f0c07d; }
+:root[data-theme='dark'] .map-page__tax { background: #241f16; border-color: #4a3f2b; }
+:root[data-theme='dark'] .map-page__tax-head > span { color: #d3b57e; }
+:root[data-theme='dark'] .map-page__tax-head b.is-success { color: #8fd0aa; }
+:root[data-theme='dark'] .map-page__tax-head b.is-warning { color: #f0b46a; }
+:root[data-theme='dark'] .map-page__expired { background: #4a3517; color: #f5c97f; }
+:root[data-theme='dark'] .map-page__legend-note { color: #93a096; }
+
+/* ------------------------------ Responsive ----------------------------- */
+@media (max-width: 720px) {
+  .map-page__summary { grid-template-columns: repeat(auto-fit, minmax(128px, 1fr)); }
+  .map-page__summary-tile { padding: 11px 12px 11px 15px; }
+  .map-page__summary-tile strong { font-size: 20px; }
+  .map-page__selects { width: 100%; }
+  .map-page__select { flex: 1 1 140px; }
+  .map-page__select select { flex: 1; max-width: none; }
+  .map-page__legend-note { display: none; }
+}
+
+/* --------------------------------------------------------------------
+   Mise en page adaptative selon la largeur reellement disponible.
+   Le menu lateral de l'administration reduit fortement la zone de contenu :
+   sous 860 px utiles, la liste passe sous la carte au lieu de comprimer
+   la carte dans une colonne etroite.
+   -------------------------------------------------------------------- */
+.map-page { container-type: inline-size; }
+
+@container (max-width: 860px) {
+  .map-page__workspace { grid-template-columns: 1fr; }
+  .map-page__map { min-height: min(58vh, 540px); }
+  .map-page__sidebar { min-height: 0; max-height: 460px; }
+}

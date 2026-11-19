@@ -1,49 +1,78 @@
-import { useCallback, useEffect, useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import cityLogo from './assets/logo.png'
+import brandEmblem from './assets/logo-transport.svg'
+import brandLockup from './assets/logo-lockup.svg'
 import busPhoto from './assets/bus.jpg'
 import bajajPhoto from './assets/bajaj.jpg'
-import { api, ApiError, listMetadata, recordsOf, type AdminUser, type ApiList, type ApiRecord, type DashboardSummary, type Id, type VignettePaymentReport } from './api'
+import { api, ApiError, listMetadata, photoUrl, photoFileToDataUrl, recordsOf, type AdminUser, type ApiList, type ApiRecord, type DashboardSummary, type Id, type VignettePaymentReport, type WeatherReport } from './api'
 import PublicApp from './PublicApp'
 import DriverReplacementsDialog from './DriverReplacementsDialog'
+import DriverVehicleDialog from './DriverVehicleDialog'
 import VehicleQrDialog from './VehicleQrDialog'
 import VehicleQrBatchDialog from './VehicleQrBatchDialog'
 import RecordDetailsDialog from './RecordDetailsDialog'
-import MapPage from './MapPage'
+import MapHub from './MapHub'
+import ExportsPage from './ExportsPage'
 import AccessManagementPage from './AccessManagementPage'
+import BusFleetPage from './BusFleetPage'
+import BajajPage from './BajajPage'
+import BajajContactsPage from './BajajContactsPage'
+import BusMapPage from './BusMapPage'
 import AdminInsightsPage from './AdminInsightsPage'
+import { PrivacyPolicyPage, UserGuidePage } from './LegalPages'
 import ScanPage from './ScanPage'
+import SignalDialog from './SignalDialog'
 import { usePreferences } from './Preferences'
+import { downloadReceiptPdf, downloadTablePdf, logoForPdf } from './documentPdf'
 import './App.css'
+import './premium.css'
+import './editorial.css'
 
-type PageId = 'dashboard' | 'vehicles' | 'scan' | 'drivers' | 'signals' | 'medical' | 'payments' | 'impounds' | 'map' | 'reports' | 'notifications' | 'users' | 'passwordRequests' | 'imports' | 'statistics' | 'owners' | 'history'
+type PageId = 'dashboard' | 'vehicles' | 'bus' | 'bajaj' | 'bajajContacts' | 'busmap' | 'exports' | 'scan' | 'drivers' | 'signals' | 'medical' | 'payments' | 'impounds' | 'map' | 'reports' | 'notifications' | 'users' | 'passwordRequests' | 'imports' | 'statistics' | 'owners' | 'history' | 'guide' | 'privacy'
 type LoadState = 'loading' | 'ready' | 'error'
 
 const navigation: { id: PageId; label: string; icon: string; group: string; vehicleType?: string }[] = [
   { id: 'dashboard', label: 'Vue d’ensemble', icon: '⌂', group: 'ESPACE DE TRAVAIL' },
-  { id: 'vehicles', label: 'Tous les transports', icon: '▰', group: 'GESTION' },
-  { id: 'vehicles', label: 'Cyclo-pousse', icon: '◉', group: 'GESTION', vehicleType: 'Cyclo-pousse' },
-  { id: 'vehicles', label: 'Bus', icon: '▣', group: 'GESTION', vehicleType: 'Bus' },
-  { id: 'vehicles', label: 'Bajaj', icon: '▱', group: 'GESTION', vehicleType: 'Bajaj' },
-  { id: 'scan', label: 'Scanner QR', icon: '⌖', group: 'GESTION' },
-  { id: 'drivers', label: 'Conducteurs', icon: '♙', group: 'GESTION' },
+  { id: 'vehicles', label: 'Tous les transports', icon: '▰', group: 'ESPACE DE TRAVAIL' },
+  { id: 'scan', label: 'Scanner QR', icon: '⌖', group: 'ESPACE DE TRAVAIL' },
+  { id: 'map', label: 'Carte', icon: '⌖', group: 'ESPACE DE TRAVAIL' },
+
+  // Espace cyclo-pousse : véhicules, conducteurs, propriétaires et vignettes.
+  { id: 'vehicles', label: 'Cyclo-pousse', icon: '◉', group: 'ESPACE CYCLO-POUSSE', vehicleType: 'Cyclo-pousse' },
+  { id: 'drivers', label: 'Conducteurs cyclo', icon: '♙', group: 'ESPACE CYCLO-POUSSE', vehicleType: 'Cyclo-pousse' },
+  { id: 'owners', label: 'Propriétaires cyclo', icon: '♧', group: 'ESPACE CYCLO-POUSSE', vehicleType: 'Cyclo-pousse' },
+  { id: 'payments', label: 'Vignettes', icon: '▤', group: 'ESPACE CYCLO-POUSSE' },
+
+  // Espace bus : flotte, licences/attestations, conducteurs et receveurs.
+  { id: 'vehicles', label: 'Bus', icon: '▣', group: 'ESPACE BUS', vehicleType: 'Bus' },
+  { id: 'bus', label: 'Bus & licences', icon: '▤', group: 'ESPACE BUS' },
+  { id: 'drivers', label: 'Conducteurs bus', icon: '♙', group: 'ESPACE BUS', vehicleType: 'Bus' },
+
+  // Espace bajaj : registre, licences, conducteurs et propriétaires.
+  { id: 'bajaj', label: 'Bajaj', icon: '▱', group: 'ESPACE BAJAJ' },
+  { id: 'bajajContacts', label: 'Conducteurs & propriétaires', icon: '♙', group: 'ESPACE BAJAJ' },
+
   { id: 'signals', label: 'Signalements', icon: '⚑', group: 'GESTION' },
   { id: 'medical', label: 'Visites médicales', icon: '＋', group: 'GESTION' },
-  { id: 'payments', label: 'Paiements vignette', icon: '▤', group: 'GESTION' },
   { id: 'impounds', label: 'Fourrière', icon: '⌑', group: 'GESTION' },
-  { id: 'map', label: 'Carte', icon: '⌖', group: 'GESTION' },
   { id: 'reports', label: 'Rapports', icon: '▥', group: 'SUIVI' },
   { id: 'notifications', label: 'Notifications', icon: '♧', group: 'SUIVI' },
   { id: 'users', label: 'Comptes contrôleurs', icon: '♙', group: 'ADMINISTRATION' },
   { id: 'passwordRequests', label: 'Demandes mot de passe', icon: '⌑', group: 'ADMINISTRATION' },
   { id: 'imports', label: 'Imports', icon: '⇧', group: 'ADMINISTRATION' },
   { id: 'statistics', label: 'Statistiques', icon: '▥', group: 'ADMINISTRATION' },
-  { id: 'owners', label: 'Propriétaires', icon: '♙', group: 'ADMINISTRATION' },
   { id: 'history', label: 'Historique', icon: '◷', group: 'ADMINISTRATION' },
+  { id: 'exports', label: 'Exports de données', icon: '⇩', group: 'ADMINISTRATION' },
+  { id: 'guide', label: 'Guide d’utilisation', icon: '▤', group: 'AIDE' },
+  { id: 'privacy', label: 'Confidentialité', icon: '▣', group: 'AIDE' },
 ]
 
 const pageMeta: Record<PageId, { title: string; subtitle: string; add?: string }> = {
   dashboard: { title: 'Vue d’ensemble', subtitle: 'Suivez l’activité du réseau de transport à Antsirabe.' },
   vehicles: { title: 'Véhicules', subtitle: 'Gérez et consultez les véhicules enregistrés.', add: 'Ajouter un véhicule' },
+  bus: { title: 'Bus & licences', subtitle: 'Flotte des coopératives, licences annuelles, conducteurs, receveurs et attestations.' },
+  bajaj: { title: 'Bajaj', subtitle: 'Registre des bajaj en activité : plaques, propriétaires et contacts.' },
+  busmap: { title: 'Lignes & arrêts', subtitle: 'Arrêts, trajet et scans géolocalisés de chaque ligne de bus.' },
   scan: { title: 'Scanner un transport', subtitle: 'Identifiez un véhicule en scannant son QR code ou en saisissant son immatriculation.' },
   drivers: { title: 'Conducteurs', subtitle: 'Retrouvez les profils et les informations des conducteurs.', add: 'Ajouter un conducteur' },
   signals: { title: 'Signalements', subtitle: 'Consultez et traitez les signalements reçus.' },
@@ -57,11 +86,15 @@ const pageMeta: Record<PageId, { title: string; subtitle: string; add?: string }
   passwordRequests: { title: 'Gestion des accès', subtitle: 'Traitez les demandes de réinitialisation de mot de passe.' },
   imports: { title: 'Imports', subtitle: 'Importez les conducteurs et leurs visites depuis la base source.' },
   statistics: { title: 'Statistiques', subtitle: 'Indicateurs, activité et recettes de vignettes.' },
+  bajajContacts: { title: 'Conducteurs & propriétaires', subtitle: 'Conducteurs (deux par bajaj) et propriétaires de l’espace bajaj.' },
   owners: { title: 'Propriétaires', subtitle: 'Consultez les propriétaires, leurs véhicules et leurs paiements.' },
   history: { title: 'Historique', subtitle: 'Les 500 dernières opérations enregistrées.' },
+  exports: { title: 'Exports de données', subtitle: 'Téléchargez chaque domaine de la base au format Excel ou SQL.' },
+  guide: { title: 'Guide d’utilisation', subtitle: 'Mode d’emploi complet du portail, de la connexion aux documents.' },
+  privacy: { title: 'Politique de confidentialité', subtitle: 'Données personnelles, finalités, sécurité et droits des personnes.' },
 }
 
-const columns: Record<Exclude<PageId, 'dashboard' | 'scan' | 'map' | 'users' | 'passwordRequests' | 'imports' | 'statistics' | 'owners' | 'history'>, { key: string; label: string }[]> = {
+const columns: Record<Exclude<PageId, 'dashboard' | 'bus' | 'bajaj' | 'bajajContacts' | 'busmap' | 'exports' | 'scan' | 'map' | 'users' | 'passwordRequests' | 'imports' | 'statistics' | 'owners' | 'history' | 'guide' | 'privacy'>, { key: string; label: string }[]> = {
   vehicles: [
     { key: 'immatriculation', label: 'Immatriculation' }, { key: 'type', label: 'Type' },
     { key: 'nom', label: 'Véhicule' }, { key: 'nomProprietaire', label: 'Propriétaire' }, { key: 'statut', label: 'Statut' },
@@ -279,7 +312,7 @@ function printPaymentReceipt(record: ApiRecord, width: 58 | 80, translate: (key:
   const phone = escapeHtml(firstString(record, ['telephoneProprietaire']))
   const ticketNumber = `V-${String(record.id ?? '').padStart(6, '0')}`
   const line = (label: string, value: string) => `<div class="ticket-line"><span>${escapeHtml(label)}</span><b>${value}</b></div>`
-  const content = `<main class="ticket"><header class="center"><img class="receipt-logo" src="${escapeHtml(cityLogo)}" alt="">
+  const content = `<main class="ticket"><header class="center"><img class="receipt-logo" src="${escapeHtml(brandLockup)}" alt="">
     <h1>${escapeHtml(translate('Commune urbaine d’Antsirabe'))}</h1><p class="muted">${escapeHtml(translate('Cyclo-pousse · Vignette'))}</p></header>
     <div class="rule"></div><p class="center"><b>${escapeHtml(translate('Reçu de paiement'))}</b></p>
     ${line(translate('Ticket N°'), escapeHtml(ticketNumber))}${line(translate('Date'), date)}<div class="rule"></div>
@@ -341,6 +374,20 @@ function countValue(summary: DashboardSummary | null, keys: string[]): number {
   return 0
 }
 
+/** Message lisible pour les erreurs de session et de connexion. */
+function authErrorMessage(error: unknown): string {
+  if (error instanceof ApiError) {
+    if (error.status >= 500) {
+      return 'Le service est momentanément indisponible : la base de données ne répond pas. Réessayez dans quelques instants.'
+    }
+    return error.message
+  }
+  if (error instanceof TypeError) {
+    return 'Le serveur ne répond pas. Vérifiez votre connexion, puis réessayez.'
+  }
+  return error instanceof Error ? error.message : 'Le service est momentanément indisponible.'
+}
+
 function AdminApp() {
   const { language, setLanguage, theme, toggleTheme, t } = usePreferences()
   const requestedType = new URLSearchParams(window.location.search).get('type') ?? ''
@@ -355,7 +402,7 @@ function AdminApp() {
   const [page, setPage] = useState<PageId>(initialPage)
   const [records, setRecords] = useState<ApiRecord[]>([])
   const [totalRecords, setTotalRecords] = useState(0)
-  const [pageSize, setPageSize] = useState(50)
+  const [pageSize, setPageSize] = useState(60)
   const [summary, setSummary] = useState<DashboardSummary | null>(null)
   const [loadState, setLoadState] = useState<LoadState>('loading')
   const [loadError, setLoadError] = useState('')
@@ -365,8 +412,10 @@ function AdminApp() {
   const [modalOpen, setModalOpen] = useState(false)
   const [editingRecord, setEditingRecord] = useState<ApiRecord | null>(null)
   const [replacementDriver, setReplacementDriver] = useState<{ id: Id; nom: string } | null>(null)
+  const [assignDriver, setAssignDriver] = useState<{ id: Id; nom: string } | null>(null)
   const [qrImmatriculation, setQrImmatriculation] = useState('')
   const [qrBatchRegistrations, setQrBatchRegistrations] = useState<string[]>([])
+  const [signalDialogOpen, setSignalDialogOpen] = useState(false)
   const [detailTarget, setDetailTarget] = useState<{ kind: 'vehicle' | 'driver'; id: Id } | null>(null)
   const [selectedVehicleIds, setSelectedVehicleIds] = useState<string[]>([])
   const [selectedReportIds, setSelectedReportIds] = useState<string[]>([])
@@ -377,11 +426,15 @@ function AdminApp() {
   const [paymentFilterDraft, setPaymentFilterDraft] = useState(paymentFilters)
   const [paymentReport, setPaymentReport] = useState<VignettePaymentReport | null>(null)
   const [actionError, setActionError] = useState('')
+  const [photoDraft, setPhotoDraft] = useState<{ vehicle?: string; owner?: string }>({})
+  const [photoRemoved, setPhotoRemoved] = useState({ vehicle: false, owner: false })
+  const [photoBusy, setPhotoBusy] = useState(false)
   const [busy, setBusy] = useState(false)
   const [mobileMenu, setMobileMenu] = useState(false)
   const [pageNumber, setPageNumber] = useState(1)
   const [notificationCount, setNotificationCount] = useState(0)
   const [focusRecord, setFocusRecord] = useState<{ page: PageId; id: string } | null>(null)
+  const [idleWarning, setIdleWarning] = useState(false)
 
   const refreshNotificationCount = useCallback(async () => {
     try {
@@ -405,7 +458,7 @@ function AdminApp() {
         setUser(null)
         setAuthState('ready')
       } else {
-        setAuthError(error instanceof Error ? error.message : 'Le service est momentanément indisponible.')
+        setAuthError(authErrorMessage(error))
         setAuthState('error')
       }
     }
@@ -421,7 +474,7 @@ function AdminApp() {
         setUser(null)
         setAuthState('ready')
       } else {
-        setAuthError(error instanceof Error ? error.message : 'Le service est momentanément indisponible.')
+        setAuthError(authErrorMessage(error))
         setAuthState('error')
       }
     })
@@ -432,11 +485,43 @@ function AdminApp() {
     if (user?.role === 'admin') void refreshNotificationCount()
   }, [user, refreshNotificationCount])
 
+  // Securite : fermeture automatique de la session apres 30 minutes sans
+  // activite, avec un avertissement deux minutes avant l'echeance.
+  useEffect(() => {
+    if (!user) return
+    const inactivityLimit = 30 * 60 * 1000
+    const warningAt = inactivityLimit - 2 * 60 * 1000
+    let lastActivity = Date.now()
+    const events: (keyof WindowEventMap)[] = ['pointerdown', 'keydown', 'wheel', 'touchstart', 'focus']
+    const touch = () => { lastActivity = Date.now() }
+    events.forEach((event) => window.addEventListener(event, touch, { passive: true }))
+    const timer = window.setInterval(() => {
+      const idle = Date.now() - lastActivity
+      if (idle >= inactivityLimit) {
+        window.clearInterval(timer)
+        setUser(null)
+        setPage('dashboard')
+        setRecords([])
+        setIdleWarning(false)
+        setAuthError('Session fermée après 30 minutes d’inactivité. Reconnectez-vous.')
+        void api.logout().catch(() => undefined)
+      } else if (idle >= warningAt) {
+        setIdleWarning(true)
+      } else if (idleWarning) {
+        setIdleWarning(false)
+      }
+    }, 15000)
+    return () => {
+      window.clearInterval(timer)
+      events.forEach((event) => window.removeEventListener(event, touch))
+    }
+  }, [user, idleWarning])
+
   const loadPage = useCallback(async () => {
     if (!user) return
     setLoadState('loading')
     setLoadError('')
-    if (page === 'map' || page === 'scan') {
+    if (page === 'map' || page === 'scan' || page === 'bus' || page === 'bajaj' || page === 'bajajContacts' || page === 'busmap' || page === 'exports' || page === 'guide' || page === 'privacy') {
       setRecords([])
       setLoadState('ready')
       return
@@ -449,7 +534,7 @@ function AdminApp() {
         let response: ApiList<ApiRecord> | ApiRecord[] | VignettePaymentReport
         switch (page) {
           case 'vehicles': response = await api.vehicles(vehicleType, filter, pageNumber, vehicleSort, vehicleSortDirection); break
-          case 'drivers': response = await api.drivers(filter, driverRole, pageNumber); break
+          case 'drivers': response = await api.drivers(filter, driverRole, pageNumber, vehicleType); break
           case 'signals': response = await api.signals(); break
           case 'medical': response = await api.medicalVisits(); break
           case 'payments': {
@@ -506,7 +591,9 @@ function AdminApp() {
       })
       setUser(currentUser)
     } catch (error) {
-      setAuthError(error instanceof Error ? error.message : 'Connexion impossible. Vérifiez vos identifiants.')
+      setAuthError(error instanceof ApiError && error.status === 401
+        ? 'Adresse e-mail ou mot de passe incorrect.'
+        : authErrorMessage(error))
     } finally { setBusy(false) }
   }
 
@@ -538,13 +625,49 @@ function AdminApp() {
     } finally { setBusy(false) }
   }
 
+  function resetPhotoDraft() {
+    setPhotoDraft({})
+    setPhotoRemoved({ vehicle: false, owner: false })
+    setPhotoBusy(false)
+  }
+
+  function closeModal() {
+    setModalOpen(false)
+    setEditingRecord(null)
+    resetPhotoDraft()
+  }
+
+  async function saveVehiclePhotos(record: ApiRecord) {
+    const immatriculation = String(record.immatriculation ?? '')
+    if (!immatriculation) return
+    const ownerId = record.proprietaireId == null ? null : Number(record.proprietaireId)
+    if (photoDraft.vehicle) {
+      await api.uploadPhoto('vehicle', immatriculation, photoDraft.vehicle)
+    } else if (photoRemoved.vehicle) {
+      await api.updateVehicle(immatriculation, { photo: null })
+      if (record.photo) await api.deletePhoto(String(record.photo))
+    }
+    if (photoDraft.owner) {
+      if (!ownerId) throw new Error('Ce véhicule ne possède pas de propriétaire lié.')
+      await api.uploadPhoto('owner', String(ownerId), photoDraft.owner)
+    } else if (photoRemoved.owner) {
+      if (!ownerId) throw new Error('Ce véhicule ne possède pas de propriétaire lié.')
+      await api.updateOwner(ownerId, { photoProprietaire: null })
+      if (record.photoProprietaire) await api.deletePhoto(String(record.photoProprietaire))
+    }
+  }
+
   async function submitRecord(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setBusy(true)
     setActionError('')
     const form = new FormData(event.currentTarget)
     const data: Record<string, string | number> = {}
+    // Bus : vignette et visite medicale decoulent de la licence, on ne les ecrase pas.
+    const busVehicle = page === 'vehicles'
+      && (String(editingRecord?.type ?? '') === 'Bus' || (editingRecord === null && vehicleType === 'Bus'))
     for (const field of fieldSets[page] ?? []) {
+      if (busVehicle && (field.name === 'expirationVignette' || field.name === 'expirationVisiteMedicale')) continue
       const value = String(form.get(field.name) ?? '')
       data[field.name] = ['montant', 'conducteurId', 'dureeMois'].includes(field.name) ? Number(value) : value
     }
@@ -557,6 +680,7 @@ function AdminApp() {
           if (updateData[name] === '') updateData[name] = null
         }
         await api.updateVehicle(immatriculation, updateData)
+        await saveVehiclePhotos(editingRecord)
       } else if (editingRecord && page === 'drivers') {
         if (editingRecord.id === undefined) throw new Error('Ce conducteur ne possède pas d’identifiant.')
         const driverData = { ...data }
@@ -583,8 +707,7 @@ function AdminApp() {
       else if (page === 'impounds') await api.createImpound(data)
       else if (page === 'reports') await api.createReport(data)
       else throw new Error('Cette action n’est pas disponible pour cette rubrique.')
-      setModalOpen(false)
-      setEditingRecord(null)
+      closeModal()
       await loadPage()
     } catch (error) {
       setActionError(error instanceof Error ? error.message : 'Enregistrement impossible.')
@@ -592,6 +715,7 @@ function AdminApp() {
   }
 
   function startEditing(record: ApiRecord) {
+    resetPhotoDraft()
     setEditingRecord(record)
     setActionError('')
     setModalOpen(true)
@@ -763,6 +887,101 @@ function AdminApp() {
     }
   }
 
+  async function downloadPaymentReceipt(record: ApiRecord, width: 58 | 80) {
+    setActionError('')
+    try {
+      const locale = language === 'mg' ? 'mg-MG' : language === 'en' ? 'en-GB' : 'fr-FR'
+      const registration = firstString(record, ['immatriculation'])
+      const amount = Number(record.montant ?? 0).toLocaleString(locale)
+      const paymentDate = firstString(record, ['datePaiement', 'date'])
+      const reference = firstString(record, ['reference'])
+      const cashier = firstString(record, ['creePar'])
+      const vehicleName = firstString(record, ['nomVehicule'])
+      const owner = [firstString(record, ['prenomProprietaire']), firstString(record, ['nomProprietaire'])]
+        .filter((part) => part !== '—').join(' ')
+      const phone = firstString(record, ['telephoneProprietaire'])
+      const rows = [
+        { label: t('Ticket N°'), value: `V-${String(record.id ?? '').padStart(6, '0')}` },
+        { label: t('Date'), value: formatReceiptDate(paymentDate, locale, true) },
+        { label: t('Cyclo'), value: registration },
+      ]
+      if (vehicleName !== '—') rows.push({ label: t('Nom'), value: vehicleName })
+      if (owner) rows.push({ label: t('Propriétaire'), value: owner })
+      if (phone !== '—') rows.push({ label: t('Téléphone'), value: phone })
+      if (reference !== '—') rows.push({ label: t('Référence'), value: reference })
+
+      await downloadReceiptPdf({
+        width,
+        title: t('Commune urbaine d’Antsirabe'),
+        subtitle: t('Cyclo-pousse · Vignette'),
+        logo: await logoForPdf(brandLockup),
+        rows,
+        total: { label: t('TOTAL'), value: `${amount} Ar` },
+        note: `${t('Valable du')} ${formatReceiptDate(paymentDate, locale)} — ${t('Au')} ${formatReceiptDate(firstString(record, ['expirationVignette']), locale)}`,
+        footer: [
+          `${t('Encaissé par')} : ${cashier === '—' ? '' : cashier}`,
+          t('Merci · Conservez ce ticket'),
+          `${t('Imprimé le')} ${new Date().toLocaleString(locale)}`,
+        ],
+        filename: `Recu_${width}mm_${registration.replace(/[^\w-]+/g, '_')}.pdf`,
+      })
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : 'Téléchargement du reçu impossible.')
+    }
+  }
+
+  async function downloadPaymentReportPdf() {
+    setActionError('')
+    try {
+      await downloadTablePdf({
+        filename: 'rapport_paiements_vignettes.pdf',
+        title: 'Rapports des paiements de vignette',
+        subtitle: `Période du ${paymentFilters.start || '—'} au ${paymentFilters.end || '—'}${paymentFilters.registration ? ` · Véhicule ${paymentFilters.registration}` : ''}`,
+        summary: [
+          `Total de la période : ${Number(paymentReport?.totalAmount ?? 0).toLocaleString('fr-FR')} Ar`,
+          `Total de toute la flotte : ${Number(paymentReport?.globalAmount ?? 0).toLocaleString('fr-FR')} Ar`,
+          `Paiements affichés : ${records.length}`,
+        ],
+        headers: ['Date', 'Immatriculation', 'Nom', 'Montant', 'Référence'],
+        rows: records.map((record) => [
+          readableDate(firstString(record, ['datePaiement'])),
+          firstString(record, ['immatriculation']),
+          firstString(record, ['nomVehicule']),
+          `${Number(record.montant ?? 0).toLocaleString('fr-FR')} Ar`,
+          firstString(record, ['reference']),
+        ]),
+        orientation: 'landscape',
+        columnStyles: { 3: { cellWidth: 32 }, 4: { cellWidth: 38 } },
+      })
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : 'Téléchargement du rapport impossible.')
+    }
+  }
+
+  async function downloadSelectedReportsPdf() {
+    const selected = records.filter((record) => selectedReportIds.includes(String(record.id ?? '')))
+    if (!selected.length) return
+    setActionError('')
+    try {
+      const reportTitle = t('Rapport de synthèse — Antsirabe')
+      await downloadTablePdf({
+        filename: 'rapport_de_synthese.pdf',
+        title: reportTitle,
+        subtitle: `${selected.length} rapport(s) · ${t('Généré le')} ${new Date().toLocaleString('fr-FR')}`,
+        headers: [t('Sujet'), t('Contenu'), t('Auteur'), t('Date')],
+        rows: selected.map((record) => [
+          firstString(record, ['sujet']),
+          firstString(record, ['contenu']),
+          `${firstString(record, ['prenom'])} ${firstString(record, ['nom'])}`.trim(),
+          readableDate(firstString(record, ['date'])),
+        ]),
+        orientation: 'landscape',
+      })
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : 'Téléchargement du rapport impossible.')
+    }
+  }
+
   if (authState === 'loading') {
     return <div className="screen-state"><span className="spinner" /><p>{t('Vérification de votre session…')}</p></div>
   }
@@ -775,7 +994,7 @@ function AdminApp() {
     return (
       <main className="login-screen">
         <section className="login-art" aria-label="Administration Cyclo-pousse Antsirabe">
-          <div className="login-brand"><span className="brand-mark">C</span><span>Cyclo-pousse<strong>Antsirabe</strong></span></div>
+          <div className="login-brand"><img className="brand-mark brand-mark--image" src={brandEmblem} alt="" /><span>Transport de commune urbaine<strong>Antsirabe</strong></span></div>
           <div className="login-art-content">
             <span className="eyebrow light">{t('PORTAIL ADMINISTRATEUR')}</span>
             <h1>{t('Une ville en mouvement,')}<br />{t('une gestion simplifiée.')}</h1>
@@ -789,7 +1008,7 @@ function AdminApp() {
             <label><span className="sr-only">{t('Langue')}</span><select aria-label={t('Langue')} value={language} onChange={(event) => setLanguage(event.target.value as typeof language)}><option value="mg">MG</option><option value="fr">FR</option><option value="en">EN</option></select></label>
             <button type="button" className="theme-toggle" onClick={toggleTheme} aria-label={theme === 'dark' ? t('Mode jour') : t('Mode nuit')}>{theme === 'dark' ? '☀' : '☾'}</button>
           </div>
-          <div className="login-mobile-brand"><span className="brand-mark">C</span><span>Cyclo-pousse<strong>Antsirabe</strong></span></div>
+          <div className="login-mobile-brand"><img className="brand-mark brand-mark--image" src={brandEmblem} alt="" /><span>Transport de commune urbaine<strong>Antsirabe</strong></span></div>
           <div className="login-form-wrap">
             <span className="eyebrow">{passwordResetMode ? 'RÉCUPÉRATION DU COMPTE' : t('BON RETOUR')}</span>
             <h2>{passwordResetMode ? t('Mot de passe oublié ?') : t('Connexion')}</h2>
@@ -826,29 +1045,39 @@ function AdminApp() {
   }
 
   const meta = pageMeta[page]
-  const headingTitle = page === 'vehicles' ? vehicleType || 'Tous les transports' : meta.title
-  const activeNav = page === 'vehicles'
-    ? navigation.find((item) => item.id === page && item.vehicleType === vehicleType) ?? navigation.find((item) => item.id === page && !item.vehicleType)
+  const headingTitle = page === 'vehicles'
+    ? vehicleType || 'Tous les transports'
+    : (page === 'owners' || page === 'drivers') && vehicleType
+      ? `${meta.title} · ${vehicleType}`
+      : meta.title
+  const activeNav = ['vehicles', 'drivers', 'owners'].includes(page)
+    ? navigation.find((item) => item.id === page && (item.vehicleType ?? '') === vehicleType) ?? navigation.find((item) => item.id === page && !item.vehicleType)
     : navigation.find((item) => item.id === page)
-  const listColumns = page === 'dashboard' || page === 'scan' || page === 'map' || page === 'users' || page === 'passwordRequests' || page === 'imports' || page === 'statistics' || page === 'owners' || page === 'history' ? [] : columns[page]
+  const listColumns = page === 'dashboard' || page === 'bus' || page === 'bajaj' || page === 'bajajContacts' || page === 'busmap' || page === 'exports' || page === 'scan' || page === 'map' || page === 'users' || page === 'passwordRequests' || page === 'imports' || page === 'statistics' || page === 'owners' || page === 'history' || page === 'guide' || page === 'privacy' ? [] : columns[page]
+  const isBusVehicle = page === 'vehicles'
+    && (String(editingRecord?.type ?? '') === 'Bus' || (editingRecord === null && vehicleType === 'Bus'))
   const displayedRecords = records
+  const vehiclePhotoSource = photoDraft.vehicle
+    ?? (!photoRemoved.vehicle && typeof editingRecord?.photo === 'string' ? photoUrl(editingRecord.photo) : '')
+  const ownerPhotoSource = photoDraft.owner
+    ?? (!photoRemoved.owner && typeof editingRecord?.photoProprietaire === 'string' ? photoUrl(editingRecord.photoProprietaire) : '')
 
   return (
     <div className="app-shell">
       {mobileMenu && <button className="sidebar-backdrop" aria-label={t('Fermer')} onClick={() => setMobileMenu(false)} />}
       <aside className={`sidebar ${mobileMenu ? 'sidebar-open' : ''}`}>
         <div className="sidebar-brand">
-          <span className="brand-mark">C</span>
-          <span className="brand-copy">Cyclo-pousse<strong>Antsirabe</strong></span>
+          <img className="brand-mark brand-mark--image" src={brandEmblem} alt="" />
+          <span className="brand-copy">Transport de commune urbaine<strong>Antsirabe</strong></span>
           <button className="mobile-close" onClick={() => setMobileMenu(false)} aria-label={t('Fermer')}>×</button>
         </div>
         <div className="workspace-switch"><span className="workspace-symbol">A</span><span><b>{t('Administration')}</b><small>Antsirabe, Madagascar</small></span><span className="chevron">⌄</span></div>
         <nav className="side-nav" aria-label="Navigation principale">
-          {['ESPACE DE TRAVAIL', 'GESTION', 'SUIVI', 'ADMINISTRATION'].map((group) => (
+          {['ESPACE DE TRAVAIL', 'ESPACE CYCLO-POUSSE', 'ESPACE BUS', 'ESPACE BAJAJ', 'GESTION', 'SUIVI', 'ADMINISTRATION', 'AIDE'].map((group) => (
             <div className="nav-group" key={group}>
               <p className="nav-heading">{t(group)}</p>
-              {navigation.filter((item) => item.group === group && (user.role === 'admin' || !['drivers', 'medical', 'payments', 'impounds', 'map', 'notifications', 'users', 'passwordRequests', 'imports', 'statistics', 'owners', 'history'].includes(item.id))).map((item) => (
-                <button key={`${item.id}-${item.vehicleType ?? item.label}`} className={`nav-item ${page === item.id && (item.id !== 'vehicles' || item.vehicleType === vehicleType) ? 'active' : ''}`} onClick={() => { setPage(item.id); if (item.id === 'vehicles') setVehicleType(item.vehicleType ?? ''); setFilter(''); setPageNumber(1); setMobileMenu(false) }}>
+              {navigation.filter((item) => item.group === group && (user.role === 'admin' || !['drivers', 'medical', 'payments', 'impounds', 'map', 'exports', 'notifications', 'users', 'passwordRequests', 'imports', 'statistics', 'owners', 'history'].includes(item.id))).map((item) => (
+                <button key={`${item.id}-${item.vehicleType ?? item.label}`} className={`nav-item ${page === item.id && (item.vehicleType ?? '') === (['vehicles', 'drivers', 'owners'].includes(item.id) ? vehicleType : '') ? 'active' : ''}`} onClick={() => { setPage(item.id); setVehicleType(item.vehicleType ?? ''); setFilter(''); setPageNumber(1); setMobileMenu(false) }}>
                   <span className="nav-icon">{item.icon}</span><span>{t(item.label)}</span>
                   {item.id === 'notifications' && notificationCount > 0 && <span className="nav-badge">{notificationCount}</span>}
                 </button>
@@ -857,7 +1086,7 @@ function AdminApp() {
           ))}
         </nav>
         <div className="sidebar-bottom">
-          <div className="help-card"><span className="help-icon">?</span><b>Besoin d’aide ?</b><p>Notre équipe est là pour vous accompagner.</p><button onClick={() => setActionError('Contactez votre administrateur système pour obtenir de l’aide.')}>Contacter le support <span>→</span></button></div>
+          <div className="help-card"><span className="help-icon">?</span><b>Besoin d’aide ?</b><p>Consultez le guide ou contactez votre administrateur système.</p><button onClick={() => setPage('guide')}>Ouvrir le guide <span>→</span></button><button className="help-secondary" onClick={() => setActionError('Contactez votre administrateur système pour obtenir de l’aide.')}>Contacter le support</button></div>
           <div className="user-card"><span className="avatar">{userDisplayName(user).slice(0, 1).toUpperCase()}</span><span className="user-details"><b>{userDisplayName(user)}</b><small>{user.role || 'Administrateur'}</small></span><button className="logout-button" onClick={() => void handleLogout()} title="Se déconnecter" disabled={busy}>↪</button></div>
         </div>
       </aside>
@@ -872,14 +1101,16 @@ function AdminApp() {
             <span className="today-date">{currentDate.toLocaleDateString(language === 'mg' ? 'mg-MG' : language === 'en' ? 'en-GB' : 'fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</span>{user.role === 'admin' && <button className="topbar-icon" aria-label={t('Notifications')} onClick={() => setPage('notifications')}>♧{notificationCount > 0 && <i />}</button>}<span className="top-avatar">{userDisplayName(user).slice(0, 1).toUpperCase()}</span></div>
         </header>
         <div className="page-content">
-          {page !== 'map' && <div className="page-heading">
-            <div><span className="eyebrow">{page === 'vehicles' ? `${vehicleType || 'TRANSPORT'} · ANTSIRABE`.toUpperCase() : ['statistics', 'owners', 'history'].includes(page) ? 'ADMINISTRATION · ANTSIRABE' : 'CYCLO-POUSSE · ANTSIRABE'}</span><h1>{t(headingTitle)}</h1><p>{t(meta.subtitle)}</p></div>
-            {meta.add && fieldSets[page] && (user.role === 'admin' || page === 'reports') && <button className="button primary add-button" onClick={() => { setEditingRecord(null); setModalOpen(true); setActionError('') }}><span>＋</span> {t(meta.add)}</button>}
+          <div className="page-transition" key={`${page}-${vehicleType}`}>
+          {page !== 'map' && page !== 'guide' && page !== 'privacy' && <div className="page-heading">
+            <div><span className="eyebrow">{page === 'vehicles' ? `${vehicleType || 'TRANSPORT'} · ANTSIRABE`.toUpperCase() : ['statistics', 'owners', 'history'].includes(page) ? 'ADMINISTRATION · ANTSIRABE' : ['bus', 'bajaj'].includes(page) ? 'FLOTTE · ANTSIRABE' : 'CYCLO-POUSSE · ANTSIRABE'}</span><h1>{t(headingTitle)}</h1><p>{t(meta.subtitle)}</p></div>
+            {meta.add && fieldSets[page] && (user.role === 'admin' || page === 'reports') && <button className="button primary add-button" onClick={() => { resetPhotoDraft(); setEditingRecord(null); setModalOpen(true); setActionError('') }}><span>＋</span> {t(meta.add)}</button>}
           </div>}
 
           {actionError && <div className="alert error action-alert" role="alert">{actionError}<button onClick={() => setActionError('')} aria-label="Fermer">×</button></div>}
+          {idleWarning && <div className="alert warn action-alert" role="status"><span>Votre session sera fermée dans 2 minutes pour inactivité. Cliquez pour continuer.</span><button onClick={() => setIdleWarning(false)} aria-label="Fermer">×</button></div>}
 
-          {page === 'scan' ? <ScanPage onVehicleFound={(registration) => { setPage('vehicles'); setVehicleType(''); setFilter(registration); setPageNumber(1) }} /> : page === 'map' ? <MapPage /> : page === 'users' || page === 'passwordRequests' || page === 'imports' ? <AccessManagementPage key={page} initialTab={page} /> : page === 'statistics' || page === 'owners' || page === 'history' ? <AdminInsightsPage key={page} page={page} /> : page === 'dashboard' ? (
+          {page === 'guide' ? <UserGuidePage /> : page === 'privacy' ? <PrivacyPolicyPage /> : page === 'bus' ? <BusFleetPage canEdit={user.role === 'admin'} /> : page === 'bajaj' ? <BajajPage canEdit={user.role === 'admin'} /> : page === 'bajajContacts' ? <BajajContactsPage canEdit={user.role === 'admin'} /> : page === 'busmap' ? <BusMapPage canEdit={user.role === 'admin'} /> : page === 'exports' ? <ExportsPage /> : page === 'scan' ? <ScanPage onVehicleFound={(registration) => { setPage('vehicles'); setVehicleType(''); setFilter(registration); setPageNumber(1) }} /> : page === 'map' ? <MapHub canEdit={user.role === 'admin'} /> : page === 'users' || page === 'passwordRequests' || page === 'imports' ? <AccessManagementPage key={page} initialTab={page} /> : page === 'statistics' || page === 'owners' || page === 'history' ? <AdminInsightsPage key={`${page}-${vehicleType}`} page={page} vehicleType={vehicleType} /> : page === 'dashboard' ? (
             loadState === 'loading' ? <LoadingState /> : loadState === 'error' ? <ErrorState message={loadError} retry={() => void loadPage()} /> : (
               <Dashboard summary={summary} onNavigate={setPage} currentDate={currentDate} />
             )
@@ -889,8 +1120,10 @@ function AdminApp() {
                 <div className="list-title"><h2>{t(headingTitle)}</h2><span className="record-count">{totalRecords} {t(totalRecords === 1 ? 'résultat' : 'résultats')}</span></div>
                 <div className="list-filters">
                   {page === 'vehicles' && user.role === 'admin' && selectedVehicleIds.length > 0 && <button className="button secondary" onClick={() => setQrBatchRegistrations(selectedVehicleIds)}>Imprimer QR ({selectedVehicleIds.length})</button>}
-                  {page === 'reports' && selectedReportIds.length > 0 && <button className="button secondary" onClick={printSelectedReports}>{t('Générer le rapport de sélection')} ({selectedReportIds.length})</button>}
-                  {page === 'vehicles' && <><label className="view-toggle"><span className="sr-only">{t('Mode d’affichage')}</span><button type="button" className={listView === 'table' ? 'selected' : ''} onClick={() => setListView('table')} aria-pressed={listView === 'table'} title={t('Vue liste')}>☷</button><button type="button" className={listView === 'grid' ? 'selected' : ''} onClick={() => setListView('grid')} aria-pressed={listView === 'grid'} title={t('Vue mosaïque')}>▦</button></label><select aria-label={t('Trier les véhicules')} value={vehicleSort} onChange={(event) => setVehicleSort(event.target.value)}><option value="registration">{t('Trier : immatriculation')}</option><option value="date">{t('Trier : date d’ajout')}</option><option value="owner">{t('Trier : propriétaire')}</option><option value="address">{t('Trier : adresse')}</option><option value="type">{t('Trier : type')}</option></select><button className="button secondary sort-direction" onClick={() => setVehicleSortDirection((direction) => direction === 'asc' ? 'desc' : 'asc')} aria-label={t('Inverser le sens du tri')}>{vehicleSortDirection === 'asc' ? '↑' : '↓'}</button></>}
+                  {page === 'reports' && selectedReportIds.length > 0 && <><button className="button secondary" onClick={printSelectedReports}>{t('Générer le rapport de sélection')} ({selectedReportIds.length})</button><button className="button secondary" onClick={() => void downloadSelectedReportsPdf()}>{t('Télécharger le PDF')}</button></>}
+                  {page === 'signals' && <button className="button primary" onClick={() => setSignalDialogOpen(true)}>＋ {t('Signaler un véhicule')}</button>}
+                  {Object.keys(columns).includes(page) && <label className="view-toggle"><span className="sr-only">{t('Mode d’affichage')}</span><button type="button" className={listView === 'table' ? 'selected' : ''} onClick={() => setListView('table')} aria-pressed={listView === 'table'} title={t('Vue liste')}>☷</button><button type="button" className={listView === 'grid' ? 'selected' : ''} onClick={() => setListView('grid')} aria-pressed={listView === 'grid'} title={t('Vue mosaïque')}>▦</button></label>}
+                  {page === 'vehicles' && <><select aria-label={t('Trier les véhicules')} value={vehicleSort} onChange={(event) => setVehicleSort(event.target.value)}><option value="registration">{t('Trier : immatriculation')}</option><option value="date">{t('Trier : date d’ajout')}</option><option value="owner">{t('Trier : propriétaire')}</option><option value="address">{t('Trier : adresse')}</option><option value="type">{t('Trier : type')}</option></select><button className="button secondary sort-direction" onClick={() => setVehicleSortDirection((direction) => direction === 'asc' ? 'desc' : 'asc')} aria-label={t('Inverser le sens du tri')}>{vehicleSortDirection === 'asc' ? '↑' : '↓'}</button></>}
                   {(page === 'vehicles' || page === 'drivers') && <label className="search-field"><span>⌕</span><input aria-label={t('Rechercher')} value={filter} onChange={(event) => { setFilter(event.target.value); setPageNumber(1) }} placeholder={page === 'vehicles' ? `${t('Rechercher')} ${t('Véhicules').toLocaleLowerCase()}…` : `${t('Rechercher')} ${t('Conducteurs').toLocaleLowerCase()}…`} /><kbd>⌘ K</kbd></label>}
                   {page === 'vehicles' && <select aria-label="Filtrer par type" value={vehicleType} onChange={(event) => setVehicleType(event.target.value)}><option value="">{t('Tous les types')}</option><option value="Cyclo-pousse">{t('Cyclo-pousse')}</option><option value="Bus">{t('Bus')}</option><option value="Bajaj">{t('Bajaj')}</option></select>}
                   {page === 'drivers' && <select aria-label={t('Filtrer par rôle')} value={driverRole} onChange={(event) => setDriverRole(event.target.value)}><option value="">{t('Tous les rôles')}</option><option value="Titulaire">{t('Titulaire')}</option><option value="Remplaçant (2ème conducteur)">{t('Remplaçant')}</option></select>}
@@ -910,26 +1143,85 @@ function AdminApp() {
                 <div className="payment-report-actions">
                   <button className="button secondary" onClick={exportPaymentCsv} disabled={records.length === 0}>{t('Télécharger CSV')}</button>
                   <button className="button secondary" onClick={printPaymentReport} disabled={records.length === 0}>{t('Imprimer le rapport')}</button>
+                  <button className="button secondary" onClick={() => void downloadPaymentReportPdf()} disabled={records.length === 0}>{t('Télécharger le rapport (PDF)')}</button>
                 </div>
                 <div className="payment-report-summary">
                   <article><b>{Number(paymentReport?.totalAmount ?? 0).toLocaleString(language === 'en' ? 'en-GB' : 'fr-FR')} Ar</b><span>{t('Total de la période')}</span></article>
                   <article><b>{Number(paymentReport?.globalAmount ?? 0).toLocaleString(language === 'en' ? 'en-GB' : 'fr-FR')} Ar</b><span>{t('Total de toute la flotte')}</span></article>
                   <article><b>{paymentReport?.total ?? 0}</b><span>{t('Paiements affichés')}</span></article>
                 </div>
-                <section className="payment-report-by-vehicle"><h3>{t('Somme par cyclo-pousse')}</h3>
-                  {paymentReport?.byVehicle.length ? <div className="table-scroll"><table><thead><tr><th>{t('Immatriculation')}</th><th>{t('Nom du véhicule')}</th><th>{t('Nombre de paiements')}</th><th>{t('Total payé')}</th></tr></thead><tbody>{paymentReport.byVehicle.map((item) => <tr key={item.immatriculation}><td><span className="plate">{item.immatriculation}</span></td><td>{item.nomVehicule || '—'}</td><td>{item.paymentCount}</td><td><b>{Number(item.totalAmount).toLocaleString(language === 'en' ? 'en-GB' : 'fr-FR')} Ar</b></td></tr>)}</tbody></table></div> : <p>{t('Aucun paiement pour cette période.')}</p>}
+                <section className="payment-report-by-vehicle"><div className="payment-report-heading"><h3>{t('Somme par cyclo-pousse')}</h3>
+                  <label className="view-toggle"><span className="sr-only">{t('Mode d’affichage')}</span><button type="button" className={listView === 'table' ? 'selected' : ''} onClick={() => setListView('table')} aria-pressed={listView === 'table'} title={t('Vue liste')}>☷</button><button type="button" className={listView === 'grid' ? 'selected' : ''} onClick={() => setListView('grid')} aria-pressed={listView === 'grid'} title={t('Vue mosaïque')}>▦</button></label>
+                </div>
+                  {paymentReport?.byVehicle.length ? (listView === 'grid'
+                    ? <div className="record-mosaic payment-mosaic">{paymentReport.byVehicle.map((item) => <article className="record-card" key={item.immatriculation}>
+                      <div className="record-card-head"><span className="record-card-avatar" aria-hidden="true">◈</span><div className="record-card-title"><small>{t('Immatriculation')}</small><b className="plate">{item.immatriculation}</b></div></div>
+                      <dl className="record-card-facts">
+                        <div><dt>{t('Nom du véhicule')}</dt><dd>{item.nomVehicule || '—'}</dd></div>
+                        <div><dt>{t('Nombre de paiements')}</dt><dd>{item.paymentCount}</dd></div>
+                        <div><dt>{t('Total payé')}</dt><dd><b>{Number(item.totalAmount).toLocaleString(language === 'en' ? 'en-GB' : 'fr-FR')} Ar</b></dd></div>
+                      </dl>
+                    </article>)}</div>
+                    : <div className="table-scroll"><table><thead><tr><th>{t('Immatriculation')}</th><th>{t('Nom du véhicule')}</th><th>{t('Nombre de paiements')}</th><th>{t('Total payé')}</th></tr></thead><tbody>{paymentReport.byVehicle.map((item) => <tr key={item.immatriculation}><td><span className="plate">{item.immatriculation}</span></td><td>{item.nomVehicule || '—'}</td><td>{item.paymentCount}</td><td><b>{Number(item.totalAmount).toLocaleString(language === 'en' ? 'en-GB' : 'fr-FR')} Ar</b></td></tr>)}</tbody></table></div>
+                  ) : <p>{t('Aucun paiement pour cette période.')}</p>}
                 </section>
               </>}
               {loadState === 'loading' ? <LoadingState /> : loadState === 'error' ? <ErrorState message={loadError} retry={() => void loadPage()} /> : records.length === 0 ? <EmptyState title="Aucun résultat" message="Aucune donnée n’est disponible pour le moment." /> : (
                 <>
-                  {page === 'vehicles' && listView === 'grid' ? <div className="vehicle-grid">{displayedRecords.map((record, index) => {
+                  {listView === 'grid' ? page === 'vehicles' ? <div className="vehicle-grid">{displayedRecords.map((record, index) => {
                     const registration = String(record.immatriculation ?? '')
+                    const photoSource = photoUrl(typeof record.photo === 'string' ? record.photo : null)
+                    const owner = [record.prenomProprietaire, record.nomProprietaire].filter(Boolean).join(' ') || '—'
+                    const vignette = record.expirationVignette ? readableDate(String(record.expirationVignette)) : '—'
                     return <article className="vehicle-card" key={record.id ?? registration ?? index}>
                       {user.role === 'admin' && <label className="vehicle-card-select"><input type="checkbox" aria-label={`${t('Sélectionner')} ${registration || 'ce véhicule'}`} checked={selectedVehicleIds.includes(registration)} onChange={(event) => setSelectedVehicleIds((current) => event.target.checked ? [...new Set([...current, registration])] : current.filter((item) => item !== registration))} /> {t('Sélectionner')}</label>}
+                      <div className={`vehicle-card-media${photoSource ? '' : ' is-empty'}`}>
+                        <VehicleThumb key={photoSource} src={photoSource} type={record.type} alt={`Véhicule ${registration}`} />
+                        <span className="vehicle-card-badge">{t(String(record.type ?? 'Véhicule'))}</span>
+                      </div>
                       <span className="vehicle-card-type">{t(String(record.type ?? 'Véhicule'))}</span><h3 className="plate">{registration || '—'}</h3>
-                      <p><b>{String(record.nom ?? '—')}</b></p><p>{String(record.prenomProprietaire ? `${record.prenomProprietaire} ${record.nomProprietaire ?? ''}` : record.nomProprietaire ?? '—')}</p>
+                      <p><b>{owner}</b></p><p>{String(record.nom || '—')} · {t('Vignette')} : {vignette}</p>
                       <span className={`status-pill ${statusClass(firstString(record, ['statut', 'status']))}`}><i />{t(firstString(record, ['statut', 'status']))}</span>
                       <div className="vehicle-card-actions">{registration && <><button className="table-action" onClick={() => setDetailTarget({ kind: 'vehicle', id: registration })}>{t('Voir')}</button>{user.role === 'admin' && <button className="table-action" onClick={() => setQrImmatriculation(registration)}>QR</button>}</>}{user.role === 'admin' && <><button className="table-action" onClick={() => startEditing(record)}>{t('Modifier')}</button><button className="table-action danger-action" onClick={() => void removeRecord(record)}>{t('Supprimer')}</button></>}</div>
+                    </article>
+                  })}</div> : <div className="record-mosaic">{displayedRecords.map((record, index) => {
+                    const mainColumn = listColumns[0]
+                    const mainValue = mainColumn ? displayValue(record, mainColumn.key) : '—'
+                    const status = firstString(record, ['statut', 'status', 'lu'])
+                    const isRead = record.lu === true || Number(record.lu) === 1
+                    const facts = listColumns.slice(1).filter((column) => column.key !== 'statut' && column.key !== 'lu').slice(0, 4)
+                    return <article className={`record-card record-card--${page}`} key={record.id ?? index}>
+                      <div className="record-card-head">
+                        <span className="record-card-avatar" aria-hidden="true">{mainValue.slice(0, 1).toUpperCase() || '•'}</span>
+                        <div className="record-card-title"><small>{mainColumn ? t(mainColumn.label) : ''}</small><b className={mainColumn?.key === 'immatriculation' ? 'plate' : ''}>{mainColumn?.key === 'type' || mainColumn?.key === 'motif' ? t(mainValue) : mainValue}</b></div>
+                        {status && <span className={`status-pill ${statusClass(status)}`}><i />{t(status)}</span>}
+                      </div>
+                      {facts.length > 0 && <dl className="record-card-facts">{facts.map((column) => {
+                        const value = displayValue(record, column.key)
+                        return <div key={column.key}><dt>{t(column.label)}</dt><dd>{column.key === 'type' ? t(value) : value}</dd></div>
+                      })}</dl>}
+                      <div className="record-card-actions">
+                        {page === 'drivers' && record.id !== undefined && <>
+                          <button className="table-action" onClick={() => setDetailTarget({ kind: 'driver', id: record.id as Id })}>{t('Voir')}</button>
+                          {user.role === 'admin' && <button className="table-action" onClick={() => setAssignDriver({ id: record.id as Id, nom: String(record.nom ?? 'ce conducteur') })}>{t('Véhicule')}</button>}
+                          {user.role === 'admin' && <button className="table-action" onClick={() => setReplacementDriver({ id: record.id as Id, nom: String(record.nom ?? 'ce conducteur') })}>{t('Remplacements')}</button>}
+                          {user.role === 'admin' && <><button className="table-action" onClick={() => startEditing(record)}>{t('Modifier')}</button><button className="table-action danger-action" onClick={() => void removeRecord(record)}>{t('Supprimer')}</button></>}
+                        </>}
+                        {page === 'payments' && user.role === 'admin' && <>
+                          <button className="table-action" onClick={() => printReceipt(record, 58)}>{t('Reçu 58 mm')}</button>
+                          <button className="table-action" onClick={() => printReceipt(record, 80)}>{t('Reçu 80 mm')}</button>
+                          <button className="table-action" onClick={() => void downloadPaymentReceipt(record, 58)}>{t('Reçu 58 PDF')}</button>
+                          <button className="table-action" onClick={() => void downloadPaymentReceipt(record, 80)}>{t('Reçu 80 PDF')}</button>
+                          <button className="table-action danger-action" onClick={() => void removePayment(record)}>{t('Supprimer')}</button>
+                        </>}
+                        {page === 'signals' && user.role === 'admin' && <button className="table-action" disabled={status === 'Traité'} onClick={() => void runRowAction(record, 'signal')}>{status === 'Traité' ? t('Traité') : status === 'Nouveau' ? t('Prendre en charge') : t('Traiter')} →</button>}
+                        {page === 'impounds' && user.role === 'admin' && <button className="table-action" disabled={status === 'Libéré'} onClick={() => void runRowAction(record, 'release')}>{status === 'Libéré' ? t('Restitué') : t('Libérer')} →</button>}
+                        {page === 'reports' && user.role === 'admin' && <button className="table-action" disabled={isRead} onClick={() => void runRowAction(record, 'report-read')}>{isRead ? t('Déjà lu') : t('Marquer lu')} →</button>}
+                        {page === 'notifications' && <>
+                          {(record.cible || record.immatriculationCible) && <button className="table-action" onClick={() => void openNotification(record)}>{t('Ouvrir')} →</button>}
+                          {user.role === 'admin' && <button className="table-action" disabled={isRead} onClick={() => void runRowAction(record, 'read')}>{isRead ? t('Déjà lu') : t('Marquer lu')} →</button>}
+                        </>}
+                      </div>
                     </article>
                   })}</div> : <div className="table-scroll"><table><thead><tr>{user.role === 'admin' && page === 'vehicles' && <th><input type="checkbox" aria-label="Sélectionner tous les véhicules de cette page" checked={records.length > 0 && records.every((record) => selectedVehicleIds.includes(String(record.immatriculation ?? '')))} onChange={(event) => setSelectedVehicleIds((current) => event.target.checked ? [...new Set([...current, ...records.map((record) => String(record.immatriculation ?? '')).filter(Boolean)])] : current.filter((registration) => !records.some((record) => String(record.immatriculation ?? '') === registration)))} /></th>}{page === 'reports' && <th><input type="checkbox" aria-label="Sélectionner tous les rapports de cette page" checked={records.length > 0 && records.every((record) => selectedReportIds.includes(String(record.id ?? '')))} onChange={(event) => setSelectedReportIds((current) => event.target.checked ? [...new Set([...current, ...records.map((record) => String(record.id ?? '')).filter(Boolean)])] : current.filter((id) => !records.some((record) => String(record.id ?? '') === id)))} /></th>}{listColumns.map((column) => <th key={column.key}>{t(column.label)}</th>)}{['vehicles', 'drivers', 'payments'].includes(page) || user.role === 'admin' && ['signals', 'impounds', 'reports', 'notifications'].includes(page) ? <th>Action</th> : null}</tr></thead>
                     <tbody>{displayedRecords.map((record, index) => {
@@ -939,10 +1231,10 @@ function AdminApp() {
                         {page === 'reports' && <td><input type="checkbox" aria-label={`Sélectionner le rapport ${record.sujet ?? ''}`} checked={selectedReportIds.includes(String(record.id ?? ''))} onChange={(event) => { const id = String(record.id ?? ''); setSelectedReportIds((current) => event.target.checked ? [...new Set([...current, id])] : current.filter((item) => item !== id)) }} /></td>}
                         {listColumns.map((column) => {
                           const text = displayValue(record, column.key)
-                          return <td key={column.key}>{page === 'notifications' && column.key === 'description' && (record.cible || record.immatriculationCible) ? <button type="button" className="notification-link" onClick={() => void openNotification(record)}>{text}<span aria-hidden="true">→</span></button> : column.key === 'statut' || column.key === 'lu' ? <span className={`status-pill ${statusClass(text)}`}><i />{t(text)}</span> : column.key === 'nom' ? <span className="table-person"><span className="mini-avatar">{text === '—' ? '•' : text.slice(0, 1).toUpperCase()}</span><b>{text}</b></span> : <span className={column.key === 'immatriculation' ? 'plate' : ''}>{column.key === 'type' ? t(text) : text}</span>}</td>
+                          return <td key={column.key}>{page === 'notifications' && column.key === 'description' && (record.cible || record.immatriculationCible) ? <button type="button" className="notification-link" onClick={() => void openNotification(record)}>{text}<span aria-hidden="true">→</span></button> : page === 'vehicles' && column.key === 'immatriculation' ? <span className="plate-cell"><span className="table-thumb"><VehicleThumb src={photoUrl(typeof record.photo === 'string' ? record.photo : null)} type={record.type} alt={`Véhicule ${text}`} /></span><span className="plate">{text}</span></span> : column.key === 'statut' || column.key === 'lu' ? <span className={`status-pill ${statusClass(text)}`}><i />{t(text)}</span> : column.key === 'nom' ? <span className="table-person"><span className="mini-avatar">{text === '—' ? '•' : text.slice(0, 1).toUpperCase()}</span><b>{text}</b></span> : <span className={column.key === 'immatriculation' ? 'plate' : ''}>{column.key === 'type' ? t(text) : text}</span>}</td>
                         })}
-                        {user.role === 'admin' && page === 'payments' && <td><button className="table-action" onClick={() => printReceipt(record, 58)}>{t('Reçu 58 mm')}</button><button className="table-action" onClick={() => printReceipt(record, 80)}>{t('Reçu 80 mm')}</button><button className="table-action danger-action" onClick={() => void removePayment(record)}>{t('Supprimer')}</button></td>}
-                        {(page === 'vehicles' || page === 'drivers') && <td>{page === 'vehicles' && record.immatriculation && <><button className="table-action" onClick={() => setDetailTarget({ kind: 'vehicle', id: record.immatriculation ?? '' })}>{t('Voir')}</button>{user.role === 'admin' && <button className="table-action" onClick={() => setQrImmatriculation(record.immatriculation ?? '')}>QR</button>}</>}{page === 'drivers' && record.id !== undefined && <><button className="table-action" onClick={() => { if (record.id !== undefined) setDetailTarget({ kind: 'driver', id: record.id }) }}>{t('Voir')}</button>{user.role === 'admin' && <button className="table-action" onClick={() => { if (record.id !== undefined) setReplacementDriver({ id: record.id, nom: String(record.nom ?? 'ce conducteur') }) }}>{t('Remplacements')}</button>}</>}{user.role === 'admin' && <><button className="table-action" onClick={() => startEditing(record)}>{t('Modifier')}</button><button className="table-action danger-action" onClick={() => void removeRecord(record)}>{t('Supprimer')}</button></>}</td>}
+                        {user.role === 'admin' && page === 'payments' && <td><button className="table-action" onClick={() => printReceipt(record, 58)}>{t('Reçu 58 mm')}</button><button className="table-action" onClick={() => printReceipt(record, 80)}>{t('Reçu 80 mm')}</button><button className="table-action" onClick={() => void downloadPaymentReceipt(record, 58)}>{t('Reçu 58 PDF')}</button><button className="table-action" onClick={() => void downloadPaymentReceipt(record, 80)}>{t('Reçu 80 PDF')}</button><button className="table-action danger-action" onClick={() => void removePayment(record)}>{t('Supprimer')}</button></td>}
+                        {(page === 'vehicles' || page === 'drivers') && <td>{page === 'vehicles' && record.immatriculation && <><button className="table-action" onClick={() => setDetailTarget({ kind: 'vehicle', id: record.immatriculation ?? '' })}>{t('Voir')}</button>{user.role === 'admin' && <button className="table-action" onClick={() => setQrImmatriculation(record.immatriculation ?? '')}>QR</button>}</>}{page === 'drivers' && record.id !== undefined && <><button className="table-action" onClick={() => { if (record.id !== undefined) setDetailTarget({ kind: 'driver', id: record.id }) }}>{t('Voir')}</button>{user.role === 'admin' && <button className="table-action" onClick={() => { if (record.id !== undefined) setReplacementDriver({ id: record.id, nom: String(record.nom ?? 'ce conducteur') }) }}>{t('Remplacements')}</button>}{user.role === 'admin' && <button className="table-action" onClick={() => { if (record.id !== undefined) setAssignDriver({ id: record.id, nom: String(record.nom ?? 'ce conducteur') }) }}>{t('Véhicule')}</button>}</>}{user.role === 'admin' && <><button className="table-action" onClick={() => startEditing(record)}>{t('Modifier')}</button><button className="table-action danger-action" onClick={() => void removeRecord(record)}>{t('Supprimer')}</button></>}</td>}
                         {user.role === 'admin' && ['signals', 'impounds', 'reports', 'notifications'].includes(page) && <td>{page === 'signals' ? <button className="table-action" disabled={status === 'Traité'} onClick={() => void runRowAction(record, 'signal')}>{status === 'Nouveau' ? 'Prendre en charge' : status === 'Traité' ? 'Traité' : 'Traiter'} →</button> : page === 'impounds' ? <button className="table-action" disabled={status === 'Libéré'} onClick={() => void runRowAction(record, 'release')}>{status === 'Libéré' ? 'Restitué' : 'Libérer'} →</button> : <button className="table-action" disabled={record.lu === true || Number(record.lu) === 1} onClick={() => void runRowAction(record, page === 'reports' ? 'report-read' : 'read')}>{record.lu === true || Number(record.lu) === 1 ? 'Déjà lu' : 'Marquer lu →'}</button>}</td>}
                       </tr>
                     })}</tbody>
@@ -952,22 +1244,61 @@ function AdminApp() {
               )}
             </section>
           )}
+          </div>
           <footer className="page-footer"><span>© 2026 Cyclo-pousse Antsirabe</span><span>Administration <i>·</i> Madagascar</span></footer>
         </div>
       </main>
 
       {modalOpen && fieldSets[page] && (
-        <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setModalOpen(false) }}>
+        <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) closeModal() }}>
           <section className="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
-            <div className="modal-heading"><div><span className="eyebrow">{editingRecord ? 'MODIFICATION' : 'NOUVELLE ENTRÉE'}</span><h2 id="modal-title">{editingRecord ? `${t('Modifier')} ${page === 'vehicles' ? editingRecord.immatriculation : editingRecord.nom}` : meta.add && t(meta.add)}</h2></div><button className="modal-close" onClick={() => { setModalOpen(false); setEditingRecord(null) }} aria-label={t('Fermer')}>×</button></div>
+            <div className="modal-heading"><div><span className="eyebrow">{editingRecord ? 'MODIFICATION' : 'NOUVELLE ENTRÉE'}</span><h2 id="modal-title">{editingRecord ? `${t('Modifier')} ${page === 'vehicles' ? editingRecord.immatriculation : editingRecord.nom}` : meta.add && t(meta.add)}</h2></div><button className="modal-close" onClick={closeModal} aria-label={t('Fermer')}>×</button></div>
             <form className="record-form" onSubmit={(event) => void submitRecord(event)}>
               {editingRecord && page === 'vehicles' && <p className="form-note">Les informations du propriétaire sont partagées avec ses autres véhicules.</p>}
-              {fieldSets[page]?.map((field) => <label key={field.name}>{t(field.label)}{field.optional && <span className="optional-label">· facultatif</span>}
+              {editingRecord && page === 'vehicles' && <section className="photo-editor" aria-label="Photos du véhicule et du propriétaire">
+                <div className="photo-editor-field">
+                  <span className="photo-editor-label">Photo du véhicule</span>
+                  <div className="photo-editor-preview"><VehicleThumb src={vehiclePhotoSource} alt={`Véhicule ${String(editingRecord.immatriculation ?? '')}`} type={editingRecord.type} /></div>
+                  <div className="photo-editor-actions">
+                    <label className="photo-upload-button">{photoBusy ? 'Chargement…' : 'Changer la photo'}<input type="file" accept="image/jpeg,image/png,image/webp" disabled={photoBusy} onChange={(event) => {
+                      const file = event.target.files?.[0]
+                      event.target.value = ''
+                      if (!file) return
+                      setPhotoBusy(true)
+                      void photoFileToDataUrl(file).then((data) => {
+                        setPhotoDraft((current) => ({ ...current, vehicle: data }))
+                        setPhotoRemoved((current) => ({ ...current, vehicle: false }))
+                      }).catch((error: unknown) => setActionError(error instanceof Error ? error.message : 'Photo illisible.')).finally(() => setPhotoBusy(false))
+                    }} /></label>
+                    {(vehiclePhotoSource || editingRecord.photo) && <button type="button" className="photo-remove" onClick={() => { setPhotoDraft((current) => ({ ...current, vehicle: undefined })); setPhotoRemoved((current) => ({ ...current, vehicle: true })) }}>Supprimer</button>}
+                  </div>
+                </div>
+                <div className="photo-editor-field">
+                  <span className="photo-editor-label">Photo du propriétaire</span>
+                  <div className="photo-editor-preview photo-editor-preview--owner"><OwnerThumb src={ownerPhotoSource} name={`${editingRecord.prenomProprietaire ?? ''} ${editingRecord.nomProprietaire ?? ''}`.trim()} /></div>
+                  <div className="photo-editor-actions">
+                    <label className="photo-upload-button">{photoBusy ? 'Chargement…' : 'Changer la photo'}<input type="file" accept="image/jpeg,image/png,image/webp" disabled={photoBusy || !editingRecord.proprietaireId} onChange={(event) => {
+                      const file = event.target.files?.[0]
+                      event.target.value = ''
+                      if (!file) return
+                      setPhotoBusy(true)
+                      void photoFileToDataUrl(file).then((data) => {
+                        setPhotoDraft((current) => ({ ...current, owner: data }))
+                        setPhotoRemoved((current) => ({ ...current, owner: false }))
+                      }).catch((error: unknown) => setActionError(error instanceof Error ? error.message : 'Photo illisible.')).finally(() => setPhotoBusy(false))
+                    }} /></label>
+                    {(ownerPhotoSource || editingRecord.photoProprietaire) && <button type="button" className="photo-remove" onClick={() => { setPhotoDraft((current) => ({ ...current, owner: undefined })); setPhotoRemoved((current) => ({ ...current, owner: true })) }}>Supprimer</button>}
+                  </div>
+                  {!editingRecord.proprietaireId && <small className="photo-editor-help">Aucun propriétaire lié à ce véhicule.</small>}
+                </div>
+              </section>}
+              {isBusVehicle && <p className="form-note">Pour un bus, la vignette et la visite médicale sont comprises dans la licence annuelle : elles se règlent depuis « Bus &amp; licences ».</p>}
+              {fieldSets[page]?.filter((field) => !(isBusVehicle && (field.name === 'expirationVignette' || field.name === 'expirationVisiteMedicale'))).map((field) => <label key={field.name}>{t(field.label)}{field.optional && <span className="optional-label">· facultatif</span>}
                 {field.options ? <select name={field.name} required={!field.optional} defaultValue={formFieldValue(editingRecord, field)}><option value="">Sélectionner</option>{field.options.map((option) => <option key={option} value={option}>{t(option)}</option>)}</select>
                   : field.multiline ? <textarea name={field.name} required={!field.optional} defaultValue={formFieldValue(editingRecord, field)} maxLength={field.name === 'contenu' ? 5000 : 500} rows={field.name === 'contenu' ? 5 : 3} />
                     : <input name={field.name} type={field.type || 'text'} required={!field.optional} readOnly={field.readOnly && Boolean(editingRecord)} defaultValue={formFieldValue(editingRecord, field)} min={field.type === 'number' ? (field.name === 'montant' ? 0 : 1) : undefined} max={field.name === 'montant' ? 1000000000 : undefined} />}</label>)}
               {actionError && <div className="alert error" role="alert">{actionError}</div>}
-              <div className="modal-actions"><button type="button" className="button secondary" onClick={() => { setModalOpen(false); setEditingRecord(null) }}>Annuler</button><button type="submit" className="button primary" disabled={busy}>{busy ? 'Enregistrement…' : 'Enregistrer'}</button></div>
+              <div className="modal-actions"><button type="button" className="button secondary" onClick={closeModal}>Annuler</button><button type="submit" className="button primary" disabled={busy || photoBusy}>{busy ? 'Enregistrement…' : 'Enregistrer'}</button></div>
             </form>
           </section>
         </div>
@@ -976,6 +1307,8 @@ function AdminApp() {
       {qrBatchRegistrations.length > 0 && <VehicleQrBatchDialog registrations={qrBatchRegistrations} onClose={() => setQrBatchRegistrations([])} />}
       {detailTarget && <RecordDetailsDialog key={`${detailTarget.kind}:${detailTarget.id}`} kind={detailTarget.kind} id={detailTarget.id} onClose={() => setDetailTarget(null)} />}
       {replacementDriver && <DriverReplacementsDialog driver={replacementDriver} onClose={() => setReplacementDriver(null)} onSaved={() => { setReplacementDriver(null); void loadPage() }} />}
+      {assignDriver && <DriverVehicleDialog driver={assignDriver} vehicleType={vehicleType} onClose={() => setAssignDriver(null)} onSaved={() => void loadPage()} />}
+      {signalDialogOpen && <SignalDialog onClose={() => setSignalDialogOpen(false)} onCreated={() => { if (page === 'signals') void loadPage() }} />}
     </div>
   )
 }
@@ -995,8 +1328,110 @@ function EmptyState({ title, message }: { title: string; message: string }) {
   return <div className="empty-state"><span>⌕</span><b>{t(title)}</b><p>{t(message)}</p></div>
 }
 
+/** Anime un nombre de 0 vers sa valeur cible (ou l'ancienne valeur si elle change). */
+function useCountUp(target: number, duration = 900) {
+  const [value, setValue] = useState(0)
+  const previous = useRef(0)
+  useEffect(() => {
+    const from = previous.current
+    const to = Number.isFinite(target) ? target : 0
+    previous.current = to
+    if (from === to) {
+      setValue(to)
+      return
+    }
+    if (typeof window === 'undefined' || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      setValue(to)
+      return
+    }
+    let frame = 0
+    const start = performance.now()
+    const tick = (now: number) => {
+      const progress = Math.min(1, (now - start) / duration)
+      const eased = 1 - Math.pow(1 - progress, 3)
+      setValue(Math.round(from + (to - from) * eased))
+      if (progress < 1) frame = requestAnimationFrame(tick)
+    }
+    frame = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(frame)
+  }, [target, duration])
+  return value
+}
+
+function CountUp({ value, locale }: { value: number; locale: string }) {
+  const current = useCountUp(value)
+  return <>{current.toLocaleString(locale)}</>
+}
+
+/** Petite illustration vectorielle utilisee quand un vehicule n'a pas de photo. */
+function VehicleGlyph({ type }: { type?: unknown }) {
+  const kind = String(type ?? '')
+  if (kind === 'Bus') {
+    return (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <rect x="4" y="3.5" width="16" height="14" rx="2.5" />
+        <path d="M4 11h16M8 3.5v4M16 3.5v4" />
+        <path d="M7 17.5v2M17 17.5v2" />
+        <circle cx="7.5" cy="14.5" r=".6" fill="currentColor" /><circle cx="16.5" cy="14.5" r=".6" fill="currentColor" />
+      </svg>
+    )
+  }
+  if (kind === 'Bajaj') {
+    return (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M3 16v-3.5L6 8h5l2 3.5h5.5L21 15v1" />
+        <path d="M3 15h18" />
+        <circle cx="7" cy="17.5" r="1.8" /><circle cx="17" cy="17.5" r="1.8" />
+      </svg>
+    )
+  }
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="5" cy="17" r="2.5" /><circle cx="18" cy="17" r="2.5" />
+      <path d="M5 17h4l3-6h4l2 6M9 11l-1.5-4H5" />
+      <path d="M14 8l2-3h3" />
+    </svg>
+  )
+}
+
+/** Vignette d'un vehicule : repli illustre si la photo est absente ou cassee. */
+function VehicleThumb({ src, alt, type }: { src: string; alt: string; type?: unknown }) {
+  const [failedSrc, setFailedSrc] = useState<string | null>(null)
+  if (!src || failedSrc === src) return <VehicleGlyph type={type} />
+  return <img src={src} alt={alt} loading="lazy" onError={() => setFailedSrc(src)} />
+}
+
+/** Vignette ronde d'un proprietaire, avec initiale en repli. */
+function OwnerThumb({ src, name }: { src: string; name: string }) {
+  const [failedSrc, setFailedSrc] = useState<string | null>(null)
+  if (!src || failedSrc === src) return <span className="owner-thumb-fallback">{name.slice(0, 1).toUpperCase() || '•'}</span>
+  return <img src={src} alt={name ? `Propriétaire ${name}` : 'Propriétaire'} loading="lazy" onError={() => setFailedSrc(src)} />
+}
+
+function weatherInfo(code: number, isDay = true): { icon: string; label: string } {
+  if (code === 0) return { icon: isDay ? '☀️' : '🌙', label: 'Ciel dégagé' }
+  if (code <= 2) return { icon: isDay ? '🌤️' : '☁️', label: 'Peu nuageux' }
+  if (code === 3) return { icon: '☁️', label: 'Couvert' }
+  if (code === 45 || code === 48) return { icon: '🌫️', label: 'Brouillard' }
+  if (code >= 51 && code <= 57) return { icon: '🌦️', label: 'Bruine' }
+  if (code >= 61 && code <= 67) return { icon: '🌧️', label: 'Pluie' }
+  if (code >= 71 && code <= 77) return { icon: '🌨️', label: 'Neige' }
+  if (code >= 80 && code <= 82) return { icon: '🌦️', label: 'Averses' }
+  if (code >= 85 && code <= 86) return { icon: '🌨️', label: 'Averses de neige' }
+  if (code >= 95) return { icon: '⛈️', label: 'Orages' }
+  return { icon: '🌡️', label: 'Météo' }
+}
+
 function Dashboard({ summary, onNavigate, currentDate }: { summary: DashboardSummary | null; onNavigate: (page: PageId) => void; currentDate: Date }) {
   const { language, t } = usePreferences()
+  const [weather, setWeather] = useState<WeatherReport | null>(null)
+  useEffect(() => {
+    let active = true
+    api.weather()
+      .then((report) => { if (active) setWeather(report) })
+      .catch(() => undefined)
+    return () => { active = false }
+  }, [])
   const vehicleBreakdown = summary?.vehiclesByType ?? summary?.vehicles ?? []
   const maxVehicles = Math.max(1, ...vehicleBreakdown.map((vehicle) => Number(vehicle.total) || 0))
   const cards = [
@@ -1006,9 +1441,61 @@ function Dashboard({ summary, onNavigate, currentDate }: { summary: DashboardSum
     { label: 'Vignettes impayées', count: countValue(summary, ['unpaidVignettes', 'pendingPayments']), icon: '▤', tone: 'purple', note: 'À régulariser', page: 'payments' as PageId },
   ]
   const locale = language === 'mg' ? 'mg-MG' : language === 'en' ? 'en-GB' : 'fr-FR'
+  const previewRows = vehicleBreakdown.slice(0, 3)
+  const totalVehicles = countValue(summary, ['totalVehicles', 'vehicles', 'vehiclesByType'])
   return <>
-    <div className="welcome-banner"><div><span className="banner-label">{currentDate.toLocaleDateString(locale, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).toUpperCase()}</span><h2>{t('Bienvenue dans votre espace.')}</h2><p>{t('Voici le résumé de l’activité de votre réseau aujourd’hui.')}</p></div><div className="banner-decoration"><span>✳</span><i /><i /><i /></div></div>
-    <div className="stats-grid">{cards.map((card) => <button className="stat-card" key={card.label} onClick={() => onNavigate(card.page)}><div className="stat-card-top"><span>{t(card.label)}</span><i className={`stat-icon ${card.tone}`}>{card.icon}</i></div><b className="stat-number">{card.count.toLocaleString(locale)}</b><div className="stat-foot"><span className="stat-dot" />{t(card.note)}<span className="stat-arrow">↗</span></div></button>)}</div>
+    <div className="welcome-banner">
+      <div className="welcome-banner-copy">
+        <span className="banner-label"><i />{currentDate.toLocaleDateString(locale, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).toUpperCase()}</span>
+        <h2>{t('Bienvenue dans votre espace.')}</h2>
+        <p>{t('Voici le résumé de l’activité de votre réseau aujourd’hui.')}</p>
+        <div className="banner-actions">
+          <button className="banner-cta" onClick={() => onNavigate('vehicles')}>{t('Gérer les véhicules')} <span>→</span></button>
+          <button className="banner-cta ghost" onClick={() => onNavigate('map')}>{t('Voir la carte')} <span>→</span></button>
+        </div>
+      </div>
+      <div className="banner-preview">
+        <div className="banner-preview-top"><b>{t('Réseau en direct')}</b><span className="live-pill"><i />{t('Actif')}</span></div>
+        {previewRows.length ? previewRows.map((vehicle, index) => (
+          <div className="banner-preview-row" key={vehicle.type}>
+            <i style={{ background: ['#2b3a32', '#e8a33d', '#8fa89a'][index % 3] }} />
+            <span>{t(vehicle.type)}</span>
+            <b>{Number(vehicle.total).toLocaleString(locale)}</b>
+          </div>
+        )) : <div className="banner-preview-row"><i /><span>{t('Parc enregistré')}</span><b>—</b></div>}
+        <div className="banner-preview-foot"><span>{t('Total véhicules')}</span><b>{totalVehicles.toLocaleString(locale)}</b></div>
+      </div>
+    </div>
+    <div className="weather-panel" aria-label={t('Météo à Antsirabe')}>
+      <div className="weather-now">
+        <span className="weather-emoji" aria-hidden="true">{weather ? weatherInfo(weather.code, weather.isDay).icon : '🌤️'}</span>
+        <div className="weather-now-text">
+          <small>{t('Météo')} · {weather?.location ?? 'Antsirabe'}</small>
+          <b>{weather ? `${Math.round(weather.temperature)}°C` : '—'}</b>
+          <span>{weather ? t(weatherInfo(weather.code, weather.isDay).label) : t('Chargement de la météo…')}</span>
+        </div>
+      </div>
+      <dl className="weather-facts">
+        <div><dt>{t('Ressenti')}</dt><dd>{weather ? `${Math.round(weather.feelsLike)}°C` : '—'}</dd></div>
+        <div><dt>{t('Humidité')}</dt><dd>{weather ? `${Math.round(weather.humidity)}%` : '—'}</dd></div>
+        <div><dt>{t('Vent')}</dt><dd>{weather ? `${Math.round(weather.windSpeed)} km/h` : '—'}</dd></div>
+        <div><dt>{t('Pluie')}</dt><dd>{weather ? `${weather.precipitation.toLocaleString(locale)} mm` : '—'}</dd></div>
+      </dl>
+      <div className="weather-days">
+        {weather ? weather.daily.slice(1, 4).map((day) => {
+          const info = weatherInfo(day.code)
+          const date = new Date(`${day.date}T12:00:00`)
+          return <div className="weather-day" key={day.date}>
+            <span>{date.toLocaleDateString(locale, { weekday: 'short' })}</span>
+            <b aria-hidden="true">{info.icon}</b>
+            <strong>{Math.round(day.max)}°</strong>
+            <small>{Math.round(day.min)}°</small>
+            <i title={t('Probabilité de pluie')}>{Math.round(day.rain)}%</i>
+          </div>
+        }) : [0, 1, 2].map((index) => <div className="weather-day is-loading" key={index}><span>—</span><b aria-hidden="true">·</b><strong>—</strong><small>—</small><i>—</i></div>)}
+      </div>
+    </div>
+    <div className="stats-grid">{cards.map((card) => <button className="stat-card" key={card.label} onClick={() => onNavigate(card.page)}><div className="stat-card-top"><span>{t(card.label)}</span><i className={`stat-icon ${card.tone}`}>{card.icon}</i></div><b className="stat-number"><CountUp value={card.count} locale={locale} /></b><div className="stat-foot"><span className="stat-dot" />{t(card.note)}<span className="stat-arrow">↗</span></div></button>)}</div>
     <div className="dashboard-lower">
       <section className="panel activity-panel"><div className="panel-heading"><div><h2>{t('Véhicules par type')}</h2><p>{t('Répartition actuelle du parc')}</p></div></div>
         {vehicleBreakdown.length ? <div className="vehicle-breakdown">{vehicleBreakdown.map((vehicle) => <div className="breakdown-row" key={vehicle.type}><div className="breakdown-heading"><b>{t(vehicle.type)}</b><span>{Number(vehicle.total).toLocaleString(locale)} {t('Véhicules').toLocaleLowerCase()}</span></div><div className="breakdown-track"><i style={{ width: `${Math.min(100, (Number(vehicle.total) / maxVehicles) * 100)}%` }} /></div><div className="breakdown-meta"><span>{Number(vehicle.actifs || 0).toLocaleString(locale)} {t('actifs')}</span><span>{Number(vehicle.fourriere || 0).toLocaleString(locale)} {t('en fourrière')}</span></div></div>)}</div> : <EmptyState title="Aucune donnée véhicule" message="La répartition par type n’est pas encore disponible." />}

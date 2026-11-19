@@ -1,30 +1,67 @@
 import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react'
 import MapCanvas, { type MapPoint } from './MapCanvas'
+import { photoUrl } from './api'
 import './MapPage.css'
 
 interface MapVehicle {
   immatriculation: string
   nom?: string | null
   type?: string | null
+  statut?: string | null
+  couleurs?: string | null
+  cooperative?: string | null
+  photo?: string | null
+  expirationVignette?: string | null
   latitude?: number | string | null
   longitude?: number | string | null
   adresse?: string | null
   nomProprietaire?: string | null
   prenomProprietaire?: string | null
+  telephone?: string | null
+  nifProprietaire?: string | null
+  statutImpotSynthetique?: string | null
+  anneeImpotSynthetique?: number | string | null
+  dateRenouvellementImpotSynthetique?: string | null
+  derniereScan?: string | null
+  nombreScans?: number | string | null
 }
 
 interface MapScan {
   id: string | number
   immatriculation?: string | null
   date?: string | null
+  qui?: string | null
   latitude?: number | string | null
   longitude?: number | string | null
   precisionMeters?: number | string | null
 }
 
+interface MapSummary {
+  total?: number
+  geolocalises?: number
+  fourriere?: number
+  vignettesExpirees?: number
+  types?: number
+  scans?: number
+  generatedAt?: string
+}
+
+interface MapSignal {
+  id: string | number
+  immatriculation?: string | null
+  motif?: string | null
+  description?: string | null
+  statut?: string | null
+  date?: string | null
+  latitude?: number | string | null
+  longitude?: number | string | null
+}
+
 interface MapPayload {
   vehicles?: MapVehicle[]
   scans?: MapScan[]
+  signals?: MapSignal[]
+  summary?: MapSummary
 }
 
 interface Coordinates {
@@ -34,16 +71,18 @@ interface Coordinates {
 
 interface MapItem {
   key: string
-  kind: 'vehicle' | 'scan'
+  kind: 'vehicle' | 'scan' | 'signal'
   label: string
   subtitle: string
   coordinates: Coordinates | null
   vehicle?: MapVehicle
   scan?: MapScan
+  signal?: MapSignal
 }
 
 type Basemap = 'plan' | 'satellite'
 type ViewMode = '2d' | '3d'
+type StatusFilter = 'all' | 'normal' | 'fourriere' | 'vignette'
 
 const LIST_PAGE_SIZE = 8
 const DEFAULT_CENTER: Coordinates = { latitude: -19.87, longitude: 47.03 }
@@ -77,6 +116,37 @@ function formatCoordinates(value: Coordinates | null): string {
   return value ? `${value.latitude.toFixed(5)}, ${value.longitude.toFixed(5)}` : 'Coordonnées non renseignées'
 }
 
+function readableDate(value?: string | null): string {
+  if (!value) return '—'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return String(value)
+  return date.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' })
+}
+
+function readableDateTime(value?: string | null): string {
+  if (!value) return '—'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return String(value)
+  return date.toLocaleString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+}
+
+function isVignetteExpired(value?: string | null): boolean {
+  if (!value) return true
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return true
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  return date.getTime() < today.getTime()
+}
+
+function taxTone(value?: string | null): 'success' | 'warning' | 'neutral' {
+  if (!value) return 'neutral'
+  const normalized = value.toLocaleLowerCase()
+  if (normalized.includes('jour') || normalized.includes('pay') || normalized.includes('régulier') || normalized.includes('regulier')) return 'success'
+  if (normalized.includes('retard') || normalized.includes('impay') || normalized === 'non') return 'warning'
+  return 'neutral'
+}
+
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : 'Une erreur inattendue est survenue.'
 }
@@ -94,11 +164,17 @@ async function readError(response: Response): Promise<string> {
 export default function MapPage() {
   const [vehicles, setVehicles] = useState<MapVehicle[]>([])
   const [scans, setScans] = useState<MapScan[]>([])
+  const [signals, setSignals] = useState<MapSignal[]>([])
+  const [summary, setSummary] = useState<MapSummary>({})
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
   const [query, setQuery] = useState('')
+  const [typeFilter, setTypeFilter] = useState('')
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
   const [showVehicles, setShowVehicles] = useState(true)
   const [showScans, setShowScans] = useState(true)
+  const [showSignals, setShowSignals] = useState(true)
+  const [realtime, setRealtime] = useState(true)
   const [basemap, setBasemap] = useState<Basemap>('plan')
   const [viewMode, setViewMode] = useState<ViewMode>('2d')
   const [night, setNight] = useState(() => isNightAt(new Date()))
@@ -111,8 +187,8 @@ export default function MapPage() {
   const [updateMessage, setUpdateMessage] = useState<{ registration: string; text: string; error: boolean } | null>(null)
   const initialCameraSet = useMemo(() => ({ current: false }), [])
 
-  const loadMap = useCallback(async () => {
-    setLoading(true)
+  const loadMap = useCallback(async (silencieux = false) => {
+    if (!silencieux) setLoading(true)
     setLoadError('')
     try {
       const response = await fetch('/api/map', { credentials: 'same-origin' })
@@ -122,8 +198,11 @@ export default function MapPage() {
       const mapPayload = payload as MapPayload
       const nextVehicles = Array.isArray(mapPayload.vehicles) ? mapPayload.vehicles : []
       const nextScans = Array.isArray(mapPayload.scans) ? mapPayload.scans : []
+      const nextSignals = Array.isArray(mapPayload.signals) ? mapPayload.signals : []
       setVehicles(nextVehicles)
       setScans(nextScans)
+      setSignals(nextSignals)
+      setSummary(mapPayload.summary && typeof mapPayload.summary === 'object' ? mapPayload.summary : {})
       if (!initialCameraSet.current) {
         const firstPoint = nextVehicles.map(coordinatesOf).find((point) => point !== null)
           ?? nextScans.map(coordinatesOf).find((point) => point !== null)
@@ -139,21 +218,44 @@ export default function MapPage() {
 
   useEffect(() => { void loadMap() }, [loadMap])
 
+  // Temps reel : rafraichissement discret des scans et signalements.
+  useEffect(() => {
+    if (!realtime) return
+    const timer = window.setInterval(() => void loadMap(true), 15_000)
+    return () => window.clearInterval(timer)
+  }, [realtime, loadMap])
+
   // Bascule automatique jour/nuit selon l'heure locale, tant que l'utilisateur
-  // n'a pas choisi lui-même le mode (son choix reste sinon ecrase).
+  // n'a pas choisi lui-même le mode (son choix reste sinon écrasé).
   useEffect(() => {
     if (!autoNight) return
     const timer = window.setInterval(() => setNight(isNightAt(new Date())), 60_000)
     return () => window.clearInterval(timer)
   }, [autoNight])
 
+  const vehicleTypes = useMemo(() => {
+    const set = new Set<string>()
+    for (const vehicle of vehicles) {
+      const type = (vehicle.type ?? '').trim() || 'Autre'
+      set.add(type)
+    }
+    return [...set].sort((a, b) => a.localeCompare(b, 'fr'))
+  }, [vehicles])
+
   const items = useMemo<MapItem[]>(() => {
     const term = query.trim().toLocaleLowerCase()
-    const vehicleItems: MapItem[] = vehicles.map((vehicle) => ({
+    const matchesFilters = (vehicle: MapVehicle) => {
+      if (typeFilter && ((vehicle.type ?? '').trim() || 'Autre') !== typeFilter) return false
+      if (statusFilter === 'normal' && (vehicle.statut ?? '').toLocaleLowerCase() !== 'normal') return false
+      if (statusFilter === 'fourriere' && (vehicle.statut ?? '').toLocaleLowerCase() === 'normal') return false
+      if (statusFilter === 'vignette' && !isVignetteExpired(vehicle.expirationVignette)) return false
+      return true
+    }
+    const vehicleItems: MapItem[] = vehicles.filter(matchesFilters).map((vehicle) => ({
       key: `vehicle:${vehicle.immatriculation}`,
       kind: 'vehicle',
       label: vehicle.immatriculation || 'Véhicule sans immatriculation',
-      subtitle: [vehicle.nom, vehicle.type].filter(Boolean).join(' · ') || 'Véhicule',
+      subtitle: [vehicle.type, vehicle.statut].filter(Boolean).join(' · ') || 'Véhicule',
       coordinates: coordinatesOf(vehicle),
       vehicle,
     }))
@@ -161,18 +263,33 @@ export default function MapPage() {
       key: `scan:${scan.id}`,
       kind: 'scan',
       label: scan.immatriculation || 'Scan',
-      subtitle: scan.date ? `Scan · ${scan.date}` : 'Scan récent',
+      subtitle: scan.date ? `Scan · ${readableDateTime(scan.date)}` : 'Scan récent',
       coordinates: coordinatesOf(scan),
       scan,
     }))
-    return [...(showVehicles ? vehicleItems : []), ...(showScans ? scanItems : [])].filter((item) => {
+    const signalItems: MapItem[] = signals.map((signal) => ({
+      key: `signal:${signal.id}`,
+      kind: 'signal',
+      label: signal.motif || 'Signalement',
+      subtitle: `${signal.immatriculation || 'Véhicule'} · ${readableDateTime(signal.date)}`,
+      coordinates: coordinatesOf(signal),
+      signal,
+    }))
+    // Un filtre propre aux véhicules masque aussi les scans, pour que la liste
+    // reste cohérente avec la sélection.
+    const scansVisible = showScans && !typeFilter && statusFilter === 'all'
+    return [
+      ...(showVehicles ? vehicleItems : []),
+      ...(scansVisible ? scanItems : []),
+      ...(showSignals ? signalItems : []),
+    ].filter((item) => {
       if (!term) return true
       const text = item.kind === 'vehicle'
-        ? [item.label, item.subtitle, item.vehicle?.adresse, item.vehicle?.nomProprietaire, item.vehicle?.prenomProprietaire]
-        : [item.label, item.subtitle]
+        ? [item.label, item.subtitle, item.vehicle?.adresse, item.vehicle?.nomProprietaire, item.vehicle?.prenomProprietaire, item.vehicle?.cooperative, item.vehicle?.telephone]
+        : [item.label, item.subtitle, item.scan?.qui]
       return text.some((part) => part?.toLocaleLowerCase().includes(term))
     })
-  }, [query, scans, showScans, showVehicles, vehicles])
+  }, [query, scans, showScans, showVehicles, statusFilter, typeFilter, vehicles])
 
   const points = useMemo<MapPoint[]>(() => items.flatMap((item) => {
     if (!item.coordinates) return []
@@ -180,7 +297,7 @@ export default function MapPage() {
       key: item.key,
       label: item.label,
       kind: item.kind,
-      color: item.kind === 'vehicle' ? vehicleColor(item.vehicle?.type) : '#e8a33d',
+      color: item.kind === 'vehicle' ? vehicleColor(item.vehicle?.type) : item.kind === 'signal' ? '#d64545' : '#e8a33d',
       latitude: item.coordinates.latitude,
       longitude: item.coordinates.longitude,
     }]
@@ -190,6 +307,7 @@ export default function MapPage() {
   const pageCount = Math.max(1, Math.ceil(items.length / LIST_PAGE_SIZE))
   const currentPage = Math.min(listPage, pageCount)
   const pagedItems = items.slice((currentPage - 1) * LIST_PAGE_SIZE, currentPage * LIST_PAGE_SIZE)
+  const geolocatedPercent = summary.total ? Math.round(((summary.geolocalises ?? 0) / summary.total) * 100) : 0
 
   function selectItem(item: MapItem) {
     setSelectedKey(item.key)
@@ -241,6 +359,18 @@ export default function MapPage() {
     }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 })
   }
 
+  const selectedVehicle = selectedItem?.kind === 'vehicle' ? selectedItem.vehicle ?? null : null
+  const selectedPhoto = selectedVehicle ? photoUrl(selectedVehicle.photo) : ''
+  const selectedVignetteExpired = selectedVehicle ? isVignetteExpired(selectedVehicle.expirationVignette) : false
+  const selectedTaxTone = selectedVehicle ? taxTone(selectedVehicle.statutImpotSynthetique) : 'neutral'
+  const selectedRenewal = selectedVehicle
+    ? selectedVehicle.dateRenouvellementImpotSynthetique
+      ? readableDate(selectedVehicle.dateRenouvellementImpotSynthetique)
+      : selectedVehicle.anneeImpotSynthetique
+        ? `30 mars ${selectedVehicle.anneeImpotSynthetique}`
+        : '30 mars'
+    : '30 mars'
+
   return (
     <div className="map-page">
       <header className="map-page__header">
@@ -248,11 +378,40 @@ export default function MapPage() {
           <span className="map-page__eyebrow">SUIVI DU RÉSEAU</span>
           <h1>Carte des véhicules</h1>
           <p>Visualisez les positions des véhicules et les derniers scans enregistrés.</p>
+          {summary.generatedAt && <span className="map-page__stamp">Données du {readableDateTime(summary.generatedAt)}</span>}
         </div>
         <button className="map-page__refresh" type="button" onClick={() => void loadMap()} disabled={loading}>
           <span aria-hidden="true">↻</span> {loading ? 'Actualisation…' : 'Actualiser'}
         </button>
       </header>
+
+      <section className="map-page__summary" aria-label="Synthèse de la carte">
+        <div className="map-page__summary-tile">
+          <span className="map-page__summary-label">Véhicules</span>
+          <strong>{summary.total ?? vehicles.length}</strong>
+          <small>{summary.types ?? vehicleTypes.length} type{(summary.types ?? vehicleTypes.length) > 1 ? 's' : ''} de transport</small>
+        </div>
+        <div className="map-page__summary-tile">
+          <span className="map-page__summary-label">Géolocalisés</span>
+          <strong>{summary.geolocalises ?? 0}</strong>
+          <small>{geolocatedPercent} % du parc cartographié</small>
+        </div>
+        <div className="map-page__summary-tile is-warning">
+          <span className="map-page__summary-label">Fourrière</span>
+          <strong>{summary.fourriere ?? 0}</strong>
+          <small>Véhicules immobilisés</small>
+        </div>
+        <div className="map-page__summary-tile is-warning">
+          <span className="map-page__summary-label">Vignettes expirées</span>
+          <strong>{summary.vignettesExpirees ?? 0}</strong>
+          <small>À régulariser</small>
+        </div>
+        <div className="map-page__summary-tile is-scan">
+          <span className="map-page__summary-label">Scans géolocalisés</span>
+          <strong>{summary.scans ?? scans.length}</strong>
+          <small>Derniers contrôles</small>
+        </div>
+      </section>
 
       <section className="map-page__toolbar" aria-label="Filtres de carte">
         <label className="map-page__search">
@@ -261,6 +420,24 @@ export default function MapPage() {
           <input value={query} onChange={(event) => { setQuery(event.target.value); setListPage(1) }} placeholder="Rechercher une immatriculation, un nom…" />
           {query && <button type="button" aria-label="Effacer la recherche" onClick={() => { setQuery(''); setListPage(1) }}>×</button>}
         </label>
+        <div className="map-page__selects">
+          <label className="map-page__select">
+            <span>Type</span>
+            <select value={typeFilter} onChange={(event) => { setTypeFilter(event.target.value); setListPage(1) }}>
+              <option value="">Tous</option>
+              {vehicleTypes.map((type) => <option key={type} value={type}>{type}</option>)}
+            </select>
+          </label>
+          <label className="map-page__select">
+            <span>État</span>
+            <select value={statusFilter} onChange={(event) => { setStatusFilter(event.target.value as StatusFilter); setListPage(1) }}>
+              <option value="all">Tous</option>
+              <option value="normal">En règle</option>
+              <option value="fourriere">Fourrière</option>
+              <option value="vignette">Vignette expirée</option>
+            </select>
+          </label>
+        </div>
         <div className="map-page__basemap" role="group" aria-label="Fond de carte">
           <button type="button" className={basemap === 'plan' ? 'is-active' : ''} aria-pressed={basemap === 'plan'} onClick={() => setBasemap('plan')}>
             <span className="map-page__basemap-icon" aria-hidden="true">▦</span> Plan
@@ -292,6 +469,12 @@ export default function MapPage() {
           <button type="button" className={showScans ? 'is-active' : ''} aria-pressed={showScans} onClick={() => { setShowScans((value) => !value); setListPage(1) }}>
             <span className="map-page__layer-dot map-page__layer-dot--scan" aria-hidden="true" /> Scans
           </button>
+          <button type="button" className={showSignals ? 'is-active' : ''} aria-pressed={showSignals} onClick={() => { setShowSignals((value) => !value); setListPage(1) }}>
+            <span className="map-page__layer-dot" style={{ background: '#d64545' }} aria-hidden="true" /> Signalements
+          </button>
+          <button type="button" className={realtime ? 'is-active' : ''} aria-pressed={realtime} onClick={() => setRealtime((value) => !value)}>
+            <span className="map-page__basemap-icon" aria-hidden="true">⟳</span> Temps réel
+          </button>
         </div>
       </section>
 
@@ -316,6 +499,7 @@ export default function MapPage() {
               basemap={basemap}
               viewMode={viewMode}
               night={night}
+              terrain={viewMode === '3d'}
               onSelect={selectByKey}
               onMove={(nextCenter, nextZoom) => { setCenter(nextCenter); setZoom(nextZoom) }}
             />
@@ -341,27 +525,65 @@ export default function MapPage() {
             <div className="map-page__details">
               <button type="button" className="map-page__back" onClick={() => { setSelectedKey(''); setUpdateMessage(null) }}>← Tous les résultats</button>
               <span className={`map-page__kind map-page__kind--${selectedItem.kind}`}>
-                {selectedItem.kind === 'vehicle' ? 'VÉHICULE' : 'SCAN'}
+                {selectedItem.kind === 'vehicle' ? 'VÉHICULE' : selectedItem.kind === 'signal' ? 'SIGNALEMENT' : 'SCAN'}
               </span>
               <h3>{selectedItem.label}</h3>
               <p className="map-page__details-subtitle">{selectedItem.subtitle}</p>
-              {selectedItem.kind === 'vehicle' && selectedItem.vehicle ? (
+              {selectedVehicle ? (
                 <>
+                  <div className="map-page__photo">
+                    {selectedPhoto
+                      ? <img src={selectedPhoto} alt={`Photo du véhicule ${selectedVehicle.immatriculation}`} loading="lazy" />
+                      : <span>Photo non disponible</span>}
+                  </div>
+                  <div className="map-page__badges">
+                    <span className={`map-page__status ${(selectedVehicle.statut ?? '').toLocaleLowerCase() === 'normal' ? 'is-ok' : 'is-warn'}`}>
+                      {selectedVehicle.statut || 'Statut inconnu'}
+                    </span>
+                    <span className={`map-page__status ${selectedVignetteExpired ? 'is-warn' : 'is-ok'}`}>
+                      {selectedVignetteExpired ? 'Vignette expirée' : 'Vignette valide'}
+                    </span>
+                    <span className="map-page__status is-neutral">{selectedVehicle.type || 'Type inconnu'}</span>
+                  </div>
                   <dl className="map-page__facts">
-                    <div><dt>Propriétaire</dt><dd>{[selectedItem.vehicle.prenomProprietaire, selectedItem.vehicle.nomProprietaire].filter(Boolean).join(' ') || 'Non renseigné'}</dd></div>
-                    <div><dt>Adresse</dt><dd>{selectedItem.vehicle.adresse || 'Non renseignée'}</dd></div>
+                    <div><dt>Propriétaire</dt><dd>{[selectedVehicle.prenomProprietaire, selectedVehicle.nomProprietaire].filter(Boolean).join(' ') || 'Non renseigné'}</dd></div>
+                    <div><dt>Téléphone</dt><dd>{selectedVehicle.telephone || 'Non renseigné'}</dd></div>
+                    <div><dt>Adresse</dt><dd>{selectedVehicle.adresse || 'Non renseignée'}</dd></div>
+                    <div><dt>Coopérative</dt><dd>{selectedVehicle.cooperative || 'Non renseignée'}</dd></div>
+                    <div><dt>Couleurs</dt><dd>{selectedVehicle.couleurs || 'Non renseignées'}</dd></div>
+                    <div>
+                      <dt>Vignette</dt>
+                      <dd>
+                        {readableDate(selectedVehicle.expirationVignette)}
+                        {selectedVignetteExpired && <em className="map-page__expired">Expirée</em>}
+                      </dd>
+                    </div>
+                    <div><dt>Dernier scan</dt><dd>{readableDateTime(selectedVehicle.derniereScan)} · {Number(selectedVehicle.nombreScans ?? 0)} scan{Number(selectedVehicle.nombreScans ?? 0) > 1 ? 's' : ''}</dd></div>
                     <div><dt>Coordonnées</dt><dd>{formatCoordinates(selectedItem.coordinates)}</dd></div>
                   </dl>
+
+                  <div className="map-page__tax">
+                    <div className="map-page__tax-head">
+                      <span>Impôt synthétique</span>
+                      <b className={`is-${selectedTaxTone}`}>{selectedVehicle.statutImpotSynthetique || 'Non renseigné'}</b>
+                    </div>
+                    <dl className="map-page__facts map-page__facts--compact">
+                      <div><dt>NIF</dt><dd>{selectedVehicle.nifProprietaire || '—'}</dd></div>
+                      <div><dt>Année</dt><dd>{selectedVehicle.anneeImpotSynthetique ?? '—'}</dd></div>
+                      <div><dt>Renouvellement</dt><dd>{selectedRenewal}</dd></div>
+                    </dl>
+                  </div>
+
                   <button
                     className="map-page__locate"
                     type="button"
-                    disabled={updatingRegistration === selectedItem.vehicle.immatriculation}
-                    onClick={() => void updateVehicleLocation(selectedItem.vehicle!)}
+                    disabled={updatingRegistration === selectedVehicle.immatriculation}
+                    onClick={() => void updateVehicleLocation(selectedVehicle)}
                   >
-                    {updatingRegistration === selectedItem.vehicle.immatriculation ? 'Localisation en cours…' : 'Mettre à jour avec ma position'}
+                    {updatingRegistration === selectedVehicle.immatriculation ? 'Localisation en cours…' : 'Mettre à jour avec ma position'}
                   </button>
                   {!navigator.geolocation && <p className="map-page__help">La géolocalisation n’est pas disponible dans ce navigateur.</p>}
-                  {updateMessage?.registration === selectedItem.vehicle.immatriculation && (
+                  {updateMessage?.registration === selectedVehicle.immatriculation && (
                     <p className={`map-page__notice${updateMessage.error ? ' is-error' : ''}`} role={updateMessage.error ? 'alert' : 'status'}>{updateMessage.text}</p>
                   )}
                   {!selectedItem.coordinates && <p className="map-page__help">Ce véhicule n’a pas encore de coordonnées. Utilisez le bouton ci-dessus pour enregistrer sa position actuelle.</p>}
@@ -369,8 +591,18 @@ export default function MapPage() {
               ) : selectedItem.scan ? (
                 <dl className="map-page__facts">
                   <div><dt>Immatriculation</dt><dd>{selectedItem.scan.immatriculation || 'Non renseignée'}</dd></div>
-                  <div><dt>Date du scan</dt><dd>{selectedItem.scan.date || 'Non renseignée'}</dd></div>
+                  <div><dt>Date du scan</dt><dd>{readableDateTime(selectedItem.scan.date)}</dd></div>
+                  <div><dt>Contrôleur</dt><dd>{selectedItem.scan.qui || 'Non renseigné'}</dd></div>
                   <div><dt>Précision</dt><dd>{selectedItem.scan.precisionMeters != null ? `${selectedItem.scan.precisionMeters} m` : 'Non renseignée'}</dd></div>
+                  <div><dt>Coordonnées</dt><dd>{formatCoordinates(selectedItem.coordinates)}</dd></div>
+                </dl>
+              ) : selectedItem.signal ? (
+                <dl className="map-page__facts">
+                  <div><dt>Motif</dt><dd>{selectedItem.signal.motif || 'Non renseigné'}</dd></div>
+                  <div><dt>Véhicule</dt><dd>{selectedItem.signal.immatriculation || 'Non renseigné'}</dd></div>
+                  <div><dt>Statut</dt><dd>{selectedItem.signal.statut || 'Nouveau'}</dd></div>
+                  <div><dt>Date</dt><dd>{readableDateTime(selectedItem.signal.date)}</dd></div>
+                  <div><dt>Description</dt><dd>{selectedItem.signal.description || '—'}</dd></div>
                   <div><dt>Coordonnées</dt><dd>{formatCoordinates(selectedItem.coordinates)}</dd></div>
                 </dl>
               ) : null}
@@ -378,7 +610,7 @@ export default function MapPage() {
           ) : loading && items.length === 0 ? (
             <p className="map-page__empty">Chargement des véhicules et des scans…</p>
           ) : items.length === 0 ? (
-            <p className="map-page__empty">{query ? 'Aucun résultat pour cette recherche.' : 'Aucune position disponible.'}</p>
+            <p className="map-page__empty">{query || typeFilter || statusFilter !== 'all' ? 'Aucun résultat pour ces filtres.' : 'Aucune position disponible.'}</p>
           ) : (
             <>
             <ul className="map-page__results">
@@ -410,8 +642,10 @@ export default function MapPage() {
         <span><i className="map-page__legend-dot" style={{ backgroundColor: '#3f7d5f' }} /> Cyclo-pousse</span>
         <span><i className="map-page__legend-dot" style={{ backgroundColor: '#e8a33d' }} /> Bus</span>
         <span><i className="map-page__legend-dot" style={{ backgroundColor: '#1f2b25' }} /> Bajaj</span>
+        <span><i className="map-page__legend-dot" style={{ backgroundColor: '#d64545' }} /> Signalement</span>
         <span><i className="map-page__legend-dot" style={{ backgroundColor: '#2b3a32' }} /> Autre véhicule</span>
         <span><i className="map-page__legend-dot map-page__legend-dot--scan" /> Scan</span>
+        <span className="map-page__legend-note">Un véhicule sans coordonnées apparaît dans la liste avec un point orange.</span>
       </footer>
     </div>
   )

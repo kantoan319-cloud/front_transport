@@ -26,3 +26,141 @@
 .photo-import-details ul { display:grid; gap:4px; max-height:200px; overflow:auto; margin:8px 0; padding-left:18px; color:#849089; font-size:9px; }
 @media (max-width:760px) { .access-create-form { grid-template-columns:repeat(2,minmax(0,1fr)); }.access-request-actions { align-items:flex-start; flex-direction:column; }.access-tabs { flex-wrap:wrap; } }
 @media (max-width:460px) { .access-create-form,.driver-import-results dl { grid-template-columns:1fr; }.access-create-form h3 { grid-column:auto; }.access-content { padding:12px; }.access-request-heading { align-items:flex-start; flex-direction:column; } }
+
+/* ------------------------- Rôles et quotas ---------------------------- */
+.access-quota {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 5px;
+  border: 1px solid #e2ddd0;
+  border-radius: 999px;
+  padding: 4px 11px;
+  background: #fbf9f4;
+  color: #6b7a70;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.access-create-form select {
+  min-width: 0;
+  min-height: 36px;
+  border: 1px solid #d8e0da;
+  border-radius: 8px;
+  padding: 7px 9px;
+  background: #fff;
+  color: #31443a;
+  font-size: 11.5px;
+}
+
+.access-create-form select:focus,
+.role-actions select:focus {
+  border-color: #e8a33d;
+  outline: 0;
+  box-shadow: 0 0 0 3px rgba(232, 163, 61, 0.17);
+}
+
+.access-limit-note {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: #8a948d;
+  font-size: 10px;
+}
+
+.role-badge {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.role-badge.role-admin {
+  border-color: #e7d3ae;
+  background: #fcf4e5;
+  color: #8a5a12;
+}
+
+.role-badge.role-controleur {
+  border-color: #d5e6dc;
+  background: #f1f8f4;
+  color: #2f6b46;
+}
+
+.role-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 7px;
+}
+
+.role-actions select {
+  min-height: 30px;
+  border: 1px solid #d8d4c8;
+  border-radius: 8px;
+  padding: 4px 8px;
+  background: #fff;
+  color: #2b3a32;
+  font-size: 10.5px;
+}
+
+.role-actions select:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.role-protected {
+  border: 1px solid #e2ddd0;
+  border-radius: 999px;
+  padding: 4px 10px;
+  background: #f7f4ec;
+  color: #8a948d;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+:root[data-theme='dark'] .access-quota {
+  border-color: #38473d;
+  background: #1c2620;
+  color: #b9c6bd;
+}
+
+:root[data-theme='dark'] .access-create-form select,
+:root[data-theme='dark'] .role-actions select {
+  border-color: #38473d;
+  background: #1f2b25;
+  color: #e9efe9;
+}
+
+:root[data-theme='dark'] .access-limit-note { color: #9aa79e; }
+
+:root[data-theme='dark'] .role-badge.role-admin {
+  border-color: #5a4523;
+  background: #2a2116;
+  color: #f0c887;
+}
+
+:root[data-theme='dark'] .role-badge.role-controleur {
+  border-color: #2f5740;
+  background: #1a2a20;
+  color: #9fd4b4;
+}
+
+:root[data-theme='dark'] .role-protected {
+  border-color: #38473d;
+  background: #1c2620;
+  color: #9aa79e;
+}
+
+.access-mosaic { padding: 0; }
+.access-mosaic .record-card { background: #ffffff; }
+.access-mosaic .role-actions { margin-top: auto; padding-top: 14px; }
+.access-mosaic .role-actions select { min-height: 32px; }
+:root[data-theme='dark'] .access-mosaic .record-card { background: #1c2620; }
