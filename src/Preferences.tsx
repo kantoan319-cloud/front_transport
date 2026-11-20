@@ -235,10 +235,10 @@ const translations: Record<string, Record<Language, string>> = {
   'Administrateur': { mg: 'Mpitantana', fr: 'Administrateur', en: 'Administrator' },
   'administrateurs': { mg: 'mpitantana', fr: 'administrateurs', en: 'administrators' },
   'contrôleurs': { mg: 'mpanara-maso', fr: 'contrôleurs', en: 'controllers' },
-  'Maximum 3 administrateurs (vous inclus) et 40 contrôleurs.': {
-    mg: 'Fetra: 3 mpitantana (ao anatin’izany ianao) sy 40 mpanara-maso.',
-    fr: 'Maximum 3 administrateurs (vous inclus) et 40 contrôleurs.',
-    en: 'Maximum 3 administrators (including you) and 40 controllers.',
+  'Maximum 5 administrateurs (vous inclus) et 100 contrôleurs.': {
+    mg: 'Fetra: 5 mpitantana (ao anatin’izany ianao) sy 100 mpanara-maso.',
+    fr: 'Maximum 5 administrateurs (vous inclus) et 100 contrôleurs.',
+    en: 'Maximum 5 administrators (including you) and 100 controllers.',
   },
   'Changer le rôle': { mg: 'Hanova ny andraikitra', fr: 'Changer le rôle', en: 'Change role' },
   'Protégé': { mg: 'Voaaro', fr: 'Protégé', en: 'Protected' },

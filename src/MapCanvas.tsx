@@ -11,7 +11,7 @@ import 'maplibre-gl/dist/maplibre-gl.css'
 export interface MapPoint {
   key: string
   label: string
-  kind: 'vehicle' | 'scan' | 'arret' | 'trace' | 'signal' | 'parking'
+  kind: 'vehicle' | 'scan' | 'arret' | 'trace' | 'signal'
   color: string
   latitude: number
   longitude: number
@@ -120,6 +120,8 @@ const ROADS_FILTER: FilterSpecification = [
 function satelliteStyle(): StyleSpecification {
   return {
     version: 8,
+    // Necessaire pour afficher les noms d'arrets sur le fond satellite.
+    glyphs: 'https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf',
     sources: {
       esri: {
         type: 'raster',
@@ -129,8 +131,101 @@ function satelliteStyle(): StyleSpecification {
         tileSize: 256,
         attribution: '© Esri, Maxar, Earthstar Geographics',
       },
+      // Memes donnees OpenStreetMap que le plan : quartiers, rues, commerces,
+      // numeros de batiments, dessines en clair par-dessus l'imagerie.
+      openmaptiles: {
+        type: 'vector',
+        url: 'https://tiles.openfreemap.org/planet',
+        attribution: '© OpenStreetMap contributors / OpenFreeMap',
+      },
     },
-    layers: [{ id: 'satellite', type: 'raster', source: 'esri' }],
+    layers: [
+      { id: 'satellite', type: 'raster', source: 'esri' },
+      {
+        id: 'sat-place-labels',
+        type: 'symbol',
+        source: 'openmaptiles',
+        'source-layer': 'place',
+        filter: ['all', ['!=', ['get', 'name'], ''], ['in', ['get', 'class'], ['literal', [
+          'city', 'town', 'village', 'hamlet', 'suburb', 'quarter', 'neighbourhood',
+          'isolated_dwelling', 'province', 'state',
+        ]]]],
+        layout: {
+          'text-field': ['coalesce', ['get', 'name:fr'], ['get', 'name']],
+          'text-font': ['Noto Sans Regular'],
+          'text-size': ['interpolate', ['linear'], ['zoom'], 10, 10, 14, 12, 18, 14],
+          'text-letter-spacing': 0.05,
+          'text-max-width': 9,
+        },
+        paint: {
+          'text-color': '#ffffff',
+          'text-halo-color': 'rgba(16, 24, 32, 0.85)',
+          'text-halo-width': 1.6,
+        },
+      },
+      {
+        id: 'sat-road-labels',
+        type: 'symbol',
+        source: 'openmaptiles',
+        'source-layer': 'transportation_name',
+        minzoom: 13,
+        filter: ['!=', ['get', 'name'], ''],
+        layout: {
+          'text-field': ['coalesce', ['get', 'name:fr'], ['get', 'name']],
+          'text-font': ['Noto Sans Regular'],
+          'symbol-placement': 'line',
+          'text-size': ['interpolate', ['linear'], ['zoom'], 13, 9, 17, 12],
+          'text-max-width': 10,
+        },
+        paint: {
+          'text-color': '#ffffff',
+          'text-halo-color': 'rgba(16, 24, 32, 0.85)',
+          'text-halo-width': 1.3,
+        },
+      },
+      {
+        id: 'sat-poi-labels',
+        type: 'symbol',
+        source: 'openmaptiles',
+        'source-layer': 'poi',
+        minzoom: 14.5,
+        filter: ['all', ['!=', ['get', 'name'], ''], ['!=', ['get', 'class'], 'bus_stop']],
+        layout: {
+          'text-field': ['coalesce', ['get', 'name:fr'], ['get', 'name']],
+          'text-font': ['Noto Sans Regular'],
+          'text-size': ['interpolate', ['linear'], ['zoom'], 14.5, 10, 18, 12.5],
+          'text-max-width': 8,
+          'text-anchor': 'top',
+          'text-offset': [0, 0.3],
+          'text-padding': 2,
+          'text-optional': true,
+        },
+        paint: {
+          'text-color': '#ffe9a8',
+          'text-halo-color': 'rgba(16, 24, 32, 0.9)',
+          'text-halo-width': 1.4,
+        },
+      },
+      {
+        id: 'sat-house-numbers',
+        type: 'symbol',
+        source: 'openmaptiles',
+        'source-layer': 'housenumber',
+        minzoom: 16,
+        layout: {
+          'text-field': ['get', 'housenumber'],
+          'text-font': ['Noto Sans Regular'],
+          'text-size': 9,
+          'text-padding': 2,
+          'text-optional': true,
+        },
+        paint: {
+          'text-color': '#f1f5f9',
+          'text-halo-color': 'rgba(16, 24, 32, 0.85)',
+          'text-halo-width': 1,
+        },
+      },
+    ],
   }
 }
 
@@ -173,6 +268,30 @@ function removeLayer(map: MapLibreMap, id: string) {
   if (map.getLayer(id)) map.removeLayer(id)
 }
 
+/**
+ * N'execute une modification de style que lorsque celui-ci est pret.
+ *
+ * Sinon MapLibre leve "Style is not done loading" (par exemple quand on bascule
+ * 2D/3D pendant le chargement) : l'exception remonte d'un effet React et demont
+ * toute l'application, pas seulement la carte.
+ */
+function whenStyleReady(map: MapLibreMap, run: () => void) {
+  const execute = () => {
+    try {
+      run()
+    } catch (error) {
+      // Carte demontee entre l'ecoute et l'execution : rien a faire.
+      if (!map.getStyle()) return
+      console.error('[carte] mise a jour du style impossible', error)
+    }
+  }
+  if (map.isStyleLoaded()) {
+    execute()
+    return
+  }
+  map.once('style.load', execute)
+}
+
 function applyDecorations(map: MapLibreMap, props: MapCanvasProps) {
   const { basemap, night, viewMode } = props
   const layers = map.getStyle()?.layers ?? []
@@ -190,8 +309,22 @@ function applyDecorations(map: MapLibreMap, props: MapCanvasProps) {
         minzoom: 13,
         paint: {
           'fill-extrusion-color': night ? '#22303f' : '#dfe6ef',
-          'fill-extrusion-height': ['coalesce', ['get', 'render_height'], ['get', 'height'], 8],
-          'fill-extrusion-base': ['coalesce', ['get', 'render_min_height'], 0],
+          // Les tuiles OpenFreeMap exposent ces proprietes a null : sans la
+          // conversion `number`, MapLibre signale "Expected value to be of type
+          // number, but found null instead" pour chaque valeur nulle. La
+          // conversion renvoie null et `coalesce` prend alors le repli, donc le
+          // rendu est identique a avant.
+          'fill-extrusion-height': [
+            'coalesce',
+            ['number', ['get', 'render_height']],
+            ['number', ['get', 'height']],
+            8,
+          ],
+          'fill-extrusion-base': [
+            'coalesce',
+            ['number', ['get', 'render_min_height']],
+            0,
+          ],
           'fill-extrusion-opacity': night ? 0.85 : 0.7,
         },
       })
@@ -293,6 +426,48 @@ function installLineLayers(map: MapLibreMap) {
   }
 }
 
+/** Pictogramme d'arret de bus, dessine une fois par carte (aucune image externe). */
+function stopIconData(): { data: ImageData; pixelRatio: number } {
+  const size = 64
+  const canvas = document.createElement('canvas')
+  canvas.width = size
+  canvas.height = size
+  const ctx = canvas.getContext('2d')!
+  ctx.clearRect(0, 0, size, size)
+  // Pointe du panneau (ancre en bas, sur la position exacte de l'arret).
+  ctx.fillStyle = '#173a2e'
+  ctx.beginPath()
+  ctx.moveTo(size / 2 - 6, size - 26)
+  ctx.lineTo(size / 2 + 6, size - 26)
+  ctx.lineTo(size / 2, size - 8)
+  ctx.closePath()
+  ctx.fill()
+  // Disque du panneau.
+  ctx.beginPath()
+  ctx.arc(size / 2, size / 2 - 8, 20, 0, Math.PI * 2)
+  ctx.fillStyle = '#173a2e'
+  ctx.fill()
+  ctx.lineWidth = 4
+  ctx.strokeStyle = '#ffffff'
+  ctx.stroke()
+  // Silhouette de bus.
+  const bodyX = size / 2 - 11
+  const bodyY = size / 2 - 17
+  ctx.fillStyle = '#ffffff'
+  ctx.beginPath()
+  ctx.roundRect(bodyX, bodyY, 22, 17, 3)
+  ctx.fill()
+  ctx.fillStyle = '#173a2e'
+  ctx.fillRect(bodyX + 3, bodyY + 3, 7, 5)
+  ctx.fillRect(bodyX + 12, bodyY + 3, 7, 5)
+  ctx.fillStyle = '#ffffff'
+  ctx.beginPath()
+  ctx.arc(bodyX + 6, bodyY + 19, 3, 0, Math.PI * 2)
+  ctx.arc(bodyX + 16, bodyY + 19, 3, 0, Math.PI * 2)
+  ctx.fill()
+  return { data: ctx.getImageData(0, 0, size, size), pixelRatio: 2 }
+}
+
 function installPointLayers(map: MapLibreMap) {
   if (!map.getSource('points')) {
     map.addSource('points', {
@@ -300,11 +475,16 @@ function installPointLayers(map: MapLibreMap) {
       data: { type: 'FeatureCollection', features: [] },
     })
   }
+  if (!map.hasImage('arret-icon')) {
+    const icon = stopIconData()
+    map.addImage('arret-icon', icon.data, { pixelRatio: icon.pixelRatio })
+  }
   if (!map.getLayer('points-halo')) {
     map.addLayer({
       id: 'points-halo',
       type: 'circle',
       source: 'points',
+      filter: ['!=', ['get', 'kind'], 'arret'],
       paint: {
         'circle-radius': ['interpolate', ['linear'], ['zoom'], 10, 8, 16, 22],
         'circle-color': ['get', 'color'],
@@ -318,6 +498,7 @@ function installPointLayers(map: MapLibreMap) {
       id: 'points',
       type: 'circle',
       source: 'points',
+      filter: ['!=', ['get', 'kind'], 'arret'],
       paint: {
         'circle-radius': ['interpolate', ['linear'], ['zoom'], 10, 4, 16, 8],
         'circle-color': ['get', 'color'],
@@ -340,14 +521,56 @@ function installPointLayers(map: MapLibreMap) {
       },
     })
   }
+  // Arrets : pictogramme de panneau + nom toujours affiche.
+  if (!map.getLayer('points-arrets')) {
+    map.addLayer({
+      id: 'points-arrets',
+      type: 'symbol',
+      source: 'points',
+      filter: ['==', ['get', 'kind'], 'arret'],
+      layout: {
+        'icon-image': 'arret-icon',
+        'icon-size': ['interpolate', ['linear'], ['zoom'], 10, 0.55, 16, 0.85],
+        'icon-anchor': 'bottom',
+        'icon-allow-overlap': true,
+        'icon-ignore-placement': true,
+      },
+    })
+  }
+  if (!map.getLayer('points-labels-arrets')) {
+    map.addLayer({
+      id: 'points-labels-arrets',
+      type: 'symbol',
+      source: 'points',
+      filter: ['==', ['get', 'kind'], 'arret'],
+      minzoom: 10,
+      layout: {
+        'text-field': ['get', 'label'],
+        'text-font': ['Noto Sans Regular'],
+        'text-size': ['interpolate', ['linear'], ['zoom'], 10, 10, 16, 12.5],
+        'text-offset': [0, 0.4],
+        'text-anchor': 'top',
+        'text-allow-overlap': false,
+        'text-optional': true,
+        'text-padding': 2,
+      },
+      paint: {
+        'text-color': '#173a2e',
+        'text-halo-color': '#ffffff',
+        'text-halo-width': 1.8,
+      },
+    })
+  }
   if (!map.getLayer('points-labels')) {
     map.addLayer({
       id: 'points-labels',
       type: 'symbol',
       source: 'points',
+      filter: ['!=', ['get', 'kind'], 'arret'],
       minzoom: 14,
       layout: {
         'text-field': ['get', 'label'],
+        'text-font': ['Noto Sans Regular'],
         'text-size': 11,
         'text-offset': [0, 1.4],
         'text-anchor': 'top',
@@ -360,17 +583,59 @@ function installPointLayers(map: MapLibreMap) {
       },
     })
   }
-  if (!map.getLayer('points-arrets')) {
+}
+
+/**
+ * Libelles complementaires du fond vectoriel : commerces/services (station
+ * service, banque, ecole...) et numeros de batiments, comme sur Google Maps.
+ * Ignore le fond satellite (imagerie + libelles raster CARTO).
+ */
+function installMapLabels(map: MapLibreMap) {
+  // Le fond satellite porte deja ses propres libelles clairs.
+  if (!map.getSource('openmaptiles') || map.getLayer('satellite')) return
+  if (!map.getLayer('poi-labels')) {
     map.addLayer({
-      id: 'points-arrets',
-      type: 'circle',
-      source: 'points',
-      filter: ['==', ['get', 'kind'], 'arret'],
+      id: 'poi-labels',
+      type: 'symbol',
+      source: 'openmaptiles',
+      'source-layer': 'poi',
+      minzoom: 14.5,
+      filter: ['all', ['!=', ['get', 'name'], ''], ['!=', ['get', 'class'], 'bus_stop']],
+      layout: {
+        'text-field': ['get', 'name'],
+        'text-font': ['Noto Sans Regular'],
+        'text-size': ['interpolate', ['linear'], ['zoom'], 14.5, 10, 18, 12],
+        'text-max-width': 8,
+        'text-anchor': 'top',
+        'text-offset': [0, 0.2],
+        'text-padding': 2,
+        'text-optional': true,
+      },
       paint: {
-        'circle-radius': ['interpolate', ['linear'], ['zoom'], 10, 6, 16, 11],
-        'circle-color': '#ffffff',
-        'circle-stroke-color': ['get', 'color'],
-        'circle-stroke-width': 3,
+        'text-color': '#3f4a5a',
+        'text-halo-color': 'rgba(255, 255, 255, 0.92)',
+        'text-halo-width': 1.2,
+      },
+    })
+  }
+  if (!map.getLayer('house-numbers')) {
+    map.addLayer({
+      id: 'house-numbers',
+      type: 'symbol',
+      source: 'openmaptiles',
+      'source-layer': 'housenumber',
+      minzoom: 16,
+      layout: {
+        'text-field': ['get', 'housenumber'],
+        'text-font': ['Noto Sans Regular'],
+        'text-size': 9.5,
+        'text-padding': 2,
+        'text-optional': true,
+      },
+      paint: {
+        'text-color': '#5b6572',
+        'text-halo-color': 'rgba(255, 255, 255, 0.9)',
+        'text-halo-width': 1,
       },
     })
   }
@@ -411,6 +676,7 @@ export default function MapCanvas(props: MapCanvasProps) {
       let dernierClicPoint = 0
       instance.on('load', () => {
         installLineLayers(instance)
+        installMapLabels(instance)
         installPointLayers(instance)
         applyDecorations(instance, propsRef.current)
         updateLines(instance, propsRef.current)
@@ -468,6 +734,7 @@ export default function MapCanvas(props: MapCanvasProps) {
         if (reinstalled) return
         reinstalled = true
         installLineLayers(map)
+        installMapLabels(map)
         installPointLayers(map)
         applyDecorations(map, propsRef.current)
         updateLines(map, propsRef.current)
@@ -487,14 +754,16 @@ export default function MapCanvas(props: MapCanvasProps) {
   useEffect(() => {
     const map = mapRef.current
     if (!map) return
-    applyDecorations(map, props)
-    map.easeTo({ pitch: props.viewMode === '3d' ? 55 : 0, duration: 600 })
+    whenStyleReady(map, () => {
+      applyDecorations(map, props)
+      map.easeTo({ pitch: props.viewMode === '3d' ? 55 : 0, duration: 600 })
+    })
   }, [props.viewMode])
 
   useEffect(() => {
     const map = mapRef.current
     if (!map) return
-    installTerrain(map, Boolean(props.terrain))
+    whenStyleReady(map, () => installTerrain(map, Boolean(props.terrain)))
   }, [props.terrain])
 
   useEffect(() => {

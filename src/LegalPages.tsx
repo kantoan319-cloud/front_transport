@@ -140,10 +140,10 @@ const guideSections: LegalSection[] = [
     id: 'comptes',
     title: '11. Comptes et permissions',
     bullets: [
-      'Le portail accepte au maximum 3 administrateurs (vous inclus) et 40 contrôleurs.',
+      'Le portail accepte au maximum 5 administrateurs (vous inclus) et 100 contrôleurs.',
       'Un administrateur ne peut pas supprimer un autre administrateur et personne ne peut modifier son propre rôle.',
       'La création d’un compte contrôleur nécessite un nom, un e-mail et un mot de passe initial de 6 caractères minimum.',
-      'La promotion d’un contrôleur en administrateur est possible tant que la limite de 3 n’est pas atteinte.',
+      'La promotion d’un contrôleur en administrateur est possible tant que la limite de 5 n’est pas atteinte.',
       'Les demandes de réinitialisation sont approuvées avec un mot de passe temporaire que l’agent doit changer.',
     ],
   },

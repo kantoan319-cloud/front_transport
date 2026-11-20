@@ -1,7 +1,8 @@
-import { Alert, Footer, Header, Toast, useApp } from './components'
+import { Alert, Footer, Header, Loading, Toast, useApp } from './components'
+import { BusPage, ImpoundsPage, PublicScanPage } from './bus'
 import {
-  CooperativesPage, HomePage, LoginPage, ParkingsPage,
-  SearchPage, SignalPage, TrackPage,
+  CooperativesPage, HomePage, LoginPage,
+  SignalPage, TrackPage,
 } from './public'
 import { NetworkMap } from './network-map'
 import {
@@ -9,9 +10,9 @@ import {
   ScanPage, ScansPage,
 } from './control'
 import {
-  AdminActivity, AdminCooperatives, AdminDashboard, AdminLayout,
-  AdminOwners, AdminParkings, AdminPayments, AdminRequests,
-  AdminStudies, AdminUsers, AdminVehicles,
+  AdminActivity, AdminAnalytics, AdminCooperatives, AdminDashboard, AdminLayout, AdminLicences,
+  AdminOwners, AdminPayments, AdminPaymentsRegister, AdminRequests,
+  AdminUsers, AdminVehicles,
 } from './admin'
 import { AdminLines } from './lines'
 
@@ -24,26 +25,42 @@ function AccessDenied({ message }: { message: string }) {
 }
 
 export function IzApp() {
-  const { route, t, user } = useApp()
+  const { route, t, user, userLoading } = useApp()
   const path = route.split('?')[0]
 
   const render = () => {
     if (path === '/') return <HomePage />
-    if (path === '/recherche') return <SearchPage />
-    if (path === '/signaler') return <SignalPage />
-    if (path === '/suivi') return <TrackPage />
+    if (path === '/scan' || path === '/recherche') return <PublicScanPage />
+    if (path === '/bus') {
+      if (userLoading) return <Loading />
+      const plate = new URLSearchParams(route.split('?')[1]).get('plaque') ?? ''
+      return plate ? <BusPage key={`${plate}-${user?.id ?? 'public'}-${user?.role}`} plate={plate} /> : <PublicScanPage />
+    }
+    if (path === '/signaler') return <SignalPage key={route} />
+    if (path === '/suivi') {
+      if (userLoading) return <Loading />
+      return user
+        ? <TrackPage />
+        : <AccessDenied message="Le suivi des signalements est réservé aux agents habilités. Connectez-vous avec votre compte." />
+    }
     if (path === '/carte') return <NetworkMap />
-    if (path === '/cooperatives') return <CooperativesPage />
-    if (path === '/parkings') return <ParkingsPage />
+    if (path === '/cooperatives') {
+      if (userLoading) return <Loading />
+      return user
+        ? <CooperativesPage />
+        : <AccessDenied message="Les coopératives sont réservées aux agents habilités. Connectez-vous avec votre compte." />
+    }
     if (path === '/connexion') return <LoginPage />
 
     if (path.startsWith('/controle')) {
+      if (userLoading) return <Loading />
       if (!user) return <LoginPage />
-      if (user.role !== 'admin' && user.role !== 'controleur') {
+      if (user.role !== 'admin' && user.role !== 'superadmin' && user.role !== 'controleur') {
         return <AccessDenied message={t('common.error')} />
       }
       let content = <ControlDashboard />
-      if (path === '/controle/scan') content = <ScanPage />
+      if (path === '/controle/scan') content = <ScanPage key={route} />
+      else if (path === '/controle/fourriere') content = <ImpoundsPage />
       else if (path === '/controle/scans') content = <ScansPage />
       else if (path === '/controle/infractions') content = <InfractionsPage />
       else if (path === '/controle/signals') content = <ControlSignalsPage />
@@ -51,16 +68,18 @@ export function IzApp() {
     }
 
     if (path.startsWith('/admin')) {
+      if (userLoading) return <Loading />
       if (!user) return <LoginPage />
-      if (user.role !== 'admin') return <AccessDenied message={t('common.error')} />
+      if (user.role !== 'admin' && user.role !== 'superadmin') return <AccessDenied message={t('common.error')} />
       let content = <AdminDashboard />
       if (path === '/admin/vehicles') content = <AdminVehicles />
+      else if (path === '/admin/analytics') content = <AdminAnalytics />
       else if (path === '/admin/cooperatives') content = <AdminCooperatives />
       else if (path === '/admin/owners') content = <AdminOwners />
       else if (path === '/admin/lines') content = <AdminLines />
-      else if (path === '/admin/studies') content = <AdminStudies />
-      else if (path === '/admin/parkings') content = <AdminParkings />
+      else if (path === '/admin/licenses') content = <AdminLicences />
       else if (path === '/admin/payments') content = <AdminPayments />
+      else if (path === '/admin/payments/register') content = <AdminPaymentsRegister />
       else if (path === '/admin/requests') content = <AdminRequests />
       else if (path === '/admin/users') content = <AdminUsers />
       else if (path === '/admin/activity') content = <AdminActivity />

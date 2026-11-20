@@ -254,8 +254,8 @@ export default function AccessManagementPage({ initialTab }: AccessManagementPag
             <label>{t('Téléphone')}<input name="telephone" maxLength={30} /></label>
             <label>{t('Mot de passe initial')}<input name="motDePasse" type="password" minLength={6} maxLength={100} required autoComplete="new-password" /></label>
             <label>{t('Rôle')}<select name="role" defaultValue="controleur"><option value="controleur">{t('Contrôleur')}</option><option value="admin">{t('Administrateur')}</option></select></label>
-            <button type="submit" className="button primary" disabled={busy || (adminCount >= 3 && controllerCount >= 40)}>{busy ? t('Création…') : t('Créer le compte')}</button>
-            <p className="access-limit-note">{t('Maximum 3 administrateurs (vous inclus) et 40 contrôleurs.')}</p>
+            <button type="submit" className="button primary" disabled={busy || (adminCount >= 5 && controllerCount >= 100)}>{busy ? t('Création…') : t('Créer le compte')}</button>
+            <p className="access-limit-note">{t('Maximum 5 administrateurs (vous inclus) et 100 contrôleurs.')}</p>
           </form>
         )}
         {tab === 'imports' && (

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import QRCode from 'qrcode'
+import { Alert, Modal } from './iz/components'
 import { downloadBlob, stickerBlob, stickerFilename } from './qrSticker'
 import { downloadQrSheetPdf } from './documentPdf'
 
@@ -18,8 +19,7 @@ export default function VehicleQrDialog({ immatriculation, onClose }: VehicleQrD
     let active = true
     const url = new URL(window.location.href)
     url.search = ''
-    url.searchParams.set('public', '1')
-    url.searchParams.set('m', immatriculation)
+    url.hash = `/bus?${new URLSearchParams({ plaque: immatriculation })}`
     void QRCode.toDataURL(url.toString(), { errorCorrectionLevel: 'M', margin: 3, width: 240 })
       .then((dataUrl) => {
         if (active) setImage(dataUrl)
@@ -55,23 +55,17 @@ export default function VehicleQrDialog({ immatriculation, onClose }: VehicleQrD
   }
 
   return (
-    <div className="modal-backdrop qr-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}>
-      <section className="qr-dialog" role="dialog" aria-modal="true" aria-labelledby="qr-title">
-        <div className="qr-print-card">
-          <div className="qr-dialog-heading">
-            <div><span className="eyebrow">FICHE PUBLIQUE DU VÉHICULE</span><h2 id="qr-title">{immatriculation}</h2></div>
-            <button className="modal-close qr-close" onClick={onClose} aria-label="Fermer">×</button>
-          </div>
-          {error ? <div className="alert error" role="alert">{error}</div> : image ? <div className="qr-code-block"><img className="qr-image" src={image} alt={`QR code pour ${immatriculation}`} /><b className="qr-code-plate">{immatriculation}</b></div> : <div className="qr-loading"><span className="spinner" /><span>Génération du QR code…</span></div>}
-          <p>Scannez ce code pour vérifier les informations du véhicule.</p>
-        </div>
-        <div className="qr-dialog-actions">
-          <button className="button secondary" onClick={onClose}>Fermer</button>
-          <button className="button secondary" disabled={!image || Boolean(error) || downloading} onClick={() => void download()}>{downloading ? 'Téléchargement…' : 'Télécharger le PNG'}</button>
-          <button className="button secondary" disabled={!image || Boolean(error) || downloadingPdf} onClick={() => void downloadPdf()}>{downloadingPdf ? 'Préparation…' : 'Télécharger le PDF A4'}</button>
-          <button className="button primary" disabled={!image || Boolean(error)} onClick={() => window.print()}>Imprimer le QR code</button>
-        </div>
-      </section>
-    </div>
+    <Modal title={`QR code — ${immatriculation}`} onClose={onClose} footer={<>
+      <button className="iz-btn iz-btn-outline" onClick={onClose}>Fermer</button>
+      <button className="iz-btn iz-btn-outline" disabled={!image || Boolean(error) || downloading} onClick={() => void download()}>{downloading ? 'Téléchargement…' : 'Télécharger le PNG'}</button>
+      <button className="iz-btn iz-btn-primary" disabled={!image || Boolean(error) || downloadingPdf} onClick={() => void downloadPdf()}>{downloadingPdf ? 'Préparation…' : 'PDF A4 à imprimer'}</button>
+    </>}>
+      <div style={{ textAlign: 'center' }}>
+        {error ? <Alert type="error">{error}</Alert> : image ? <img width={240} height={240} src={image} alt={`QR code pour ${immatriculation}`} /> : <p>Génération du QR code…</p>}
+        <h3>{immatriculation}</h3>
+        <p>Scannez ce code pour consulter la fiche du bus. Les informations réservées nécessitent une connexion.</p>
+        {['localhost', '127.0.0.1', '[::1]'].includes(window.location.hostname) && <Alert>Ce code utilise une adresse locale. Ouvrez l’application depuis son adresse accessible aux téléphones avant de télécharger les étiquettes définitives.</Alert>}
+      </div>
+    </Modal>
   )
 }

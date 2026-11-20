@@ -285,6 +285,10 @@ html[data-theme='dark'] .iz-alert-info { color: #93b8ff; }
 /* ---------- Map ---------- */
 .iz-map-layout { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 16px; }
 .iz-map-box { height: 560px; border-radius: var(--radius); overflow: hidden; border: 1px solid rgb(var(--bd-gray-200)); position: relative; }
+/* MapCanvas porte .map-page__canvas, dont les styles vivent dans MapPage.css
+   (ancienne page carte, non importée par l'app iz) : sans cela le conteneur
+   n'a aucune hauteur et la carte reste invisible. */
+.iz-map-box .map-page__canvas { position: absolute; inset: 0; }
 .iz-map-layer { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 0; border-bottom: 1px solid rgb(var(--bd-gray-200)); }
 .iz-map-list { max-height: 420px; overflow-y: auto; }
 .iz-map-list button { width: 100%; text-align: left; border: 0; background: transparent; padding: 8px; border-radius: 8px; color: rgb(var(--tx-black)); }
@@ -321,7 +325,9 @@ html[data-theme='dark'] .iz-badge-orange { color: #fbbf24; }
 
 .iz-modal-wide { width: min(980px, calc(100vw - 32px)); max-height: 92vh; overflow: auto; }
 .iz-route-editor { display: grid; grid-template-columns: minmax(0, 1fr) 260px; gap: 14px; }
-.iz-route-map { height: 340px; border-radius: 12px; overflow: hidden; border: 1px solid rgb(var(--bd-gray-200)); }
+.iz-route-map { height: 340px; border-radius: 12px; overflow: hidden; border: 1px solid rgb(var(--bd-gray-200)); position: relative; }
+.iz-route-map .map-page__canvas { position: absolute; inset: 0; }
+.iz-basemap-toggle { display: inline-flex; gap: 6px; align-items: center; }
 .iz-route-step { padding: 10px 12px; border-radius: 10px; background: rgb(var(--bg-gray-50)); margin-bottom: 10px; font-size: .84rem; }
 .iz-route-step.active { background: rgb(var(--tx-vert) / .12); color: rgb(var(--tx-vert)); font-weight: 700; }
 .iz-route-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
@@ -369,4 +375,69 @@ html[data-theme='dark'] .iz-badge-orange { color: #fbbf24; }
   .iz-nav { order: 3; width: 100%; }
   .iz-container, .iz-container-wide { width: min(100% - 24px, 1180px); }
   .iz-toast { left: 12px; right: 12px; max-width: none; }
+}
+
+/* ---------- Branding ---------- */
+.iz-brand-logo { width: 36px; height: 36px; object-fit: contain; background: #fff; border-radius: 10px; padding: 3px; box-shadow: 0 6px 16px -8px rgb(var(--tx-vert) / 0.55); }
+.iz-footer-logo { height: 28px; width: auto; object-fit: contain; }
+
+/* ---------- Listes : outils, mozaïque, pagination ---------- */
+.iz-list-tools { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px; }
+.iz-list-search { width: min(300px, 100%); }
+.iz-list-sort { gap: 6px; }
+.iz-list-sort select { width: auto; min-width: 150px; }
+.iz-view-toggle { display: flex; gap: 4px; margin-left: auto; }
+.iz-select-cell { width: 42px; text-align: center; }
+.iz-row-selected { background: rgb(var(--tx-vert) / 0.08); }
+.iz-mosaic { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 12px; }
+.iz-mosaic-card { border: 1px solid rgb(var(--bd-gray-200)); border-radius: var(--radius); background: rgb(var(--surface)); padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+.iz-mosaic-card dl { display: grid; gap: 8px; margin: 0; }
+.iz-mosaic-card dt { font-size: .68rem; text-transform: uppercase; letter-spacing: .04em; color: rgb(var(--tx-gray-500)); }
+.iz-mosaic-card dd { margin: 0; font-size: .88rem; word-break: break-word; }
+.iz-mosaic-actions { border-top: 1px solid rgb(var(--bd-gray-200)); padding-top: 10px; display: flex; flex-wrap: wrap; gap: 6px; }
+.iz-mosaic-select { font-size: .75rem; display: flex; gap: 6px; align-items: center; color: rgb(var(--tx-gray-600)); }
+.iz-pagination { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 14px; }
+.iz-list-empty { border: 1px dashed rgb(var(--bd-gray-300, 210 210 210)); border-radius: var(--radius); padding: 26px; text-align: center; color: rgb(var(--tx-gray-500)); }
+
+/* ---------- Champs mot de passe + cartes cliquables ---------- */
+.iz-password { position: relative; display: block; width: 100%; }
+.iz-password .iz-input { width: 100%; padding-right: 44px; }
+.iz-password-toggle {
+  position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
+  width: 32px; height: 32px; border: 0; border-radius: 8px; background: transparent;
+  font-size: .95rem; line-height: 1; cursor: pointer; display: grid; place-items: center;
+}
+.iz-password-toggle:hover { background: rgb(var(--bg-gray-100)); }
+.iz-link-card { text-align: left; width: 100%; font: inherit; color: inherit; cursor: pointer; }
+.iz-link-card:hover { border-color: rgb(var(--tx-vert) / 0.4); }
+.iz-stat-link { text-align: left; font: inherit; color: inherit; cursor: pointer; }
+.iz-link-button { background: none; border: 0; padding: 0; font: inherit; color: inherit; cursor: pointer; text-align: left; }
+.iz-link-button:hover { color: rgb(var(--tx-vert)); text-decoration: underline; }
+
+/* ---------- Données décisionnelles (imprimable) ---------- */
+.iz-print-head { display: none; }
+.iz-report-section { margin-top: 16px; }
+.iz-report-section h3 { font-size: 1rem; margin: 0 0 10px; }
+.iz-report-table { width: 100%; border-collapse: collapse; }
+.iz-report-table th,
+.iz-report-table td { padding: 6px 8px; border-bottom: 1px solid rgb(var(--bd-gray-200)); font-size: .82rem; text-align: left; }
+.iz-report-table th { font-size: .72rem; text-transform: uppercase; letter-spacing: .04em; color: rgb(var(--tx-gray-500)); }
+.iz-report-num { text-align: right; white-space: nowrap; }
+
+@media print {
+  .iz-header, .iz-footer, .iz-sidebar, .iz-no-print, .iz-toast, .iz-btn, .iz-page-head .iz-flex { display: none !important; }
+  .iz-app, .iz-main, .iz-container-wide, .iz-dashboard, .iz-dashboard-main { display: block !important; margin: 0 !important; padding: 0 !important; max-width: none !important; background: #fff !important; }
+  .iz-printable { display: block; }
+  .iz-print-head { display: flex; align-items: center; gap: 14px; border-bottom: 2px solid #111; padding-bottom: 10px; margin-bottom: 14px; }
+  .iz-print-head img { width: 64px; height: 64px; object-fit: contain; }
+  .iz-print-head div { display: grid; gap: 2px; }
+  .iz-print-head strong { font-size: 1.05rem; }
+  .iz-print-head span { font-size: .8rem; }
+  .iz-page-head h1 { font-size: 1.2rem; }
+  .iz-card { box-shadow: none !important; border: 1px solid #bbb !important; break-inside: avoid; }
+  .iz-report-section { break-inside: avoid; }
+  .iz-grid { gap: 8px; }
+  .iz-report-table th, .iz-report-table td { font-size: .72rem; padding: 4px 5px; border-color: #bbb; }
+  .iz-stat { border: 1px solid #bbb !important; }
+  @page { margin: 12mm; }
 }

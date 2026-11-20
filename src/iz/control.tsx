@@ -1,11 +1,13 @@
 import { useState } from 'react'
+import { BusInformation, QrScanner, plateFromQr } from './bus'
 import type { FormEvent, ReactNode } from 'react'
 import { izApi } from './api'
 import type { IZRecord } from './api'
 import {
-  Alert, Empty, Field, Loading, PageHead, StatCard, StatusBadge, useApp, useAsync,
+  Alert, ConfirmDialog, Empty, ExportButton, Field, Loading, PageHead, StatCard, StatusBadge, useApp, useAsync,
 } from './components'
 import { DashboardShell } from './dashboard'
+import { DataTable } from './DataTable'
 
 const when = (value?: string | null) => (value ? String(value).slice(0, 16).replace('T', ' ') : '—')
 
@@ -17,6 +19,8 @@ export function ControlLayout({ children }: { children: ReactNode }) {
     { path: '/controle/scans', label: t('control.scans'), icon: '📋' },
     { path: '/controle/infractions', label: t('control.infractions'), icon: '⚠️' },
     { path: '/controle/signals', label: t('control.signals'), icon: '📣' },
+    { path: '/controle/fourriere', label: 'Fourrière', icon: 'P' },
+    { path: '/signaler', label: 'Faire un signalement', icon: '+' },
   ]
   return (
     <DashboardShell
@@ -64,8 +68,8 @@ export function ControlDashboard() {
 }
 
 export function ScanPage() {
-  const { t, notify } = useApp()
-  const [plate, setPlate] = useState('')
+  const { t, notify, navigate, route } = useApp()
+  const [plate, setPlate] = useState(new URLSearchParams(route.split('?')[1]).get('plaque') ?? '')
   const [observation, setObservation] = useState('')
   const [position, setPosition] = useState<{ latitude: number; longitude: number } | null>(null)
   const [result, setResult] = useState<IZRecord | null>(null)
@@ -75,7 +79,7 @@ export function ScanPage() {
     event?.preventDefault()
     setBusy(true)
     try {
-      const response = await izApi.scan({ immatriculation: plate, observation, ...position })
+      const response = await izApi.scan({ immatriculation: plateFromQr(plate), observation, genererInfraction: false, ...position })
       setResult(response)
       notify(response.scan?.resultat ?? '', response.scan?.resultat === 'Conforme' ? 'success' : 'error')
     } catch (error) {
@@ -96,6 +100,7 @@ export function ScanPage() {
     <>
       <PageHead title={t('control.scanTitle')} subtitle={t('control.scanSubtitle')} />
       <div className="iz-card" style={{ maxWidth: 640 }}>
+        <QrScanner onScan={(value) => navigate(`/bus?${new URLSearchParams({ plaque: value })}`)} />
         <form className="iz-form-grid" onSubmit={submit}>
           <Field label={t('control.plate')} full>
             <input className="iz-input iz-upper" required value={plate} onChange={(e) => setPlate(e.target.value)} placeholder="0169 TBF" />
@@ -119,12 +124,10 @@ export function ScanPage() {
           </div>
           {result.infraction && <div style={{ marginTop: 12 }}><Alert type="error">{t('control.infractionCreated')}</Alert></div>}
           {result.vehicle && (
-            <div className="iz-detail-grid" style={{ marginTop: 16 }}>
-              <div className="iz-detail-item"><span>{t('search.owner')}</span><strong>{result.vehicle.proprietaireNom ?? '—'}</strong></div>
-              <div className="iz-detail-item"><span>{t('search.cooperative')}</span><strong>{result.vehicle.cooperativeNom ?? '—'}</strong></div>
-              <div className="iz-detail-item"><span>{t('search.licence')}</span><strong className="iz-mono">{result.vehicle.licenceNumero ?? '—'}</strong></div>
-              <div className="iz-detail-item"><span>{t('search.validity')}</span><strong>{String(result.vehicle.licenceFin ?? '—').slice(0, 10)}</strong></div>
-            </div>
+            <>
+              <BusInformation vehicle={result.vehicle} staff />
+              <button className="iz-btn iz-btn-outline" style={{ marginTop: 16 }} onClick={() => navigate(`/bus?${new URLSearchParams({ plaque: result.vehicle.immatriculation })}`)}>Fiche, signalement et fourrière</button>
+            </>
           )}
         </div>
       )}
@@ -133,36 +136,59 @@ export function ScanPage() {
 }
 
 export function ScansPage() {
-  const { t } = useApp()
-  const { data, loading } = useAsync(() => izApi.scans(), [])
+  const { t, user, notify } = useApp()
+  const { data, loading, reload } = useAsync(() => izApi.scans(), [])
+  const [deleting, setDeleting] = useState<IZRecord | null>(null)
+  const isSuper = user?.role === 'superadmin'
+  const remove = async () => {
+    if (!deleting) return
+    try {
+      await izApi.deleteScan(Number(deleting.id))
+      notify('Scan supprimé.', 'success')
+      setDeleting(null)
+      await reload()
+    } catch (error) {
+      notify(error instanceof Error ? error.message : t('common.error'), 'error')
+    }
+  }
   return (
     <>
-      <PageHead title={t('control.scans')} />
-      {loading ? <Loading /> : !data?.length ? <Empty /> : (
-        <div className="iz-table-wrap">
-          <table className="iz-table">
-            <thead><tr><th>{t('common.date')}</th><th>{t('search.plate')}</th><th>{t('common.status')}</th><th>{t('search.owner')}</th><th>{t('signal.address')}</th></tr></thead>
-            <tbody>
-              {data.map((scan) => (
-                <tr key={scan.id}>
-                  <td className="iz-small iz-nowrap">{when(scan.scanTime)}</td>
-                  <td className="iz-mono iz-upper">{scan.immatriculation ?? '—'}</td>
-                  <td><StatusBadge status={scan.resultat} /></td>
-                  <td>{scan.controleurNom ?? '—'}</td>
-                  <td className="iz-small">{scan.observation ?? '—'}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+      <PageHead title={t('control.scans')} action={(user?.role === 'admin' || user?.role === 'superadmin') ? <ExportButton cible="scans" label="Excel" /> : undefined} />
+      {loading ? <Loading /> : (
+        <DataTable
+          rows={data ?? []}
+          rowKey={(scan) => String(scan.id)}
+          searchText={(scan) => [scan.immatriculation, scan.resultat, scan.controleurNom, scan.observation].join(' ')}
+          initialSort="scanTime"
+          empty={<Empty />}
+          columns={[
+            { key: 'scanTime', label: t('common.date'), sortValue: (scan) => String(scan.scanTime ?? ''), render: (scan) => <span className="iz-small iz-nowrap">{when(scan.scanTime)}</span> },
+            { key: 'immatriculation', label: t('search.plate'), sortValue: (scan) => String(scan.immatriculation ?? ''), render: (scan) => <span className="iz-mono iz-upper">{scan.immatriculation ?? '—'}</span> },
+            { key: 'resultat', label: t('common.status'), sortValue: (scan) => String(scan.resultat ?? ''), render: (scan) => <StatusBadge status={scan.resultat} /> },
+            { key: 'controleurNom', label: t('search.owner'), sortValue: (scan) => String(scan.controleurNom ?? ''), render: (scan) => <>{scan.controleurNom ?? '—'}</> },
+            { key: 'observation', label: t('signal.address'), sortValue: (scan) => String(scan.observation ?? ''), render: (scan) => <span className="iz-small">{scan.observation ?? '—'}</span> },
+          ]}
+          actions={isSuper ? (scan) => (
+            <button className="iz-btn iz-btn-danger iz-btn-sm" onClick={() => setDeleting(scan)}>Supprimer</button>
+          ) : undefined}
+        />
+      )}
+      {deleting && (
+        <ConfirmDialog
+          message={`Supprimer définitivement le scan du ${when(deleting.scanTime)} ?`}
+          onCancel={() => setDeleting(null)}
+          onConfirm={() => void remove()}
+        />
       )}
     </>
   )
 }
 
 export function InfractionsPage() {
-  const { t, notify } = useApp()
+  const { t, notify, user } = useApp()
   const { data, loading, reload } = useAsync(() => izApi.infractions(), [])
+  const [deleting, setDeleting] = useState<IZRecord | null>(null)
+  const isSuper = user?.role === 'superadmin'
   const setStatut = async (id: number, statut: string) => {
     try {
       await izApi.updateInfraction(id, { statut })
@@ -172,39 +198,62 @@ export function InfractionsPage() {
       notify(error instanceof Error ? error.message : t('common.error'), 'error')
     }
   }
+  const remove = async () => {
+    if (!deleting) return
+    try {
+      await izApi.deleteInfraction(Number(deleting.id))
+      notify('Infraction supprimée.', 'success')
+      setDeleting(null)
+      await reload()
+    } catch (error) {
+      notify(error instanceof Error ? error.message : t('common.error'), 'error')
+    }
+  }
   return (
     <>
-      <PageHead title={t('control.infractions')} />
-      {loading ? <Loading /> : !data?.length ? <Empty /> : (
-        <div className="iz-table-wrap">
-          <table className="iz-table">
-            <thead><tr><th>{t('common.date')}</th><th>{t('search.plate')}</th><th>{t('signal.category')}</th><th>{t('admin.amount')}</th><th>{t('common.status')}</th><th>{t('common.actions')}</th></tr></thead>
-            <tbody>
-              {data.map((item) => (
-                <tr key={item.id}>
-                  <td className="iz-small iz-nowrap">{when(item.dateInfraction)}</td>
-                  <td className="iz-mono">{item.immatriculation ?? '—'}</td>
-                  <td>{item.type}</td>
-                  <td>{item.montant} Ar</td>
-                  <td><StatusBadge status={item.statut} /></td>
-                  <td className="iz-nowrap">
-                    <button className="iz-btn iz-btn-outline iz-btn-sm" onClick={() => setStatut(item.id, 'Clôturée')}>
-                      {t('admin.approve')}
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+      <PageHead title={t('control.infractions')} action={(user?.role === 'admin' || user?.role === 'superadmin') ? <ExportButton cible="infractions" label="Excel" /> : undefined} />
+      {loading ? <Loading /> : (
+        <DataTable
+          rows={data ?? []}
+          rowKey={(item) => String(item.id)}
+          searchText={(item) => [item.immatriculation, item.type, item.statut].join(' ')}
+          initialSort="dateInfraction"
+          empty={<Empty />}
+          columns={[
+            { key: 'dateInfraction', label: t('common.date'), sortValue: (item) => String(item.dateInfraction ?? ''), render: (item) => <span className="iz-small iz-nowrap">{when(item.dateInfraction)}</span> },
+            { key: 'immatriculation', label: t('search.plate'), sortValue: (item) => String(item.immatriculation ?? ''), render: (item) => <span className="iz-mono">{item.immatriculation ?? '—'}</span> },
+            { key: 'type', label: t('signal.category'), sortValue: (item) => String(item.type ?? ''), render: (item) => <>{item.type}</> },
+            { key: 'montant', label: t('admin.amount'), sortValue: (item) => Number(item.montant ?? 0), render: (item) => <>{item.montant} Ar</> },
+            { key: 'statut', label: t('common.status'), sortValue: (item) => String(item.statut ?? ''), render: (item) => <StatusBadge status={item.statut} /> },
+          ]}
+          actions={(item) => (
+            <>
+              <button className="iz-btn iz-btn-outline iz-btn-sm" onClick={() => setStatut(Number(item.id), 'Clôturée')}>
+                {t('admin.approve')}
+              </button>
+              {isSuper && (
+                <> <button className="iz-btn iz-btn-danger iz-btn-sm" onClick={() => setDeleting(item)}>Supprimer</button></>
+              )}
+            </>
+          )}
+        />
+      )}
+      {deleting && (
+        <ConfirmDialog
+          message={`Supprimer définitivement l'infraction ${deleting.type ?? ''} du ${when(deleting.dateInfraction)} ?`}
+          onCancel={() => setDeleting(null)}
+          onConfirm={() => void remove()}
+        />
       )}
     </>
   )
 }
 
 export function ControlSignalsPage() {
-  const { t, notify } = useApp()
+  const { t, notify, user } = useApp()
   const { data, loading, reload } = useAsync(() => izApi.controlSignals(), [])
+  const [deleting, setDeleting] = useState<IZRecord | null>(null)
+  const isSuper = user?.role === 'superadmin'
   const resolve = async (id: number, statut: string) => {
     try {
       await izApi.resolveSignal(id, { statut })
@@ -214,31 +263,52 @@ export function ControlSignalsPage() {
       notify(error instanceof Error ? error.message : t('common.error'), 'error')
     }
   }
+  const remove = async () => {
+    if (!deleting) return
+    try {
+      await izApi.deleteSignal(Number(deleting.id))
+      notify('Signalement supprimé.', 'success')
+      setDeleting(null)
+      await reload()
+    } catch (error) {
+      notify(error instanceof Error ? error.message : t('common.error'), 'error')
+    }
+  }
   return (
     <>
-      <PageHead title={t('control.signals')} />
-      {loading ? <Loading /> : !data?.length ? <Empty /> : (
-        <div className="iz-table-wrap">
-          <table className="iz-table">
-            <thead><tr><th>{t('admin.reference')}</th><th>{t('search.plate')}</th><th>{t('signal.category')}</th><th>{t('signal.description')}</th><th>{t('common.status')}</th><th>{t('common.actions')}</th></tr></thead>
-            <tbody>
-              {data.map((signal) => (
-                <tr key={signal.id}>
-                  <td className="iz-mono iz-small">{signal.reference}</td>
-                  <td className="iz-mono">{signal.immatriculation}</td>
-                  <td>{signal.categorie}</td>
-                  <td className="iz-small" style={{ maxWidth: 260 }}>{signal.description}</td>
-                  <td><StatusBadge status={signal.statut} /></td>
-                  <td className="iz-nowrap">
-                    <button className="iz-btn iz-btn-primary iz-btn-sm" onClick={() => resolve(signal.id, 'En cours')}>{t('control.process')}</button>
-                    {' '}
-                    <button className="iz-btn iz-btn-outline iz-btn-sm" onClick={() => resolve(signal.id, 'Résolu')}>✓</button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+      <PageHead title={t('control.signals')} action={(user?.role === 'admin' || user?.role === 'superadmin') ? <ExportButton cible="signalements" label="Excel" /> : undefined} />
+      {loading ? <Loading /> : (
+        <DataTable
+          rows={data ?? []}
+          rowKey={(signal) => String(signal.id)}
+          searchText={(signal) => [signal.reference, signal.immatriculation, signal.categorie, signal.description, signal.statut].join(' ')}
+          initialSort="createdAt"
+          empty={<Empty />}
+          columns={[
+            { key: 'reference', label: t('admin.reference'), sortValue: (signal) => String(signal.reference ?? ''), render: (signal) => <span className="iz-mono iz-small">{signal.reference}</span> },
+            { key: 'immatriculation', label: t('search.plate'), sortValue: (signal) => String(signal.immatriculation ?? ''), render: (signal) => <span className="iz-mono">{signal.immatriculation}</span> },
+            { key: 'categorie', label: t('signal.category'), sortValue: (signal) => String(signal.categorie ?? ''), render: (signal) => <>{signal.categorie}</> },
+            { key: 'description', label: t('signal.description'), sortValue: (signal) => String(signal.description ?? ''), render: (signal) => <span className="iz-small" style={{ maxWidth: 260 }}>{signal.description}</span> },
+            { key: 'createdAt', label: t('common.date'), sortValue: (signal) => String(signal.createdAt ?? ''), render: (signal) => <span className="iz-small iz-nowrap">{when(signal.createdAt)}</span> },
+            { key: 'statut', label: t('common.status'), sortValue: (signal) => String(signal.statut ?? ''), render: (signal) => <StatusBadge status={signal.statut} /> },
+          ]}
+          actions={(signal) => (
+            <>
+              <button className="iz-btn iz-btn-primary iz-btn-sm" onClick={() => resolve(Number(signal.id), 'En cours')}>{t('control.process')}</button>{' '}
+              <button className="iz-btn iz-btn-outline iz-btn-sm" onClick={() => resolve(Number(signal.id), 'Résolu')}>✓</button>
+              {isSuper && (
+                <> <button className="iz-btn iz-btn-danger iz-btn-sm" onClick={() => setDeleting(signal)}>Supprimer</button></>
+              )}
+            </>
+          )}
+        />
+      )}
+      {deleting && (
+        <ConfirmDialog
+          message={`Supprimer définitivement le signalement ${deleting.reference ?? ''} ?`}
+          onCancel={() => setDeleting(null)}
+          onConfirm={() => void remove()}
+        />
       )}
     </>
   )

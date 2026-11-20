@@ -55,8 +55,10 @@ export function AdminLines() {
   const [drawMode, setDrawMode] = useState<DrawMode | null>(null)
   const [editorCenter, setEditorCenter] = useState({ latitude: -19.865, longitude: 47.033 })
   const [editorZoom, setEditorZoom] = useState(13)
+  const [editorBasemap, setEditorBasemap] = useState<'plan' | 'satellite'>('plan')
   const [mapCenter, setMapCenter] = useState({ latitude: -19.865, longitude: 47.033 })
   const [mapZoom, setMapZoom] = useState(13)
+  const [mapBasemap, setMapBasemap] = useState<'plan' | 'satellite'>('plan')
   const [stopForm, setStopForm] = useState<StopForm>(emptyStop())
   const [editingStopId, setEditingStopId] = useState<number | null>(null)
   const [stopPickMode, setStopPickMode] = useState(false)
@@ -125,8 +127,26 @@ export function AdminLines() {
 
   const editorPoints = useMemo<MapPoint[]>(() => {
     if (!form) return []
-    return [...tracePoints(form.trace.aller, 'aller'), ...tracePoints(form.trace.retour, 'retour')]
-  }, [form])
+    const existingStops = allStopsState.data ?? []
+    const lineStops = form.id
+      ? existingStops
+        .filter((stop) => String(stop.lineId) === String(form.id))
+        .flatMap((stop): MapPoint[] => {
+          const latitude = asNumber(stop.latitude)
+          const longitude = asNumber(stop.longitude)
+          if (latitude === null || longitude === null) return []
+          return [{
+            key: `arret-${stop.id}`,
+            label: String(stop.nom ?? 'Arrêt'),
+            kind: 'arret' as const,
+            color: form.couleur,
+            latitude,
+            longitude,
+          }]
+        })
+      : []
+    return [...lineStops, ...tracePoints(form.trace.aller, 'aller'), ...tracePoints(form.trace.retour, 'retour')]
+  }, [form, allStopsState.data])
 
   const editorLines = useMemo<MapLine[]>(() => {
     if (!form) return []
@@ -151,10 +171,13 @@ export function AdminLines() {
   }
 
   function handleEditorClick(point: TracePoint) {
-    if (!form || !drawMode) return
+    if (!form) return
+    // Sans étape choisie, le premier clic démarre directement le tracé de l'aller.
+    const mode = drawMode ?? 'aller'
+    if (!drawMode) setDrawMode('aller')
     setForm({
       ...form,
-      trace: { ...form.trace, [drawMode]: [...form.trace[drawMode], point] },
+      trace: { ...form.trace, [mode]: [...form.trace[mode], point] },
     })
   }
 
@@ -214,6 +237,28 @@ export function AdminLines() {
       ordre: stop ? String(stop.ordre ?? '') : '',
     })
     setStopPickMode(false)
+    if (stop) {
+      const latitude = asNumber(stop.latitude)
+      const longitude = asNumber(stop.longitude)
+      if (latitude !== null && longitude !== null) {
+        setMapCenter({ latitude, longitude })
+        setMapZoom(16)
+      }
+      requestAnimationFrame(() => {
+        document.getElementById('stop-form')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      })
+    }
+  }
+
+  function toggleStopPickMode() {
+    const next = !stopPickMode
+    setStopPickMode(next)
+    if (next) {
+      // La carte de sélection est au-dessus du panneau : on l'amène à l'écran.
+      requestAnimationFrame(() => {
+        document.getElementById('lines-map')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      })
+    }
   }
 
   async function saveStop(event?: FormEvent) {
@@ -328,7 +373,10 @@ export function AdminLines() {
               <div className="iz-line-card-actions">
                 <button className="iz-btn iz-btn-primary iz-btn-sm" onClick={() => { setSelectedId(Number(line.id)); setShowAllLines(false) }}>Voir la Carte</button>
                 <button className="iz-btn iz-btn-outline iz-btn-sm" onClick={() => openEditor(line)}>Modifier</button>
-                <button className="iz-btn iz-btn-outline iz-btn-sm" onClick={() => setSelectedId(Number(line.id))}>Arrêts</button>
+                <button className="iz-btn iz-btn-outline iz-btn-sm" onClick={() => {
+                  setSelectedId(Number(line.id))
+                  requestAnimationFrame(() => document.getElementById('stops-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
+                }}>Arrêts</button>
                 <button className="iz-btn iz-btn-ghost iz-btn-sm" disabled={busy} onClick={() => void deleteLine(line)}>Supprimer</button>
               </div>
             </div>
@@ -346,11 +394,15 @@ export function AdminLines() {
           <div className="iz-flex iz-wrap">
             <label className="iz-check-row"><input type="checkbox" checked={showAllLines} onChange={(event) => setShowAllLines(event.target.checked)} /><span>Lignes</span></label>
             <label className="iz-check-row"><input type="checkbox" checked={showStops} onChange={(event) => setShowStops(event.target.checked)} /><span>Arrêts associés</span></label>
-            <button className="iz-btn iz-btn-ghost iz-btn-sm" onClick={() => { setSelectedId(null); setShowAllLines(true); setShowStops(true) }}>Réinitialiser</button>
+            <div className="iz-basemap-toggle">
+              <button type="button" className={`iz-btn iz-btn-sm ${mapBasemap === 'plan' ? 'iz-btn-primary' : 'iz-btn-outline'}`} onClick={() => setMapBasemap('plan')}>Plan</button>
+              <button type="button" className={`iz-btn iz-btn-sm ${mapBasemap === 'satellite' ? 'iz-btn-primary' : 'iz-btn-outline'}`} onClick={() => setMapBasemap('satellite')}>Satellite</button>
+            </div>
+            <button className="iz-btn iz-btn-ghost iz-btn-sm" onClick={() => { setSelectedId(null); setShowAllLines(true); setShowStops(true); setMapBasemap('plan') }}>Réinitialiser</button>
           </div>
         </div>
         <div className="iz-map-layout" style={{ marginTop: 12 }}>
-          <div className="iz-map-box">
+          <div className="iz-map-box" id="lines-map">
             <MapCanvas
               points={mapPoints}
               lines={mapLines}
@@ -361,7 +413,7 @@ export function AdminLines() {
               selectedKey=""
               center={mapCenter}
               zoom={mapZoom}
-              basemap="plan"
+              basemap={mapBasemap}
               viewMode="2d"
               night={false}
               onSelect={() => undefined}
@@ -386,7 +438,7 @@ export function AdminLines() {
       </div>
 
       {selectedId && (
-        <div className="iz-card" style={{ marginTop: 24 }}>
+        <div className="iz-card" id="stops-panel" style={{ marginTop: 24 }}>
           <div className="iz-section-head">
             <div>
               <h2 style={{ fontSize: '1.1rem' }}>Gestion des Arrêts — {selectedLine ? String(selectedLine.nom) : selectedId}</h2>
@@ -395,7 +447,16 @@ export function AdminLines() {
             <button className="iz-btn iz-btn-ghost iz-btn-sm" onClick={() => setSelectedId(null)}>{t('common.close')}</button>
           </div>
 
-          <form className="iz-form-grid" style={{ marginTop: 12 }} onSubmit={(event) => void saveStop(event)}>
+          {editingStopId && (
+            <div className="iz-route-step active" style={{ marginTop: 12 }}>
+              Modification de l’arrêt « {stopForm.nom || '—'} » : corrigez le nom ou les coordonnées, puis enregistrez.
+              <button type="button" className="iz-btn iz-btn-ghost iz-btn-sm" style={{ marginLeft: 8 }} onClick={() => { setEditingStopId(null); setStopForm(emptyStop()) }}>
+                Annuler la modification
+              </button>
+            </div>
+          )}
+
+          <form id="stop-form" className="iz-form-grid" style={{ marginTop: 12 }} onSubmit={(event) => void saveStop(event)}>
             <Field label="Nom de l’arrêt" full>
               <input className="iz-input" required value={stopForm.nom} onChange={(event) => setStopForm({ ...stopForm, nom: event.target.value })} placeholder="Ex : Gare routière" />
             </Field>
@@ -409,8 +470,8 @@ export function AdminLines() {
               <input className="iz-input" type="number" min="0" value={stopForm.ordre} onChange={(event) => setStopForm({ ...stopForm, ordre: event.target.value })} />
             </Field>
             <div className="iz-flex iz-wrap" style={{ alignItems: 'end' }}>
-              <button type="button" className={`iz-btn ${stopPickMode ? 'iz-btn-primary' : 'iz-btn-outline'} iz-btn-sm`} onClick={() => setStopPickMode(!stopPickMode)}>
-                ⌖ Placer sur la carte
+              <button type="button" className={`iz-btn ${stopPickMode ? 'iz-btn-primary' : 'iz-btn-outline'} iz-btn-sm`} onClick={toggleStopPickMode}>
+                ⌖ {stopPickMode ? 'Cliquez maintenant sur la carte' : 'Choisir sur la carte'}
               </button>
               <button type="submit" className="iz-btn iz-btn-primary iz-btn-sm" disabled={busy}>{editingStopId ? t('common.save') : '+ Ajouter l’arrêt'}</button>
               {editingStopId && <button type="button" className="iz-btn iz-btn-ghost iz-btn-sm" onClick={() => { setEditingStopId(null); setStopForm(emptyStop()) }}>{t('common.cancel')}</button>}
@@ -468,6 +529,13 @@ export function AdminLines() {
 
             <div className="full">
               <div className="iz-route-step active">Route tracée (Aller &amp; Retour) ({form.trace.aller.length + form.trace.retour.length}/2+ points)</div>
+              <div className="iz-flex" style={{ marginBottom: 8 }}>
+                <span className="iz-small iz-muted" style={{ marginRight: 8, alignSelf: 'center' }}>Fond de carte :</span>
+                <div className="iz-basemap-toggle">
+                  <button type="button" className={`iz-btn iz-btn-sm ${editorBasemap === 'plan' ? 'iz-btn-primary' : 'iz-btn-outline'}`} onClick={() => setEditorBasemap('plan')}>Plan</button>
+                  <button type="button" className={`iz-btn iz-btn-sm ${editorBasemap === 'satellite' ? 'iz-btn-primary' : 'iz-btn-outline'}`} onClick={() => setEditorBasemap('satellite')}>Satellite</button>
+                </div>
+              </div>
               <div className="iz-route-editor">
                 <div className="iz-route-map">
                   <MapCanvas
@@ -480,7 +548,7 @@ export function AdminLines() {
                     selectedKey=""
                     center={editorCenter}
                     zoom={editorZoom}
-                    basemap="plan"
+                    basemap={editorBasemap}
                     viewMode="2d"
                     night={false}
                     onSelect={() => undefined}
@@ -492,21 +560,21 @@ export function AdminLines() {
                   <div className={`iz-route-step${drawMode === 'aller' ? ' active' : ''}`}>
                     Étape 1 · Tracer l’aller — {form.trace.aller.length} points
                   </div>
-                  <button className="iz-btn iz-btn-outline iz-btn-sm" onClick={() => setDrawMode(drawMode === 'aller' ? null : 'aller')}>
+                  <button type="button" className="iz-btn iz-btn-outline iz-btn-sm" onClick={() => setDrawMode(drawMode === 'aller' ? null : 'aller')}>
                     {drawMode === 'aller' ? '✓ Terminer l’aller' : '✎ Tracer l’aller'}
                   </button>
                   <div className={`iz-route-step${drawMode === 'retour' ? ' active' : ''}`} style={{ marginTop: 10 }}>
                     Étape 2 · Tracer le retour — {form.trace.retour.length} points
                   </div>
-                  <button className="iz-btn iz-btn-outline iz-btn-sm" onClick={() => setDrawMode(drawMode === 'retour' ? null : 'retour')}>
+                  <button type="button" className="iz-btn iz-btn-outline iz-btn-sm" onClick={() => setDrawMode(drawMode === 'retour' ? null : 'retour')}>
                     {drawMode === 'retour' ? '✓ Terminer le retour' : '✎ Tracer le retour'}
                   </button>
                   <div className="iz-route-actions">
-                    <button className="iz-btn iz-btn-ghost iz-btn-sm" disabled={!drawMode || !form.trace[drawMode].length} onClick={() => {
+                    <button type="button" className="iz-btn iz-btn-ghost iz-btn-sm" disabled={!drawMode || !form.trace[drawMode].length} onClick={() => {
                       if (!drawMode) return
                       setForm({ ...form, trace: { ...form.trace, [drawMode]: form.trace[drawMode].slice(0, -1) } })
                     }}>Retirer le dernier</button>
-                    <button className="iz-btn iz-btn-ghost iz-btn-sm" disabled={!drawMode} onClick={() => {
+                    <button type="button" className="iz-btn iz-btn-ghost iz-btn-sm" disabled={!drawMode} onClick={() => {
                       if (!drawMode) return
                       setForm({ ...form, trace: { ...form.trace, [drawMode]: [] } })
                     }}>Réinitialiser</button>
@@ -514,7 +582,7 @@ export function AdminLines() {
                   <p className="iz-small iz-muted" style={{ marginTop: 12 }}>
                     {drawMode
                       ? `Cliquez sur la carte pour ajouter des points au tracé ${drawMode}.`
-                      : 'Choisissez une étape, puis cliquez sur la carte pour dessiner le trajet.'}
+                      : 'Cliquez directement sur la carte pour dessiner : le tracé de l’aller démarre automatiquement.'}
                   </p>
                 </div>
               </div>

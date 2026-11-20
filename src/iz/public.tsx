@@ -5,7 +5,7 @@ import type { MapLine, MapPoint } from '../MapCanvas'
 import { izApi } from './api'
 import type { IZRecord } from './api'
 import {
-  Alert, Empty, Field, Loading, Modal, PageHead, StatCard, StatusBadge, useApp, useAsync,
+  Alert, Empty, Field, Loading, Modal, PageHead, PasswordInput, StatCard, StatusBadge, useApp, useAsync,
 } from './components'
 
 const dateText = (value?: string | null) => (value ? String(value).slice(0, 10) : '—')
@@ -15,8 +15,25 @@ const dateText = (value?: string | null) => (value ? String(value).slice(0, 10) 
 /* ------------------------------------------------------------------ */
 
 export function HomePage() {
-  const { t, navigate } = useApp()
+  const { t, navigate, user } = useApp()
   const { data } = useAsync(() => izApi.publicStats(), [])
+  const [installPrompt, setInstallPrompt] = useState<{ prompt: () => Promise<void> } | null>(null)
+  useEffect(() => {
+    const handler = (event: Event) => {
+      event.preventDefault()
+      setInstallPrompt(event as unknown as { prompt: () => Promise<void> })
+    }
+    window.addEventListener('beforeinstallprompt', handler)
+    return () => window.removeEventListener('beforeinstallprompt', handler)
+  }, [])
+  const installPwa = () => {
+    if (installPrompt) {
+      void installPrompt.prompt()
+      setInstallPrompt(null)
+    } else {
+      alert(t('home.mobileHelp'))
+    }
+  }
   const features = [
     { icon: '🔎', title: t('home.f1Title'), text: t('home.f1Text') },
     { icon: '🛡️', title: t('home.f2Title'), text: t('home.f2Text') },
@@ -51,7 +68,7 @@ export function HomePage() {
       <section className="iz-section">
         <div className="iz-section-head">
           <div>
-            <div className="iz-eyebrow">iZOTRA</div>
+            <div className="iz-eyebrow">Gestion de Bus CU/ABE</div>
             <h2>{t('home.featuresTitle')}</h2>
             <p className="iz-muted">{t('home.featuresSubtitle')}</p>
           </div>
@@ -66,6 +83,52 @@ export function HomePage() {
           ))}
         </div>
       </section>
+
+      <section className="iz-section">
+        <div className="iz-section-head">
+          <div>
+            <div className="iz-eyebrow">Gestion de Bus CU/ABE</div>
+            <h2>{t('home.mobileTitle')}</h2>
+            <p className="iz-muted">{t('home.mobileSubtitle')}</p>
+          </div>
+        </div>
+        <div className="iz-grid">
+          <div className="iz-card iz-card-hover">
+            <div className="iz-feature-icon">📱</div>
+            <h3 style={{ fontSize: '1rem', marginBottom: 6 }}>Application Android — Bus CU/ABE</h3>
+            <p className="iz-muted iz-small">
+              Une seule application : accédez au scan et au signalement sans compte, ou
+              connectez-vous avec votre compte contrôleur pour ajouter et gérer les comptes.
+            </p>
+            <div className="iz-flex iz-wrap" style={{ marginTop: 12 }}>
+              <a className="iz-btn iz-btn-primary iz-btn-sm" href="/downloads/gestion-bus.apk" download>
+                {t('home.mobileDownload')}
+              </a>
+              <button className="iz-btn iz-btn-outline iz-btn-sm" onClick={installPwa}>{t('home.mobileInstall')}</button>
+            </div>
+          </div>
+        </div>
+        <p className="iz-small iz-muted" style={{ marginTop: 10 }}>{t('home.mobileHelp')}</p>
+      </section>
+
+      {user && (
+        <section className="iz-section">
+          <div className="iz-section-head">
+            <div>
+              <h2>{t('coops.title')}</h2>
+              <p className="iz-muted">{t('coops.subtitle')}</p>
+            </div>
+          </div>
+          <div className="iz-grid iz-grid-2">
+            <button type="button" className="iz-card iz-card-hover iz-link-card" onClick={() => navigate('/cooperatives')}>
+              <div className="iz-feature-icon">🤝</div>
+              <h3 style={{ fontSize: '1rem', marginBottom: 6 }}>{t('nav.coops')}</h3>
+              <p className="iz-muted iz-small">{data?.cooperatives ?? '—'} coopérative(s) · {data?.vehicules ?? '—'} véhicule(s)</p>
+              <span className="iz-btn iz-btn-outline iz-btn-sm" style={{ marginTop: 12 }}>{t('common.details')} →</span>
+            </button>
+          </div>
+        </section>
+      )}
 
       <section className="iz-iz-card iz-card" style={{ textAlign: 'center', padding: '36px 24px' }}>
         <h2>{t('home.ctaFooter')}</h2>
@@ -248,8 +311,10 @@ function VehicleDetail({ vehicle, onClose }: { vehicle: IZRecord; onClose: () =>
 /* ------------------------------------------------------------------ */
 
 export function SignalPage() {
-  const { t, notify, navigate } = useApp()
-  const [form, setForm] = useState({ immatriculation: '', categorie: '', description: '', adresse: '', photo: '' })
+  const { t, notify, navigate, route, user } = useApp()
+  const initialPlate = new URLSearchParams(route.split('?')[1]).get('plaque') ?? ''
+  const [form, setForm] = useState({ immatriculation: initialPlate, categorie: '', description: '', adresse: '', photo: '' })
+  const [position, setPosition] = useState<{ latitude: number; longitude: number } | null>(null)
   const [reference, setReference] = useState('')
   const [sending, setSending] = useState(false)
   const set = (key: string, value: string) => setForm((current) => ({ ...current, [key]: value }))
@@ -262,7 +327,7 @@ export function SignalPage() {
     }
     setSending(true)
     try {
-      const result = await izApi.createSignal(form)
+      const result = await izApi.createSignal({ ...form, ...position })
       setReference(result.reference)
       notify(t('signal.success'), 'success')
     } catch (error) {
@@ -272,10 +337,44 @@ export function SignalPage() {
     }
   }
 
+  // Une photo de telephone pese plusieurs Mo : on la redimensionne et on la
+  // recompresse avant l'envoi, sans quoi l'API la refuserait (2 Mo maximum).
+  const MAX_PHOTO_BYTES = 2 * 1024 * 1024
+  const PHOTO_MAX_WIDTH = 1280
+
   const onPhoto = (file?: File) => {
     if (!file) return
+    if (!file.type.startsWith('image/')) {
+      notify(t('signal.photoType'), 'error')
+      return
+    }
     const reader = new FileReader()
-    reader.onload = () => set('photo', String(reader.result ?? ''))
+    reader.onload = () => {
+      const source = String(reader.result ?? '')
+      const image = new Image()
+      image.onload = () => {
+        const ratio = Math.min(1, PHOTO_MAX_WIDTH / image.width)
+        const canvas = document.createElement('canvas')
+        canvas.width = Math.max(1, Math.round(image.width * ratio))
+        canvas.height = Math.max(1, Math.round(image.height * ratio))
+        const context = canvas.getContext('2d')
+        if (!context) {
+          set('photo', source)
+          return
+        }
+        context.drawImage(image, 0, 0, canvas.width, canvas.height)
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.7)
+        const base64 = dataUrl.split(',')[1] ?? ''
+        if (Math.floor((base64.length * 3) / 4) > MAX_PHOTO_BYTES) {
+          set('photo', '')
+          notify(t('signal.photoTooLarge'), 'error')
+          return
+        }
+        set('photo', dataUrl)
+      }
+      image.onerror = () => notify(t('signal.photoType'), 'error')
+      image.src = source
+    }
     reader.readAsDataURL(file)
   }
 
@@ -287,10 +386,16 @@ export function SignalPage() {
           <div>
             <Alert type="success">{t('signal.success')} <strong className="iz-mono">{reference}</strong></Alert>
             <div className="iz-hero-actions">
-              <button className="iz-btn iz-btn-primary" onClick={() => navigate(`/suivi?ref=${reference}`)}>
-                {t('signal.trackNow')}
-              </button>
-              <button className="iz-btn iz-btn-outline" onClick={() => { setReference(''); setForm({ immatriculation: '', categorie: '', description: '', adresse: '', photo: '' }) }}>
+              {user ? (
+                <button className="iz-btn iz-btn-primary" onClick={() => navigate(`/suivi?ref=${reference}`)}>
+                  {t('signal.trackNow')}
+                </button>
+              ) : (
+                <p className="iz-small iz-muted" style={{ margin: 0 }}>
+                  Conservez cette référence. Le suivi est réservé aux agents habilités : connectez-vous pour consulter l’avancement.
+                </p>
+              )}
+              <button className="iz-btn iz-btn-outline" onClick={() => { setReference(''); setPosition(null); setForm({ immatriculation: initialPlate, categorie: '', description: '', adresse: '', photo: '' }) }}>
                 {t('common.add')}
               </button>
             </div>
@@ -312,6 +417,17 @@ export function SignalPage() {
             <Field label={t('signal.address')} full>
               <input className="iz-input" value={form.adresse} onChange={(e) => set('adresse', e.target.value)} />
             </Field>
+            <div className="full">
+              <button type="button" className="iz-btn iz-btn-outline" onClick={() => {
+                if (!navigator.geolocation) { notify('Géolocalisation indisponible.', 'error'); return }
+                navigator.geolocation.getCurrentPosition(
+                  ({ coords }) => setPosition({ latitude: coords.latitude, longitude: coords.longitude }),
+                  () => notify('Position indisponible. Vous pouvez saisir une adresse.', 'error'),
+                  { timeout: 10000 },
+                )
+              }}>Joindre ma position (facultatif)</button>
+              {position && <p className="iz-small">Position jointe <button type="button" className="iz-btn iz-btn-ghost iz-btn-sm" onClick={() => setPosition(null)}>Retirer</button></p>}
+            </div>
             <Field label={t('signal.photo')} full>
               <input className="iz-input" type="file" accept="image/*" onChange={(e) => onPhoto(e.target.files?.[0])} />
             </Field>
@@ -379,7 +495,7 @@ export function TrackPage() {
 
 export function MapPage() {
   const { t, theme } = useApp()
-  const [layer, setLayer] = useState<'arret' | 'parking' | 'vehicle'>('arret')
+  const [layer, setLayer] = useState<'arret' | 'vehicle'>('arret')
   const [selectedKey, setSelectedKey] = useState('')
   const [center, setCenter] = useState({ latitude: -19.865, longitude: 47.033 })
   const [zoom, setZoom] = useState(13)
@@ -387,7 +503,6 @@ export function MapPage() {
   const [viewMode, setViewMode] = useState<'2d' | '3d'>('2d')
 
   const { data: lines } = useAsync(() => izApi.lines(), [])
-  const { data: parkings } = useAsync(() => izApi.parkings(), [])
   const { data: vehicles } = useAsync(() => izApi.map(), [])
   const { data: stops } = useAsync(async () => {
     const all = await Promise.all((lines ?? []).map((line) => izApi.stops(line.id)))
@@ -405,15 +520,6 @@ export function MapPage() {
         })
       }
     }
-    if (layer === 'parking') {
-      for (const parking of parkings ?? []) {
-        if (parking.latitude == null) continue
-        result.push({
-          key: `parking-${parking.id}`, label: parking.nom, kind: 'parking', color: '#7c3aed',
-          latitude: Number(parking.latitude), longitude: Number(parking.longitude),
-        })
-      }
-    }
     if (layer === 'vehicle') {
       for (const vehicle of vehicles ?? []) {
         if (vehicle.latitude == null) continue
@@ -425,7 +531,7 @@ export function MapPage() {
       }
     }
     return result
-  }, [layer, stops, parkings, vehicles])
+  }, [layer, stops, vehicles])
 
   const mapLines = useMemo<MapLine[]>(() => {
     if (layer !== 'arret' || !lines) return []
@@ -474,12 +580,12 @@ export function MapPage() {
         </div>
         <aside className="iz-card">
           <h3 style={{ fontSize: '.95rem', marginBottom: 10 }}>{t('map.selectLayer')}</h3>
-          {(['arret', 'parking', 'vehicle'] as const).map((name) => (
+          {(['arret', 'vehicle'] as const).map((name) => (
             <div className="iz-map-layer" key={name}>
               <button className={`iz-btn ${layer === name ? 'iz-btn-primary' : 'iz-btn-ghost'} iz-btn-sm`} onClick={() => { setLayer(name); setSelectedKey('') }}>
-                {t(name === 'arret' ? 'map.stops' : name === 'parking' ? 'map.parkings' : 'map.vehicles')}
+                {t(name === 'arret' ? 'map.stops' : 'map.vehicles')}
               </button>
-              <span className="iz-badge">{name === 'arret' ? stops?.length : name === 'parking' ? parkings?.length : vehicles?.length}</span>
+              <span className="iz-badge">{name === 'arret' ? stops?.length : vehicles?.length}</span>
             </div>
           ))}
           <h3 style={{ fontSize: '.9rem', margin: '16px 0 6px' }}>{t('common.details')}</h3>
@@ -504,19 +610,37 @@ export function MapPage() {
 }
 
 /* ------------------------------------------------------------------ */
-/* Coopératives & parkings                                             */
+/* Coopératives                                                        */
 /* ------------------------------------------------------------------ */
 
 export function CooperativesPage() {
-  const { t } = useApp()
+  const { t, navigate } = useApp()
   const { data, loading } = useAsync(() => izApi.cooperatives(), [])
+  const [active, setActive] = useState<IZRecord | null>(null)
+  const [buses, setBuses] = useState<IZRecord[]>([])
+  const [busesLoading, setBusesLoading] = useState(false)
+
+  const openCoop = async (coop: IZRecord) => {
+    setActive(coop)
+    setBuses([])
+    setBusesLoading(true)
+    try {
+      const result = await izApi.vehicles({ cooperative: String(coop.code), limit: 500 })
+      setBuses(result.data)
+    } catch {
+      setBuses([])
+    } finally {
+      setBusesLoading(false)
+    }
+  }
+
   return (
     <>
       <PageHead title={t('coops.title')} subtitle={t('coops.subtitle')} />
       {loading ? <Loading /> : (
         <div className="iz-grid iz-grid-3">
           {(data ?? []).map((coop) => (
-            <div className="iz-card iz-card-hover" key={coop.id}>
+            <button type="button" className="iz-card iz-card-hover iz-link-card" key={coop.id} onClick={() => void openCoop(coop)}>
               <div className="iz-flex" style={{ justifyContent: 'space-between' }}>
                 <strong style={{ fontSize: '1.05rem' }}>{coop.nom}</strong>
                 <span className="iz-chip">{coop.code}</span>
@@ -526,41 +650,31 @@ export function CooperativesPage() {
                 <span className="iz-badge iz-badge-blue">{coop.vehicules} {t('coops.vehicles')}</span>
                 <span className="iz-badge">{t('coops.lines')} : {coop.description?.replace(/[^\d,]/g, '') || '—'}</span>
               </div>
-            </div>
+            </button>
           ))}
         </div>
       )}
-    </>
-  )
-}
-
-export function ParkingsPage() {
-  const { t } = useApp()
-  const { data, loading } = useAsync(() => izApi.parkings(), [])
-  return (
-    <>
-      <PageHead title={t('parking.title')} subtitle={t('parking.subtitle')} />
-      {loading ? <Loading /> : (
-        <div className="iz-grid iz-grid-3">
-          {(data ?? []).map((parking) => {
-            const free = Number(parking.capacite ?? 0) - Number(parking.placesOccupees ?? 0)
-            return (
-              <div className="iz-card iz-card-hover" key={parking.id}>
-                <div className="iz-flex" style={{ justifyContent: 'space-between' }}>
-                  <strong>{parking.nom}</strong>
-                  <StatusBadge status={parking.statut} />
-                </div>
-                <p className="iz-muted iz-small" style={{ margin: '8px 0 14px' }}>{parking.adresse} · {parking.commune}</p>
-                <div className="iz-detail-grid">
-                  <div className="iz-detail-item"><span>{t('parking.capacity')}</span><strong>{parking.capacite}</strong></div>
-                  <div className="iz-detail-item"><span>{t('parking.free')}</span><strong>{free}</strong></div>
-                  <div className="iz-detail-item"><span>{t('parking.tariff')}</span><strong>{parking.tarifHoraire} Ar</strong></div>
-                  <div className="iz-detail-item"><span>GPS</span><strong className="iz-tiny">{parking.latitude}, {parking.longitude}</strong></div>
-                </div>
-              </div>
-            )
-          })}
-        </div>
+      {active && (
+        <Modal wide title={`${active.nom} — ${buses.length} ${t('coops.vehicles')}`} onClose={() => setActive(null)}>
+          <p className="iz-small iz-muted">Code {active.code} · cliquez sur un véhicule pour ouvrir sa fiche.</p>
+          {busesLoading ? <Loading /> : buses.length === 0 ? <Empty message="Aucun véhicule rattaché à cette coopérative." /> : (
+            <div className="iz-table-wrap">
+              <table className="iz-table">
+                <thead><tr><th>{t('search.plate')}</th><th>{t('search.line')}</th><th>Type</th><th>{t('common.status')}</th></tr></thead>
+                <tbody>
+                  {buses.map((bus) => (
+                    <tr key={bus.id} style={{ cursor: 'pointer' }} onClick={() => navigate('/bus?plaque=' + encodeURIComponent(String(bus.immatriculation)))}>
+                      <td><strong className="iz-mono">{bus.immatriculation}</strong></td>
+                      <td>{bus.ligne ?? '—'}</td>
+                      <td>{bus.type ?? '—'}</td>
+                      <td><StatusBadge status={bus.statut} /></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </Modal>
       )}
     </>
   )
@@ -571,10 +685,14 @@ export function ParkingsPage() {
 /* ------------------------------------------------------------------ */
 
 export function LoginPage() {
-  const { t, notify, navigate, setUser } = useApp()
+  const { t, notify, navigate, setUser, route } = useApp()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [busy, setBusy] = useState(false)
+  const [forgotOpen, setForgotOpen] = useState(false)
+  const [resetEmail, setResetEmail] = useState('')
+  const [resetBusy, setResetBusy] = useState(false)
+  const [resetMessage, setResetMessage] = useState('')
 
   const submit = async (event?: FormEvent) => {
     event?.preventDefault()
@@ -583,7 +701,8 @@ export function LoginPage() {
       const user = await izApi.login(email, password)
       setUser(user)
       notify(`Bienvenue ${user.firstName || user.email}`, 'success')
-      navigate(user.role === 'admin' ? '/admin' : '/controle')
+      const destination = new URLSearchParams(route.split('?')[1]).get('retour')
+      navigate(destination?.startsWith('/bus?') ? destination : route.startsWith('/controle') || route.startsWith('/admin') ? route : user.role === 'admin' || user.role === 'superadmin' ? '/admin' : '/controle')
     } catch (error) {
       notify(error instanceof Error ? error.message : t('auth.error'), 'error')
     } finally {
@@ -591,30 +710,65 @@ export function LoginPage() {
     }
   }
 
+  const requestReset = async (event?: FormEvent) => {
+    event?.preventDefault()
+    if (!resetEmail.trim()) return
+    setResetBusy(true)
+    setResetMessage('')
+    try {
+      const result = await izApi.requestPasswordReset(resetEmail.trim())
+      setResetMessage(result.message)
+    } catch (error) {
+      notify(error instanceof Error ? error.message : t('common.error'), 'error')
+    } finally {
+      setResetBusy(false)
+    }
+  }
+
   return (
     <div className="iz-auth-wrap">
       <div className="iz-card iz-auth-card">
-        <div className="iz-brand"><span className="iz-brand-mark">iZ</span>iZOTRA</div>
+        <div className="iz-brand">
+          <img className="iz-brand-logo" src="/brand/logo-bus.png" alt="Logo bus" />
+          <span>Gestion de Bus<small>CU/ABE · Commune Urbaine d’Antsirabe</small></span>
+        </div>
         <div className="iz-center" style={{ marginBottom: 20 }}>
           <h2 style={{ fontSize: '1.3rem' }}>{t('auth.title')}</h2>
           <p className="iz-muted iz-small">{t('auth.subtitle')}</p>
         </div>
         <form className="iz-form-grid" onSubmit={submit}>
           <Field label={t('auth.email')} full>
-            <input className="iz-input" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
+            <input className="iz-input" type="email" required autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} />
           </Field>
           <Field label={t('auth.password')} full>
-            <input className="iz-input" type="password" required value={password} onChange={(e) => setPassword(e.target.value)} />
+            <PasswordInput required autoComplete="current-password" value={password} onChange={setPassword} />
           </Field>
           <button className="iz-btn iz-btn-primary full" disabled={busy} type="submit">
             {busy ? <span className="iz-spinner" /> : null}{t('auth.button')}
           </button>
         </form>
-        <div className="iz-demo-box">
-          <strong>{t('auth.demo')}</strong><br />
-          Admin : <code>admin@izotra.local</code> / <code>Izotra2026!</code><br />
-          Contrôleur : <code>controleur@izotra.local</code> / <code>Controle2026!</code>
+        <div className="iz-center" style={{ marginTop: 12 }}>
+          <button type="button" className="iz-btn iz-btn-ghost iz-btn-sm" onClick={() => { setForgotOpen((value) => !value); setResetEmail(email); setResetMessage('') }}>
+            Mot de passe oublié ?
+          </button>
         </div>
+        {forgotOpen && (
+          <form className="iz-card" style={{ marginTop: 12, boxShadow: 'none' }} onSubmit={requestReset}>
+            <p className="iz-small iz-muted" style={{ marginTop: 0 }}>
+              Indiquez l’adresse de votre compte. Le super administrateur validera la demande et définira un nouveau mot de passe.
+            </p>
+            <Field label={t('auth.email')} full>
+              <input className="iz-input" type="email" required autoComplete="username" value={resetEmail} onChange={(e) => setResetEmail(e.target.value)} />
+            </Field>
+            <div className="iz-flex iz-wrap" style={{ marginTop: 10 }}>
+              <button className="iz-btn iz-btn-primary iz-btn-sm" disabled={resetBusy} type="submit">
+                {resetBusy ? <span className="iz-spinner" /> : null}Envoyer la demande
+              </button>
+              <button className="iz-btn iz-btn-outline iz-btn-sm" type="button" onClick={() => setForgotOpen(false)}>{t('common.cancel')}</button>
+            </div>
+            {resetMessage && <p className="iz-small" role="status" style={{ marginBottom: 0 }}>{resetMessage}</p>}
+          </form>
+        )}
       </div>
     </div>
   )

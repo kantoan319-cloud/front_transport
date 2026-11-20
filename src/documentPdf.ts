@@ -76,6 +76,48 @@ export async function logoForPdf(source: string): Promise<string | null> {
   return dataUrl
 }
 
+/** Rasterise une image en niveaux de gris (documents noir et blanc). */
+export async function grayscaleDataUrl(source: string): Promise<string | null> {
+  try {
+    const dataUrl = await imageToDataUrl(source)
+    if (!dataUrl) return null
+    const image = new Image()
+    image.decoding = 'sync'
+    await new Promise<void>((resolve, reject) => {
+      image.onload = () => resolve()
+      image.onerror = () => reject(new Error('Image illisible.'))
+      image.src = dataUrl
+    })
+    const canvas = document.createElement('canvas')
+    canvas.width = image.naturalWidth || 320
+    canvas.height = image.naturalHeight || 320
+    const context = canvas.getContext('2d')
+    if (!context) return null
+    context.drawImage(image, 0, 0, canvas.width, canvas.height)
+    const pixels = context.getImageData(0, 0, canvas.width, canvas.height)
+    const data = pixels.data
+    for (let index = 0; index < data.length; index += 4) {
+      const gray = Math.round(0.299 * data[index] + 0.587 * data[index + 1] + 0.114 * data[index + 2])
+      data[index] = gray
+      data[index + 1] = gray
+      data[index + 2] = gray
+    }
+    context.putImageData(pixels, 0, 0)
+    return canvas.toDataURL('image/png')
+  } catch {
+    return null
+  }
+}
+
+let communeLogoPromise: Promise<string | null> | null = null
+
+/** Logo de la Commune Urbaine d'Antsirabe, converti en gris pour les PDF. */
+export function communeLogo(): Promise<string | null> {
+  communeLogoPromise ??= grayscaleDataUrl('/brand/logo-commune.png')
+  return communeLogoPromise
+}
+
+
 
 export async function downloadReceiptPdf(options: {
   width: 58 | 80
@@ -334,16 +376,372 @@ export async function downloadSectionsPdf(options: {
 
   doc.save(filename)
 }
-export async function downloadQrSheetPdf(items: { registration: string; image: string }[], filename = 'QR_codes_A4.pdf'): Promise<void> {
-  if (!items.length) throw new Error('Aucun QR code à exporter.')
+export interface ReceiptPayload {
+  reference: string
+  type: string
+  montant: number
+  moyen: string
+  statut: string
+  telephone?: string | null
+  referenceExterne?: string | null
+  immatriculation?: string | null
+  proprietaireNom?: string | null
+  createdAt?: string | null
+  validatedAt?: string | null
+  validatedByName?: string | null
+  logo?: string | null
+}
+
+const receiptDate = (value?: string | null) => {
+  if (!value) return '—'
+  const date = new Date(String(value))
+  if (Number.isNaN(date.getTime())) return String(value)
+  return date.toLocaleString('fr-FR', { dateStyle: 'long', timeStyle: 'short' })
+}
+
+/** Reçu A4 noir et blanc, avec le logo de la commune en niveaux de gris. */
+async function buildReceipt(receipt: ReceiptPayload) {
+  const JsPdf = await loadJsPdf()
+  const doc = new JsPdf({ unit: 'mm', format: 'a4', orientation: 'portrait', compress: true })
+  const pageWidth = doc.internal.pageSize.getWidth()
+  const left = 16
+  const right = pageWidth - 16
+  const width = right - left
+  const paid = String(receipt.statut).toLowerCase().startsWith('pay') || String(receipt.statut) === 'Validé'
+
+  doc.setDrawColor(0)
+  doc.setLineWidth(0.6)
+  doc.rect(10, 10, pageWidth - 20, 277)
+  doc.setLineWidth(0.2)
+
+  let y = 18
+  const logo = receipt.logo ?? (await communeLogo())
+  if (logo) {
+    try {
+      const logoWidth = 17
+      const logoHeight = logoWidth * (136 / 108)
+      doc.addImage(logo, 'PNG', (pageWidth - logoWidth) / 2, y, logoWidth, logoHeight)
+      y += logoHeight + 1
+    } catch {
+      // Le logo est optionnel : le reçu reste lisible sans lui.
+    }
+  }
+
+  doc.setTextColor(0)
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(16)
+  doc.text('GESTION DE BUS CU/ABE', pageWidth / 2, y, { align: 'center' })
+  y += 6
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(9)
+  doc.setTextColor(70)
+  doc.text('Commune Urbaine d’Antsirabe — Transport urbain', pageWidth / 2, y, { align: 'center' })
+
+  y += 10
+  doc.setDrawColor(0)
+  doc.setLineWidth(0.5)
+  doc.line(left, y, right, y)
+  y += 7
+  doc.setTextColor(0)
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(13)
+  doc.text('REÇU DE PAIEMENT', pageWidth / 2, y, { align: 'center' })
+  y += 3
+  doc.setLineWidth(0.5)
+  doc.line(left, y, right, y)
+  doc.setLineWidth(0.2)
+  y += 8
+
+  doc.setFontSize(9)
+  doc.setFont('helvetica', 'normal')
+  doc.setTextColor(60)
+  doc.text(`N° ${receipt.reference}`, left, y)
+  doc.text(`Émis le ${receiptDate(receipt.createdAt)}`, right, y, { align: 'right' })
+  y += 8
+
+  const rows: { label: string; value: string }[] = [
+    { label: 'Type de paiement', value: receipt.type || '—' },
+    { label: 'Immatriculation du bus', value: receipt.immatriculation || '—' },
+    { label: 'Nom du propriétaire', value: receipt.proprietaireNom || '—' },
+    { label: 'Moyen de paiement', value: receipt.moyen || '—' },
+    { label: 'Téléphone', value: receipt.telephone || '—' },
+    { label: 'Référence externe', value: receipt.referenceExterne || '—' },
+    { label: 'Statut', value: receipt.statut || '—' },
+  ].filter((row) => row.value !== '—' || ['Type de paiement', 'Moyen de paiement', 'Statut'].includes(row.label))
+
+  doc.setDrawColor(0)
+  doc.setFillColor(235, 235, 235)
+  doc.rect(left, y - 4.5, width, 7, 'F')
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(9)
+  doc.setTextColor(0)
+  doc.text('DÉSIGNATION', left + 3, y)
+  doc.text('MONTANT / DÉTAIL', right - 3, y, { align: 'right' })
+  y += 7.5
+
+  for (const row of rows) {
+    doc.setFont('helvetica', 'normal')
+    doc.setTextColor(70)
+    doc.setFontSize(9.5)
+    doc.text(row.label, left + 3, y)
+    doc.setTextColor(0)
+    doc.setFont('helvetica', 'bold')
+    doc.text(row.value, right - 3, y, { align: 'right' })
+    y += 2
+    doc.setDrawColor(190)
+    doc.setLineWidth(0.15)
+    doc.line(left, y, right, y)
+    doc.setLineWidth(0.2)
+    y += 6
+  }
+
+  y += 4
+  doc.setDrawColor(0)
+  doc.setLineWidth(0.5)
+  doc.line(left, y, right, y)
+  y += 9
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(12)
+  doc.setTextColor(0)
+  doc.text('TOTAL', left + 3, y)
+  doc.setFontSize(14)
+  doc.text(`${Number(receipt.montant || 0).toLocaleString('fr-FR')} Ar`, right - 3, y, { align: 'right' })
+  y += 4
+  doc.setLineWidth(0.5)
+  doc.line(left, y, right, y)
+
+  y += 12
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(11)
+  doc.setDrawColor(0)
+  doc.setLineWidth(0.5)
+  const stamp = paid ? 'PAYÉ' : (receipt.statut || 'EN ATTENTE').toUpperCase()
+  const stampWidth = Math.max(46, doc.getTextWidth(stamp) + 18)
+  doc.rect(right - stampWidth, y - 7, stampWidth, 12)
+  doc.text(stamp, right - stampWidth / 2, y + 1.5, { align: 'center' })
+
+  if (receipt.validatedByName) {
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(8.5)
+    doc.setTextColor(70)
+    doc.text(`Validé par ${receipt.validatedByName} le ${receiptDate(receipt.validatedAt)}`, left, y - 4)
+  }
+
+  y += 30
+  doc.setDrawColor(0)
+  doc.setTextColor(0)
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(9.5)
+  doc.line(left, y, left + 62, y)
+  doc.line(right - 62, y, right, y)
+  y += 5
+  doc.text('Signature du caissier', left, y)
+  doc.text('Signature du client', right - 62, y)
+
+  y += 14
+  doc.setFontSize(8)
+  doc.setTextColor(90)
+  doc.text(
+    doc.splitTextToSize(
+      'Ce reçu atteste du paiement enregistré dans la plateforme Gestion de Bus CU/ABE. Conservez-le pour toute réclamation.',
+      width,
+    ),
+    left,
+    y,
+  )
+
+  const pageHeight = doc.internal.pageSize.getHeight()
+  doc.setFontSize(7.5)
+  doc.setTextColor(90)
+  doc.text(`Antsirabe · ${new Date().toLocaleString('fr-FR')}`, left, pageHeight - 13)
+  doc.text(`Reçu ${receipt.reference}`, right, pageHeight - 13, { align: 'right' })
+
+  return doc
+}
+
+export async function downloadReceiptA4(receipt: ReceiptPayload, filename?: string): Promise<void> {
+  const doc = await buildReceipt(receipt)
+  doc.save(filename ?? `Recu_${receipt.reference}.pdf`)
+}
+
+/** Génère le PDF puis ouvre la boîte d'impression du navigateur. */
+export async function printReceipt(receipt: ReceiptPayload): Promise<void> {
+  const doc = await buildReceipt(receipt)
+  doc.autoPrint()
+  const url = String(doc.output('bloburl'))
+  const win = window.open(url, '_blank')
+  if (!win) window.location.href = url
+}
+
+export type RegisterPeriod = 'day' | 'month' | 'year'
+
+export interface RegisterRow {
+  id: number | string
+  reference: string
+  type: string
+  montant: number
+  moyen: string
+  statut: string
+  telephone?: string | null
+  immatriculation?: string | null
+  proprietaireNom?: string | null
+  createdAt?: string | null
+  validatedAt?: string | null
+}
+
+export interface RegisterPayload {
+  period: RegisterPeriod
+  from: string
+  to: string
+  rows: RegisterRow[]
+  summary: {
+    total: number
+    montant: number
+    payes: number
+    montantPaye: number
+    enAttente: number
+  }
+  logo?: string | null
+}
+
+const shortDateTime = (value?: string | null) => {
+  if (!value) return '—'
+  const date = new Date(String(value))
+  if (Number.isNaN(date.getTime())) return String(value)
+  return date.toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' })
+}
+
+function registerPeriodLabel(payload: RegisterPayload): string {
+  const from = new Date(payload.from)
+  if (payload.period === 'year') {
+    return `Année ${from.getUTCFullYear()}`
+  }
+  if (payload.period === 'month') {
+    const label = from.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric', timeZone: 'UTC' })
+    return `Mois de ${label}`
+  }
+  const label = from.toLocaleDateString('fr-FR', {
+    weekday: 'long', day: '2-digit', month: 'long', year: 'numeric', timeZone: 'UTC',
+  })
+  return `Journée du ${label}`
+}
+
+async function buildRegisterPdf(payload: RegisterPayload) {
+  const JsPdf = await loadJsPdf()
+  const { default: autoTable } = await import('jspdf-autotable')
+  const doc = new JsPdf({ unit: 'mm', format: 'a4', orientation: 'landscape', compress: true })
+  const pageWidth = doc.internal.pageSize.getWidth()
+  const pageHeight = doc.internal.pageSize.getHeight()
+  const margin = 14
+  const editedAt = new Date()
+
+  const logo = payload.logo ?? (await communeLogo())
+  let titleX = margin
+  if (logo) {
+    try {
+      const logoWidth = 16
+      doc.addImage(logo, 'PNG', margin, 10, logoWidth, logoWidth * (136 / 108))
+      titleX = margin + logoWidth + 5
+    } catch {
+      // Le logo est optionnel : le registre reste lisible sans lui.
+    }
+  }
+
+  doc.setTextColor(...GREEN)
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(16)
+  doc.text('REGISTRE DES PAIEMENTS', titleX, 18)
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(9)
+  doc.setTextColor(...MUTED)
+  doc.text("Commune Urbaine d'Antsirabe — Gestion de Bus CU/ABE", titleX, 24)
+  doc.setTextColor(...GREEN)
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(10.5)
+  doc.text(registerPeriodLabel(payload), titleX, 30)
+
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(8.4)
+  doc.setTextColor(...MUTED)
+  doc.text(`Édité le ${editedAt.toLocaleDateString('fr-FR')} à ${editedAt.toLocaleTimeString('fr-FR')}`, pageWidth - margin, 18, { align: 'right' })
+  doc.text(`Opérations : ${payload.summary.total}`, pageWidth - margin, 23, { align: 'right' })
+  doc.text(`Encaissé : ${Number(payload.summary.montantPaye).toLocaleString('fr-FR')} Ar`, pageWidth - margin, 28, { align: 'right' })
+  doc.text(`En attente : ${payload.summary.enAttente}`, pageWidth - margin, 33, { align: 'right' })
+
+  doc.setDrawColor(...LINE)
+  doc.line(margin, 36, pageWidth - margin, 36)
+
+  autoTable(doc, {
+    head: [[
+      'Date et heure', 'Référence', 'Type', 'Immatriculation', 'Propriétaire',
+      'Moyen', 'Montant (Ar)', 'Statut',
+    ]],
+    body: payload.rows.map((row) => [
+      shortDateTime(row.createdAt),
+      row.reference ?? '—',
+      row.type ?? '—',
+      row.immatriculation ?? '—',
+      row.proprietaireNom ?? '—',
+      row.moyen ?? '—',
+      Number(row.montant ?? 0).toLocaleString('fr-FR'),
+      row.statut ?? '—',
+    ]),
+    startY: 40,
+    margin: { top: 14, right: margin, bottom: 18, left: margin },
+    styles: { font: 'helvetica', fontSize: 8, cellPadding: 2, textColor: [36, 48, 41] },
+    headStyles: { fillColor: GREEN, textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8.2 },
+    alternateRowStyles: { fillColor: [246, 244, 238] },
+    columnStyles: {
+      0: { cellWidth: 30 },
+      1: { cellWidth: 42 },
+      3: { cellWidth: 25 },
+      6: { cellWidth: 24, halign: 'right' },
+      7: { cellWidth: 24 },
+    },
+    foot: [[
+      '', '', '', '', 'TOTAL', '',
+      Number(payload.summary.montant).toLocaleString('fr-FR'), '',
+    ]],
+    footStyles: { fillColor: [235, 235, 235], textColor: [0, 0, 0], fontStyle: 'bold', halign: 'right' },
+    didDrawPage: (data) => {
+      doc.setFont('helvetica', 'normal')
+      doc.setFontSize(7.4)
+      doc.setTextColor(...MUTED)
+      doc.text(
+        `Antsirabe · registre édité le ${editedAt.toLocaleDateString('fr-FR')} à ${editedAt.toLocaleTimeString('fr-FR')}`,
+        margin,
+        pageHeight - 8,
+      )
+      doc.text(`Page ${data.pageNumber}`, pageWidth - margin, pageHeight - 8, { align: 'right' })
+    },
+  })
+
+  return doc
+}
+
+export async function downloadRegisterPdf(payload: RegisterPayload): Promise<void> {
+  const doc = await buildRegisterPdf(payload)
+  doc.save(`Registre_paiements_${payload.period}_${payload.from.slice(0, 10)}.pdf`)
+}
+
+export async function printRegisterPdf(payload: RegisterPayload): Promise<void> {
+  const doc = await buildRegisterPdf(payload)
+  doc.autoPrint()
+  const url = String(doc.output('bloburl'))
+  const win = window.open(url, '_blank')
+  if (!win) window.location.href = url
+}
+
+export async function downloadQrSheetPdf(items: { registration: string; image: string }[], filename = 'QR_codes_A4.pdf'): Promise<void> {  if (!items.length) throw new Error('Aucun QR code à exporter.')
   const JsPdf = await loadJsPdf()
   const doc = new JsPdf({ unit: 'mm', format: 'a4', orientation: 'portrait', compress: true })
   const pageWidth = doc.internal.pageSize.getWidth()
   const pageHeight = doc.internal.pageSize.getHeight()
   const margin = 9
   const gap = 4
+  // 4 etiquettes par page A4 (2 x 2), numero du vehicule en bas a droite.
   const columns = 2
-  const rowsPerPage = 3
+  const rowsPerPage = 2
   const cellWidth = (pageWidth - margin * 2 - gap * (columns - 1)) / columns
   const cellHeight = (pageHeight - margin * 2 - gap * (rowsPerPage - 1)) / rowsPerPage
   const perPage = columns * rowsPerPage
@@ -361,9 +759,9 @@ export async function downloadQrSheetPdf(items: { registration: string; image: s
     doc.roundedRect(x, y, cellWidth, cellHeight, 2, 2)
     doc.setLineDashPattern([], 0)
 
-    const qrSize = Math.min(cellWidth - 8, cellHeight - 16, 62)
+    const qrSize = Math.min(cellWidth - 20, cellHeight - 26, 88)
     const qrX = x + (cellWidth - qrSize) / 2
-    const qrY = y + 4
+    const qrY = y + 6
     try {
       doc.addImage(item.image, 'PNG', qrX, qrY, qrSize, qrSize)
     } catch {
