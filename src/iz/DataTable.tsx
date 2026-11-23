@@ -32,6 +32,9 @@ interface DataTableProps<T> {
   empty?: ReactNode
   busy?: boolean
   showSearch?: boolean
+  /** Regroupement facultatif, ex. les bus par ligne. */
+  groupBy?: (row: T) => string
+  groupLabel?: (key: string, rows: T[]) => ReactNode
 }
 
 const PAGE_SIZE = 60
@@ -62,12 +65,13 @@ function compareValues(a: unknown, b: unknown): number {
 export function DataTable<T>({
   rows, columns, rowKey, rowLabel, searchText, searchPlaceholder, actions, selection,
   toolbar, pageSize = PAGE_SIZE, initialSort = '', empty, busy, showSearch = true,
+  groupBy, groupLabel,
 }: DataTableProps<T>) {
   const { t } = useApp()
   const [query, setQuery] = useState('')
   const [sort, setSort] = useState(initialSort)
   const [ascending, setAscending] = useState(true)
-  const [view, setView] = useState<'list' | 'grid'>('list')
+  const [view, setView] = useState<'list' | 'grid' | 'group'>('list')
   const [page, setPage] = useState(1)
 
   const sortable = columns.filter((column) => column.sortValue)
@@ -95,7 +99,91 @@ export function DataTable<T>({
 
   useEffect(() => { setPage(1) }, [query, sort, ascending, rows])
 
+  const groups = useMemo(() => {
+    if (!groupBy) return []
+    const map = new Map<string, T[]>()
+    for (const row of visible) {
+      const key = groupBy(row)
+      const list = map.get(key)
+      if (list) list.push(row)
+      else map.set(key, [row])
+    }
+    return [...map.entries()].sort(([a], [b]) => compareValues(a, b))
+  }, [visible, groupBy])
+
   const pageRowsSelectable = selection && visible.length > 0
+
+  const listTable = (list: T[], scoped = false) => (
+    <div className="iz-table-wrap" aria-busy={busy}>
+      <table className="iz-table">
+        <thead>
+          <tr>
+            {selection && (
+              <th className="iz-select-cell">
+                <input
+                  type="checkbox"
+                  checked={scoped ? list.length > 0 && list.every(selection.isSelected) : selection.allSelected}
+                  disabled={!pageRowsSelectable}
+                  onChange={() => selection.toggleAll(list)}
+                  aria-label={scoped ? 'Tout sélectionner dans ce groupe' : 'Tout sélectionner sur la page'}
+                />
+              </th>
+            )}
+            {columns.map((column) => <th key={column.key ?? column.label}>{column.label}</th>)}
+            {actions && <th>{t('common.actions')}</th>}
+          </tr>
+        </thead>
+        <tbody>
+          {list.map((row) => {
+            const key = rowKey(row)
+            return (
+              <tr key={key} className={selection?.isSelected(row) ? 'iz-row-selected' : undefined}>
+                {selection && (
+                  <td className="iz-select-cell">
+                    <input
+                      type="checkbox"
+                      checked={selection.isSelected(row)}
+                      onChange={() => selection.toggle(row)}
+                      aria-label={`Sélectionner ${rowLabel?.(row) ?? key}`}
+                    />
+                  </td>
+                )}
+                {columns.map((column) => <td key={column.key ?? column.label}>{column.render(row)}</td>)}
+                {actions && <td className="iz-nowrap">{actions(row)}</td>}
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
+    </div>
+  )
+
+  const gridCards = (list: T[]) => (
+    <div className="iz-mosaic" aria-busy={busy}>
+      {list.map((row) => {
+        const key = rowKey(row)
+        return (
+          <article key={key} className={`iz-mosaic-card ${selection?.isSelected(row) ? 'iz-row-selected' : ''}`}>
+            {selection && (
+              <label className="iz-mosaic-select">
+                <input type="checkbox" checked={selection.isSelected(row)} onChange={() => selection.toggle(row)} aria-label={`Sélectionner ${rowLabel?.(row) ?? key}`} />
+                Sélectionner
+              </label>
+            )}
+            <dl>
+              {columns.map((column) => (
+                <div key={column.key ?? column.label}>
+                  <dt>{column.label}</dt>
+                  <dd>{column.render(row)}</dd>
+                </div>
+              ))}
+            </dl>
+            {actions && <div className="iz-mosaic-actions">{actions(row)}</div>}
+          </article>
+        )
+      })}
+    </div>
+  )
 
   return (
     <>
@@ -133,77 +221,23 @@ export function DataTable<T>({
         <div className="iz-view-toggle" role="group" aria-label="Affichage">
           <button type="button" className={`iz-btn iz-btn-sm ${view === 'list' ? 'iz-btn-primary' : 'iz-btn-outline'}`} onClick={() => setView('list')} aria-pressed={view === 'list'}>Liste</button>
           <button type="button" className={`iz-btn iz-btn-sm ${view === 'grid' ? 'iz-btn-primary' : 'iz-btn-outline'}`} onClick={() => setView('grid')} aria-pressed={view === 'grid'}>Mosaïque</button>
+          {groupBy && <button type="button" className={`iz-btn iz-btn-sm ${view === 'group' ? 'iz-btn-primary' : 'iz-btn-outline'}`} onClick={() => setView('group')} aria-pressed={view === 'group'}>Par ligne</button>}
         </div>
         {toolbar}
       </div>
 
       {!filtered.length ? (empty ?? <div className="iz-list-empty">{query ? 'Aucun résultat pour cette recherche.' : t('common.noData')}</div>) : view === 'list' ? (
-        <div className="iz-table-wrap" aria-busy={busy}>
-          <table className="iz-table">
-            <thead>
-              <tr>
-                {selection && (
-                  <th className="iz-select-cell">
-                    <input
-                      type="checkbox"
-                      checked={selection.allSelected}
-                      disabled={!pageRowsSelectable}
-                      onChange={() => selection.toggleAll(visible)}
-                      aria-label="Tout sélectionner sur la page"
-                    />
-                  </th>
-                )}
-                {columns.map((column) => <th key={column.key ?? column.label}>{column.label}</th>)}
-                {actions && <th>{t('common.actions')}</th>}
-              </tr>
-            </thead>
-            <tbody>
-              {visible.map((row) => {
-                const key = rowKey(row)
-                return (
-                  <tr key={key} className={selection?.isSelected(row) ? 'iz-row-selected' : undefined}>
-                    {selection && (
-                      <td className="iz-select-cell">
-                        <input
-                          type="checkbox"
-                          checked={selection.isSelected(row)}
-                          onChange={() => selection.toggle(row)}
-                          aria-label={`Sélectionner ${rowLabel?.(row) ?? key}`}
-                        />
-                      </td>
-                    )}
-                    {columns.map((column) => <td key={column.key ?? column.label}>{column.render(row)}</td>)}
-                    {actions && <td className="iz-nowrap">{actions(row)}</td>}
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
+        listTable(visible)
+      ) : view === 'grid' ? (
+        gridCards(visible)
       ) : (
-        <div className="iz-mosaic" aria-busy={busy}>
-          {visible.map((row) => {
-            const key = rowKey(row)
-            return (
-              <article key={key} className={`iz-mosaic-card ${selection?.isSelected(row) ? 'iz-row-selected' : ''}`}>
-                {selection && (
-                  <label className="iz-mosaic-select">
-                    <input type="checkbox" checked={selection.isSelected(row)} onChange={() => selection.toggle(row)} aria-label={`Sélectionner ${rowLabel?.(row) ?? key}`} />
-                    Sélectionner
-                  </label>
-                )}
-                <dl>
-                  {columns.map((column) => (
-                    <div key={column.key ?? column.label}>
-                      <dt>{column.label}</dt>
-                      <dd>{column.render(row)}</dd>
-                    </div>
-                  ))}
-                </dl>
-                {actions && <div className="iz-mosaic-actions">{actions(row)}</div>}
-              </article>
-            )
-          })}
+        <div className="iz-groups">
+          {groups.map(([group, list]) => (
+            <section className="iz-group" key={group}>
+              <h3 className="iz-group-title">{groupLabel ? groupLabel(group, list) : `${group} · ${list.length}`}</h3>
+              {listTable(list, true)}
+            </section>
+          ))}
         </div>
       )}
 

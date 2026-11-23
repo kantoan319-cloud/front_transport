@@ -68,6 +68,7 @@ export function AdminLayout({ children }: { children: ReactNode }) {
     { path: '/admin/payments/register', label: 'Registre des paiements', icon: '🧾' },
     { path: '/admin/requests', label: t('admin.requests'), icon: '📝' },
     { path: '/admin/users', label: t('admin.users'), icon: '🔐' },
+    { path: '/admin/manuel', label: 'Manuel d’utilisation', icon: '📘' },
     historyLink,
   ]
   return (
@@ -117,10 +118,28 @@ export function AdminDashboard() {
 /* CRUD générique                                                      */
 /* ------------------------------------------------------------------ */
 
+async function photoDataUrl(file: File): Promise<string> {
+  if (!file.type.startsWith('image/')) throw new Error('Choisissez un fichier image.')
+  if (file.size > 12 * 1024 * 1024) throw new Error('Image trop volumineuse : 12 Mo maximum.')
+  const bitmap = await createImageBitmap(file)
+  try {
+    const ratio = Math.min(1, 1000 / Math.max(bitmap.width, bitmap.height))
+    const canvas = document.createElement('canvas')
+    canvas.width = Math.max(1, Math.round(bitmap.width * ratio))
+    canvas.height = Math.max(1, Math.round(bitmap.height * ratio))
+    const context = canvas.getContext('2d')
+    if (!context) throw new Error('Lecture de l’image indisponible.')
+    context.drawImage(bitmap, 0, 0, canvas.width, canvas.height)
+    return canvas.toDataURL('image/jpeg', 0.82)
+  } finally {
+    bitmap.close()
+  }
+}
+
 interface FieldDef {
   key: string
   label: string
-  type?: 'text' | 'number' | 'date' | 'textarea' | 'select' | 'checkbox'
+  type?: 'text' | 'number' | 'date' | 'textarea' | 'select' | 'checkbox' | 'photo'
   options?: { value: string; label: string }[]
   full?: boolean
   required?: boolean
@@ -153,6 +172,8 @@ interface CrudProps {
   rowLabel?: (row: IZRecord) => string
   initialSort?: string
   exportCible?: string
+  groupBy?: (row: IZRecord) => string
+  groupLabel?: (group: string, rows: IZRecord[]) => ReactNode
   batch?: {
     label: string
     onRun: (rows: IZRecord[]) => void | Promise<void>
@@ -311,6 +332,8 @@ export function CrudPage(props: CrudProps) {
           searchText={props.searchText}
           searchPlaceholder={props.searchPlaceholder}
           initialSort={props.initialSort}
+          groupBy={props.groupBy}
+          groupLabel={props.groupLabel}
           selection={selection}
           busy={batchBusy}
           empty={<Empty />}
@@ -354,6 +377,32 @@ export function CrudPage(props: CrudProps) {
                   </select>
                 ) : field.type === 'checkbox' ? (
                   <input type="checkbox" disabled={busy} required={field.required} checked={Boolean(form[field.key])} onChange={(e) => change(field.key, e.target.checked)} />
+                ) : field.type === 'photo' ? (
+                  <div className="iz-photo-field">
+                    {form[field.key]
+                      ? <img className="iz-photo-preview" src={String(form[field.key])} alt={field.label} />
+                      : <div className="iz-photo-empty">Aucune photo</div>}
+                    <div className="iz-flex iz-wrap" style={{ gap: 8 }}>
+                      <label className="iz-btn iz-btn-outline iz-btn-sm">
+                        Choisir une photo
+                        <input
+                          type="file"
+                          accept="image/*"
+                          disabled={busy}
+                          style={{ display: 'none' }}
+                          onChange={(event) => {
+                            const file = event.target.files?.[0]
+                            event.target.value = ''
+                            if (!file) return
+                            void photoDataUrl(file)
+                              .then((value) => change(field.key, value))
+                              .catch((error) => notify(error instanceof Error ? error.message : 'Image illisible.', 'error'))
+                          }}
+                        />
+                      </label>
+                      {form[field.key] && <button type="button" className="iz-btn iz-btn-ghost iz-btn-sm" disabled={busy} onClick={() => change(field.key, '')}>Retirer</button>}
+                    </div>
+                  </div>
                 ) : (
                   <input
                     className="iz-input"
@@ -421,6 +470,8 @@ export function AdminVehicles() {
       searchPlaceholder="Immatriculation, propriétaire, coopérative, ligne…"
       rowLabel={(row) => String(row.immatriculation ?? row.id)}
       initialSort="immatriculation"
+      groupBy={(row) => (String(row.ligne ?? '').trim() ? `Ligne ${String(row.ligne).trim()}` : 'Sans ligne')}
+      groupLabel={(group, list) => `${group} · ${list.length} bus`}
       exportCible="vehicules"
       batch={batch}
       load={() => izApi.adminVehicles({ limit: 500 })}
@@ -449,6 +500,7 @@ export function AdminVehicles() {
       )}
       columns={[
         { key: 'immatriculation', label: t('search.plate'), sortValue: (row) => String(row.immatriculation ?? ''), render: (row) => <><a href={`#${busPath(row)}`} onClick={(event) => { event.preventDefault(); navigate(busPath(row)) }}><strong className="iz-mono">{row.immatriculation}</strong></a><div className="iz-small iz-muted">{row.type}</div><button className="iz-btn iz-btn-primary iz-btn-sm" style={{ marginTop: 8 }} onClick={() => navigate(busPath(row) + '&qr=1')} aria-label={`Voir et télécharger le QR du bus ${row.immatriculation}`}>QR à télécharger</button></> },
+        { key: 'photoUrl', label: 'Photo du bus', render: (row) => row.photoUrl ? <img className="iz-thumb" src={String(row.photoUrl)} alt={`Bus ${row.immatriculation}`} /> : <span className="iz-small iz-muted">—</span> },
         { key: 'proprietaireNom', label: t('search.owner'), sortValue: (row) => String(row.proprietaireNom ?? ''), render: (row) => text(row.proprietaireNom) },
         { key: 'cooperativeCode', label: t('search.cooperative'), sortValue: (row) => String(row.cooperativeCode ?? ''), render: (row) => <span className="iz-chip">{row.cooperativeCode ?? '—'}</span> },
         { key: 'ligne', label: t('search.line'), sortValue: (row) => String(row.ligne ?? ''), render: (row) => text(row.ligne) },
@@ -479,6 +531,7 @@ export function AdminVehicles() {
         ] },
         { key: 'latitude', label: 'Latitude', type: 'number', min: -90, max: 90, clearValue: null },
         { key: 'longitude', label: 'Longitude', type: 'number', min: -180, max: 180, clearValue: null },
+        { key: 'photoUrl', label: 'Photo du véhicule (visible par tous)', type: 'photo', full: true, clearValue: null },
       ]}
       toForm={(row) => ({ ...row, licenceDebut: dateOnly(row.licenceDebut) })}
     />
@@ -704,23 +757,31 @@ export function AdminCooperatives() {
 
 export function AdminOwners() {
   const { t } = useApp()
+  const coops = useAsync(() => izApi.adminCooperatives(), [])
+  const coopOptions = (coops.data ?? []).map((coop) => ({ value: String(coop.id), label: coop.nom }))
   return (
     <CrudPage
       title={t('admin.owners')}
+      subtitle="Fiches des propriétaires : nom, téléphone, coopérative et photo. La photo du propriétaire n’est visible que par les agents habilités."
       load={izApi.owners}
       create={izApi.createOwner}
+      update={izApi.updateOwner}
       remove={izApi.deleteOwner}
+      patchOnlyChanges
       searchText={(row) => [row.nom, row.telephone, row.cooperativeCode].join(' ')}
       initialSort="nom"
       exportCible="proprietaires"
       columns={[
+        { key: 'photoUrl', label: 'Photo', render: (row) => row.photoUrl ? <img className="iz-thumb" src={String(row.photoUrl)} alt={`Propriétaire ${row.nom}`} /> : <span className="iz-small iz-muted">—</span> },
         { key: 'nom', label: t('search.owner'), sortValue: (row) => String(row.nom ?? ''), render: (row) => <strong>{row.nom}</strong> },
         { key: 'telephone', label: 'Téléphone', sortValue: (row) => String(row.telephone ?? ''), render: (row) => text(row.telephone) },
         { key: 'cooperativeCode', label: t('search.cooperative'), sortValue: (row) => String(row.cooperativeCode ?? ''), render: (row) => text(row.cooperativeCode) },
       ]}
       fields={[
-        { key: 'nom', label: t('search.owner'), required: true },
-        { key: 'telephone', label: 'Téléphone' },
+        { key: 'nom', label: t('search.owner'), required: true, maxLength: 200 },
+        { key: 'telephone', label: 'Téléphone', maxLength: 40, clearValue: null },
+        { key: 'cooperativeId', label: t('search.cooperative'), type: 'select', options: coopOptions, numeric: true, clearValue: null },
+        { key: 'photoUrl', label: 'Photo du propriétaire (agents habilités)', type: 'photo', full: true, clearValue: null },
       ]}
     />
   )
@@ -747,6 +808,12 @@ export function AdminLines() {
         columns={[
           { key: 'code', label: 'Code', sortValue: (row) => String(row.code ?? ''), render: (row) => <span className="iz-chip">{row.code}</span> },
           { key: 'nom', label: t('search.line'), sortValue: (row) => String(row.nom ?? ''), render: (row) => <strong>{row.nom}</strong> },
+          { key: 'couleur', label: 'Couleur', sortValue: (row) => String(row.couleur ?? ''), render: (row) => (
+            <span className="iz-flex" style={{ gap: 6, alignItems: 'center' }}>
+              <span className="iz-color-dot" style={{ background: String(row.couleur ?? '#2563eb') }} />
+              <span className="iz-mono iz-small">{row.couleur ?? '—'}</span>
+            </span>
+          ) },
           { key: 'cooperativeCode', label: t('search.cooperative'), sortValue: (row) => String(row.cooperativeCode ?? ''), render: (row) => text(row.cooperativeCode) },
           { key: 'arrets', label: t('map.stops'), sortValue: (row) => Number(row.arrets ?? 0), render: (row) => (
             <button className="iz-btn iz-btn-outline iz-btn-sm" onClick={() => setLineId(Number(row.id))}>

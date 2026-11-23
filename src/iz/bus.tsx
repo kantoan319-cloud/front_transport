@@ -176,6 +176,22 @@ export function BusInformation({ vehicle, staff = false }: { vehicle: IZRecord; 
     ] as [string, unknown][] : []),
   ]
   return <>
+    {(vehicle.photoUrl || (staff && vehicle.proprietairePhoto)) && (
+      <div className="iz-photo-grid" style={{ marginTop: 16 }}>
+        {vehicle.photoUrl && (
+          <figure className="iz-photo-card">
+            <img src={String(vehicle.photoUrl)} alt={`Véhicule ${vehicle.immatriculation}`} />
+            <figcaption>Photo du véhicule</figcaption>
+          </figure>
+        )}
+        {staff && vehicle.proprietairePhoto && (
+          <figure className="iz-photo-card">
+            <img src={String(vehicle.proprietairePhoto)} alt={`Propriétaire ${vehicle.proprietaireNom ?? ''}`} />
+            <figcaption>Photo du propriétaire</figcaption>
+          </figure>
+        )}
+      </div>
+    )}
     <div className="iz-detail-grid" style={{ marginTop: 16 }}>
       {fields.map(([label, value]) => <div className="iz-detail-item" key={label}><span>{label}</span><strong>{value == null || value === '' ? 'Non renseigné' : String(value)}</strong></div>)}
       <div className="iz-detail-item"><span>État du véhicule</span><StatusBadge status={vehicle.statut} /></div>

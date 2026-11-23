@@ -399,6 +399,26 @@ html[data-theme='dark'] .iz-badge-orange { color: #fbbf24; }
 .iz-pagination { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 14px; }
 .iz-list-empty { border: 1px dashed rgb(var(--bd-gray-300, 210 210 210)); border-radius: var(--radius); padding: 26px; text-align: center; color: rgb(var(--tx-gray-500)); }
 
+/* ---------- Photos, regroupement par ligne, couleurs ---------- */
+.iz-photo-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+.iz-photo-card { margin: 0; border: 1px solid rgb(var(--bd-gray-200)); border-radius: var(--radius); overflow: hidden; background: rgb(var(--bg-gray-100, 245 245 245)); }
+.iz-photo-card img { display: block; width: 100%; max-height: 260px; object-fit: cover; }
+.iz-photo-card figcaption { padding: 8px 10px; font-size: .78rem; color: rgb(var(--tx-gray-600)); }
+.iz-photo-field { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.iz-photo-preview { width: 84px; height: 84px; object-fit: cover; border-radius: 10px; border: 1px solid rgb(var(--bd-gray-200)); }
+.iz-photo-empty { width: 84px; height: 84px; display: grid; place-items: center; border-radius: 10px; border: 1px dashed rgb(var(--bd-gray-300, 210 210 210)); color: rgb(var(--tx-gray-400, 150 150 150)); font-size: .7rem; text-align: center; }
+.iz-thumb { width: 54px; height: 40px; object-fit: cover; border-radius: 6px; border: 1px solid rgb(var(--bd-gray-200)); display: block; }
+.iz-groups { display: grid; gap: 18px; }
+.iz-group-title { font-size: .95rem; margin: 0 0 8px; padding-left: 10px; border-left: 4px solid rgb(var(--tx-vert)); }
+.iz-color-dot { display: inline-block; width: 14px; height: 14px; border-radius: 50%; border: 1px solid rgb(0 0 0 / 0.15); vertical-align: -2px; margin-right: 6px; }
+
+/* ---------- Manuel d'utilisation ---------- */
+.iz-manual { display: grid; gap: 14px; max-width: 900px; }
+.iz-manual-section { border: 1px solid rgb(var(--bd-gray-200)); border-radius: var(--radius); padding: 16px 18px; background: rgb(var(--surface)); }
+.iz-manual-section h2 { font-size: 1rem; margin: 0 0 10px; }
+.iz-manual-section ul { margin: 0; padding-left: 20px; display: grid; gap: 6px; }
+.iz-manual-section li { font-size: .88rem; line-height: 1.55; }
+
 /* ---------- Champs mot de passe + cartes cliquables ---------- */
 .iz-password { position: relative; display: block; width: 100%; }
 .iz-password .iz-input { width: 100%; padding-right: 44px; }
@@ -436,6 +456,8 @@ html[data-theme='dark'] .iz-badge-orange { color: #fbbf24; }
   .iz-page-head h1 { font-size: 1.2rem; }
   .iz-card { box-shadow: none !important; border: 1px solid #bbb !important; break-inside: avoid; }
   .iz-report-section { break-inside: avoid; }
+  .iz-manual-section { border-color: #bbb !important; break-inside: avoid; }
+  .iz-photo-card { break-inside: avoid; }
   .iz-grid { gap: 8px; }
   .iz-report-table th, .iz-report-table td { font-size: .72rem; padding: 4px 5px; border-color: #bbb; }
   .iz-stat { border: 1px solid #bbb !important; }

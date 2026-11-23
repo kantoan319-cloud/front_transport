@@ -15,6 +15,7 @@ import {
   AdminUsers, AdminVehicles,
 } from './admin'
 import { AdminLines } from './lines'
+import { ManualPage } from './manual'
 
 function AccessDenied({ message }: { message: string }) {
   return (
@@ -64,6 +65,7 @@ export function IzApp() {
       else if (path === '/controle/scans') content = <ScansPage />
       else if (path === '/controle/infractions') content = <InfractionsPage />
       else if (path === '/controle/signals') content = <ControlSignalsPage />
+      else if (path === '/controle/manuel') content = <ManualPage scope="controle" />
       return <ControlLayout>{content}</ControlLayout>
     }
 
@@ -83,6 +85,7 @@ export function IzApp() {
       else if (path === '/admin/requests') content = <AdminRequests />
       else if (path === '/admin/users') content = <AdminUsers />
       else if (path === '/admin/activity') content = <AdminActivity />
+      else if (path === '/admin/manuel') content = <ManualPage scope="admin" />
       return <AdminLayout>{content}</AdminLayout>
     }
 

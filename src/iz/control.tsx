@@ -23,6 +23,7 @@ export function ControlLayout({ children }: { children: ReactNode }) {
     { path: '/controle/signals', label: t('control.signals'), icon: '📣' },
     { path: '/controle/fourriere', label: 'Fourrière', icon: 'P' },
     { path: '/signaler', label: 'Faire un signalement', icon: '+' },
+    { path: '/controle/manuel', label: 'Manuel d’utilisation', icon: '📘' },
   ]
   return (
     <DashboardShell

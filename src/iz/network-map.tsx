@@ -146,7 +146,8 @@ export function NetworkMap() {
   const { data: rawStops } = useAsync(async () => {
     const list = await Promise.all((lines ?? []).map(async (line) => {
       const stops = await izApi.stops(line.id)
-      return stops.map((stop) => ({ ...stop, lineId: line.id, cooperativeCode: line.cooperativeCode }))
+      const couleur = /^#[0-9a-f]{3,8}$/i.test(String(line.couleur ?? '')) ? line.couleur : '#2563eb'
+      return stops.map((stop) => ({ ...stop, lineId: line.id, cooperativeCode: line.cooperativeCode, couleur }))
     }))
     return list.flat()
   }, [lines])
@@ -267,7 +268,7 @@ export function NetworkMap() {
         if (latitude === null || longitude === null) continue
         result.push({
           key: `arret-${stop.id}`, label: String(stop.nom ?? 'Arrêt'), kind: 'arret',
-          color: '#2563eb', latitude, longitude,
+          color: String(stop.couleur ?? '#2563eb'), latitude, longitude,
         })
       }
     }

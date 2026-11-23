@@ -427,7 +427,7 @@ function installLineLayers(map: MapLibreMap) {
 }
 
 /** Pictogramme d'arret de bus, dessine une fois par carte (aucune image externe). */
-function stopIconData(): { data: ImageData; pixelRatio: number } {
+function stopIconData(color = '#173a2e'): { data: ImageData; pixelRatio: number } {
   const size = 64
   const canvas = document.createElement('canvas')
   canvas.width = size
@@ -435,7 +435,7 @@ function stopIconData(): { data: ImageData; pixelRatio: number } {
   const ctx = canvas.getContext('2d')!
   ctx.clearRect(0, 0, size, size)
   // Pointe du panneau (ancre en bas, sur la position exacte de l'arret).
-  ctx.fillStyle = '#173a2e'
+  ctx.fillStyle = color
   ctx.beginPath()
   ctx.moveTo(size / 2 - 6, size - 26)
   ctx.lineTo(size / 2 + 6, size - 26)
@@ -445,7 +445,7 @@ function stopIconData(): { data: ImageData; pixelRatio: number } {
   // Disque du panneau.
   ctx.beginPath()
   ctx.arc(size / 2, size / 2 - 8, 20, 0, Math.PI * 2)
-  ctx.fillStyle = '#173a2e'
+  ctx.fillStyle = color
   ctx.fill()
   ctx.lineWidth = 4
   ctx.strokeStyle = '#ffffff'
@@ -457,7 +457,7 @@ function stopIconData(): { data: ImageData; pixelRatio: number } {
   ctx.beginPath()
   ctx.roundRect(bodyX, bodyY, 22, 17, 3)
   ctx.fill()
-  ctx.fillStyle = '#173a2e'
+  ctx.fillStyle = color
   ctx.fillRect(bodyX + 3, bodyY + 3, 7, 5)
   ctx.fillRect(bodyX + 12, bodyY + 3, 7, 5)
   ctx.fillStyle = '#ffffff'
@@ -466,6 +466,17 @@ function stopIconData(): { data: ImageData; pixelRatio: number } {
   ctx.arc(bodyX + 16, bodyY + 19, 3, 0, Math.PI * 2)
   ctx.fill()
   return { data: ctx.getImageData(0, 0, size, size), pixelRatio: 2 }
+}
+
+function ensureStopIcons(map: MapLibreMap, props: MapCanvasProps) {
+  for (const point of props.points) {
+    if (point.kind !== 'arret') continue
+    const color = /^#[0-9a-f]{3,8}$/i.test(point.color) ? point.color : '#2563eb'
+    const id = `arret-icon-${color}`
+    if (map.hasImage(id)) continue
+    const icon = stopIconData(color)
+    map.addImage(id, icon.data, { pixelRatio: icon.pixelRatio })
+  }
 }
 
 function installPointLayers(map: MapLibreMap) {
@@ -529,7 +540,7 @@ function installPointLayers(map: MapLibreMap) {
       source: 'points',
       filter: ['==', ['get', 'kind'], 'arret'],
       layout: {
-        'icon-image': 'arret-icon',
+        'icon-image': ['concat', 'arret-icon-', ['coalesce', ['get', 'color'], '#2563eb']],
         'icon-size': ['interpolate', ['linear'], ['zoom'], 10, 0.55, 16, 0.85],
         'icon-anchor': 'bottom',
         'icon-allow-overlap': true,
@@ -861,6 +872,7 @@ export default function MapCanvas(props: MapCanvasProps) {
 function updatePoints(map: MapLibreMap, props: MapCanvasProps) {
   const source = map.getSource('points') as GeoJSONSource | undefined
   if (!source) return
+  ensureStopIcons(map, props)
   source.setData({
     type: 'FeatureCollection',
     features: props.points.map((point) => ({

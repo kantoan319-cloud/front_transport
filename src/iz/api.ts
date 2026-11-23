@@ -169,6 +169,8 @@ export const izApi = {
 
   owners: () => request<IZRecord[]>('/iz/admin/owners'),
   createOwner: (data: IZRecord) => send<IZRecord>('/iz/admin/owners', 'POST', data),
+  updateOwner: (id: number, data: IZRecord) =>
+    send<IZRecord>(`/iz/admin/owners/${id}`, 'PATCH', data),
   deleteOwner: (id: number) => request<void>(`/iz/admin/owners/${id}`, { method: 'DELETE' }),
 
   adminLines: () => request<IZRecord[]>('/iz/admin/lines'),

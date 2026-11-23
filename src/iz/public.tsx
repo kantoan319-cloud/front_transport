@@ -170,11 +170,12 @@ export function SearchPage() {
   const [query, setQuery] = useState('')
   const [submitted, setSubmitted] = useState({ q: '', cooperative: '', ligne: '', statut: '' })
   const [page, setPage] = useState(1)
+  const [view, setView] = useState<'list' | 'line'>('list')
   const [selected, setSelected] = useState<IZRecord | null>(null)
 
   const { data, loading, error } = useAsync(
-    () => izApi.vehicles({ ...submitted, page, limit: 20 }),
-    [submitted, page],
+    () => izApi.vehicles({ ...submitted, page: view === 'line' ? 1 : page, limit: view === 'line' ? 500 : 20 }),
+    [submitted, page, view],
   )
   const coops = useAsync(() => izApi.cooperatives(), [])
   const lines = useAsync(() => izApi.lines(), [])
@@ -188,6 +189,56 @@ export function SearchPage() {
     setPage(1)
     setSubmitted((current) => ({ ...current, [key]: value }))
   }
+
+  const vehicles = data?.data ?? []
+  const groups = useMemo(() => {
+    const map = new Map<string, IZRecord[]>()
+    for (const vehicle of vehicles) {
+      const line = String(vehicle.ligne ?? '').trim()
+      const key = line ? `Ligne ${line}` : 'Sans ligne'
+      const list = map.get(key)
+      if (list) list.push(vehicle)
+      else map.set(key, [vehicle])
+    }
+    return [...map.entries()].sort(([a], [b]) => a.localeCompare(b, 'fr', { numeric: true }))
+  }, [vehicles])
+
+  const vehicleTable = (rows: IZRecord[]) => (
+    <div className="iz-table-wrap">
+      <table className="iz-table">
+        <thead>
+          <tr>
+            <th>{t('search.plate')}</th>
+            <th>{t('search.owner')}</th>
+            <th>{t('search.cooperative')}</th>
+            <th>{t('search.line')}</th>
+            <th>{t('search.licence')}</th>
+            <th>{t('search.validity')}</th>
+            <th>{t('search.status')}</th>
+            <th />
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((vehicle) => (
+            <tr key={vehicle.id}>
+              <td className="iz-mono iz-upper"><strong>{vehicle.immatriculation}</strong></td>
+              <td>{vehicle.proprietaireNom ?? '—'}</td>
+              <td>{vehicle.cooperativeCode ?? '—'}</td>
+              <td>{vehicle.ligne ?? '—'}</td>
+              <td className="iz-mono iz-small">{vehicle.licenceNumero ?? '—'}</td>
+              <td className="iz-small">{dateText(vehicle.licenceFin)}</td>
+              <td><StatusBadge status={vehicle.statutLicence} /></td>
+              <td>
+                <button className="iz-btn iz-btn-outline iz-btn-sm" onClick={() => setSelected(vehicle)}>
+                  {t('search.view')}
+                </button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
 
   return (
     <>
@@ -234,45 +285,23 @@ export function SearchPage() {
         <h2 style={{ fontSize: '1.1rem' }}>
           {data?.total ?? 0} {t('search.resultCount')}
         </h2>
+        <div className="iz-view-toggle" role="group" aria-label="Affichage">
+          <button type="button" className={`iz-btn iz-btn-sm ${view === 'list' ? 'iz-btn-primary' : 'iz-btn-outline'}`} onClick={() => setView('list')} aria-pressed={view === 'list'}>Liste</button>
+          <button type="button" className={`iz-btn iz-btn-sm ${view === 'line' ? 'iz-btn-primary' : 'iz-btn-outline'}`} onClick={() => setView('line')} aria-pressed={view === 'line'}>Par ligne</button>
+        </div>
       </div>
       {error && <Alert type="error">{error}</Alert>}
-      {loading ? <Loading /> : !data?.data.length ? <Empty message={t('search.noResults')} /> : (
-        <div className="iz-table-wrap">
-          <table className="iz-table">
-            <thead>
-              <tr>
-                <th>{t('search.plate')}</th>
-                <th>{t('search.owner')}</th>
-                <th>{t('search.cooperative')}</th>
-                <th>{t('search.line')}</th>
-                <th>{t('search.licence')}</th>
-                <th>{t('search.validity')}</th>
-                <th>{t('search.status')}</th>
-                <th />
-              </tr>
-            </thead>
-            <tbody>
-              {data.data.map((vehicle) => (
-                <tr key={vehicle.id}>
-                  <td className="iz-mono iz-upper"><strong>{vehicle.immatriculation}</strong></td>
-                  <td>{vehicle.proprietaireNom ?? '—'}</td>
-                  <td>{vehicle.cooperativeCode ?? '—'}</td>
-                  <td>{vehicle.ligne ?? '—'}</td>
-                  <td className="iz-mono iz-small">{vehicle.licenceNumero ?? '—'}</td>
-                  <td className="iz-small">{dateText(vehicle.licenceFin)}</td>
-                  <td><StatusBadge status={vehicle.statutLicence} /></td>
-                  <td>
-                    <button className="iz-btn iz-btn-outline iz-btn-sm" onClick={() => setSelected(vehicle)}>
-                      {t('search.view')}
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      {loading ? <Loading /> : !vehicles.length ? <Empty message={t('search.noResults')} /> : view === 'line' ? (
+        <div className="iz-groups">
+          {groups.map(([group, rows]) => (
+            <section className="iz-group" key={group}>
+              <h3 className="iz-group-title">{group} · {rows.length} bus</h3>
+              {vehicleTable(rows)}
+            </section>
+          ))}
         </div>
-      )}
-      {data && data.total > data.limit && (
+      ) : vehicleTable(vehicles)}
+      {view === 'list' && data && data.total > data.limit && (
         <div className="iz-flex" style={{ justifyContent: 'center', marginTop: 18 }}>
           <button className="iz-btn iz-btn-outline iz-btn-sm" disabled={page <= 1} onClick={() => setPage(page - 1)}>←</button>
           <span className="iz-small">{page} / {Math.ceil(data.total / data.limit)}</span>
@@ -292,6 +321,12 @@ function VehicleDetail({ vehicle, onClose }: { vehicle: IZRecord; onClose: () =>
     <Modal title={`${t('common.details')} — ${vehicle.immatriculation}`} onClose={onClose}>
       {detail.loading ? <Loading /> : (
         <>
+          {record.photoUrl && (
+            <figure className="iz-photo-card" style={{ maxWidth: 420, marginBottom: 16 }}>
+              <img src={String(record.photoUrl)} alt={`Véhicule ${vehicle.immatriculation}`} />
+              <figcaption>Photo du véhicule</figcaption>
+            </figure>
+          )}
           <div className="iz-detail-grid">
             <div className="iz-detail-item"><span>{t('search.owner')}</span><strong>{record.proprietaireNom ?? '—'}</strong></div>
             <div className="iz-detail-item"><span>{t('search.cooperative')}</span><strong>{record.cooperativeNom ?? '—'}</strong></div>
@@ -345,10 +380,14 @@ export function SignalPage() {
     try {
       let coords = position
       if (!coords) {
-        coords = await geolocate(8000)
+        coords = await geolocate(10000)
         if (coords) setPosition(coords)
       }
-      const result = await izApi.createSignal({ ...form, ...(coords ?? {}) })
+      if (!coords) {
+        notify('La position GPS est obligatoire : activez la localisation puis réessayez.', 'error')
+        return
+      }
+      const result = await izApi.createSignal({ ...form, ...coords })
       setReference(result.reference)
       notify(t('signal.success'), 'success')
     } catch (error) {
@@ -440,12 +479,12 @@ export function SignalPage() {
             </Field>
             <div className="full">
               <p className="iz-small iz-muted" style={{ marginTop: 0 }}>
-                📍 Votre position actuelle est transmise automatiquement avec le signalement (si la localisation est autorisée).
+                📍 La position GPS est obligatoire : le signalement ne peut pas être envoyé sans elle. Autorisez la localisation dans votre navigateur.
               </p>
               <button type="button" className="iz-btn iz-btn-outline" onClick={async () => {
                 const coords = await geolocate(10000)
                 if (coords) setPosition(coords)
-                else notify('Position indisponible. Vous pouvez saisir une adresse.', 'error')
+                else notify('Position indisponible : activez la localisation pour pouvoir envoyer le signalement.', 'error')
               }}>Joindre ma position maintenant</button>
               {position && <p className="iz-small">Position jointe <button type="button" className="iz-btn iz-btn-ghost iz-btn-sm" onClick={() => setPosition(null)}>Retirer</button></p>}
             </div>
