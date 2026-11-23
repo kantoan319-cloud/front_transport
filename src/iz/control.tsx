@@ -128,7 +128,14 @@ export function ScanPage() {
           {result.infraction && <div style={{ marginTop: 12 }}><Alert type="error">{t('control.infractionCreated')}</Alert></div>}
           {result.vehicle && (
             <>
-              <BusInformation vehicle={result.vehicle} staff />
+              <BusInformation
+                vehicle={result.vehicle}
+                staff
+                canEditPhoto
+                onPhotoChanged={(photoUrl) => setResult((current) => current
+                  ? { ...current, vehicle: { ...current.vehicle, photoUrl } }
+                  : current)}
+              />
               <button className="iz-btn iz-btn-outline" style={{ marginTop: 16 }} onClick={() => navigate(`/bus?${new URLSearchParams({ plaque: result.vehicle.immatriculation })}`)}>Fiche, signalement et fourrière</button>
             </>
           )}

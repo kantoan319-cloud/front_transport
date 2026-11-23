@@ -127,6 +127,8 @@ export const izApi = {
   // ---------- Contrôleurs ----------
   controlDashboard: () => request<IZRecord>('/iz/control/dashboard'),
   controlVehicle: (plate: string) => request<IZRecord>(`/iz/control/vehicles/${encodeURIComponent(plate)}`),
+  setVehiclePhoto: (id: number, photo: string | null) =>
+    send<{ photoUrl: string | null }>(`/iz/control/vehicles/${id}/photo`, 'PUT', { photo }),
   impounds: () => request<IZRecord[]>('/iz/control/impounds'),
   deleteImpound: (id: number) => request<void>(`/iz/control/impounds/${id}`, { method: 'DELETE' }),
   impoundVehicle: (id: number, data: { motif: string }) =>

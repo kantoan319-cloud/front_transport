@@ -6,6 +6,7 @@ import type { IZRecord } from './api'
 import { Alert, ConfirmDialog, ExportButton, Field, Loading, Modal, PageHead, StatusBadge, geolocate, useApp, useAsync } from './components'
 import { DataTable } from './DataTable'
 import { attestationState } from './attestation-utils'
+import { photoDataUrl } from './photo'
 
 export function plateFromQr(raw: string): string {
   let value = raw.trim()
@@ -165,11 +166,36 @@ export function PublicScanPage() {
   </>
 }
 
-export function BusInformation({ vehicle, staff = false }: { vehicle: IZRecord; staff?: boolean }) {
+export function BusInformation({ vehicle, staff = false, canEditPhoto = false, onPhotoChanged }: {
+  vehicle: IZRecord
+  staff?: boolean
+  canEditPhoto?: boolean
+  onPhotoChanged?: (photoUrl: string | null) => void
+}) {
+  const { notify } = useApp()
+  const [photoBusy, setPhotoBusy] = useState(false)
+  const changePhoto = async (file?: File) => {
+    if (!file || photoBusy) return
+    setPhotoBusy(true)
+    try {
+      const photo = await photoDataUrl(file)
+      const saved = await izApi.setVehiclePhoto(Number(vehicle.id), photo)
+      notify('Photo du bus enregistrée.', 'success')
+      onPhotoChanged?.(saved.photoUrl ?? photo)
+    } catch (reason) {
+      notify(reason instanceof Error ? reason.message : 'Envoi de la photo impossible.', 'error')
+    } finally {
+      setPhotoBusy(false)
+    }
+  }
   const fields: [string, unknown][] = [
     ['Type', vehicle.type], ['Coopérative', vehicle.cooperativeNom ?? vehicle.cooperativeCode], ['Ligne', vehicle.ligne],
     ...(staff ? [
-      ['Propriétaire', vehicle.proprietaireNom], ['Conducteur', vehicle.conducteurNom],
+      ['Propriétaire', vehicle.proprietaireNom],
+      ['CIN du propriétaire', vehicle.proprietaireCin],
+      ['Adresse du propriétaire', vehicle.proprietaireAdresse],
+      ['Téléphone du propriétaire', vehicle.proprietaireTelephone],
+      ['Conducteur', vehicle.conducteurNom],
       ['Permis du conducteur', vehicle.conducteurPermis], ['Téléphone du conducteur', vehicle.conducteurTelephone],
       ['Receveur', vehicle.receveurNom], ['Téléphone du receveur', vehicle.receveurTelephone],
       ['Numéro de licence', vehicle.licenceNumero], ['NIF', vehicle.licenceNif], ['STAT', vehicle.licenceStat],
@@ -177,12 +203,33 @@ export function BusInformation({ vehicle, staff = false }: { vehicle: IZRecord; 
     ] as [string, unknown][] : []),
   ]
   return <>
-    {(vehicle.photoUrl || (staff && vehicle.proprietairePhoto)) && (
+    {(vehicle.photoUrl || (staff && vehicle.proprietairePhoto) || canEditPhoto) && (
       <div className="iz-photo-grid" style={{ marginTop: 16 }}>
-        {vehicle.photoUrl && (
+        {(vehicle.photoUrl || canEditPhoto) && (
           <figure className="iz-photo-card">
-            <img src={String(vehicle.photoUrl)} alt={`Véhicule ${vehicle.immatriculation}`} />
-            <figcaption>Photo du véhicule</figcaption>
+            {vehicle.photoUrl
+              ? <img src={String(vehicle.photoUrl)} alt={`Véhicule ${vehicle.immatriculation}`} />
+              : <div className="iz-photo-card-empty">Aucune photo du bus</div>}
+            <figcaption>
+              Photo du véhicule
+              {canEditPhoto && (
+                <label className="iz-btn iz-btn-outline iz-btn-sm" style={{ marginLeft: 8, cursor: 'pointer' }}>
+                  {photoBusy ? 'Envoi…' : vehicle.photoUrl ? 'Changer la photo' : 'Ajouter la photo'}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    disabled={photoBusy}
+                    hidden
+                    onChange={(event) => {
+                      const file = event.target.files?.[0]
+                      event.target.value = ''
+                      void changePhoto(file)
+                    }}
+                  />
+                </label>
+              )}
+            </figcaption>
           </figure>
         )}
         {staff && vehicle.proprietairePhoto && (
@@ -206,7 +253,7 @@ export function BusPage({ plate }: { plate: string }) {
   const { user, route, navigate, notify } = useApp()
   const staff = (user?.role === 'admin' || user?.role === 'superadmin') || user?.role === 'controleur'
   const isAdmin = user?.role === 'admin' || user?.role === 'superadmin'
-  const { data, loading, error, reload } = useAsync(() => staff ? izApi.controlVehicle(plate) : izApi.vehicle(plate), [plate, staff])
+  const { data, loading, error, reload, setData } = useAsync(() => staff ? izApi.controlVehicle(plate) : izApi.vehicle(plate), [plate, staff])
   const attestations = useAsync(
     () => isAdmin && data?.immatriculation
       ? izApi.vehicleAttestations(String(data.immatriculation))
@@ -246,7 +293,12 @@ export function BusPage({ plate }: { plate: string }) {
     <PageHead title={`Bus — ${plate}`} subtitle={staff ? 'Fiche de contrôle réservée aux agents habilités.' : 'À propos du bus — consultation sans compte.'} />
     {loading ? <Loading /> : error ? <Alert type="error">{error}</Alert> : data && <>
       <div className="iz-card">
-        <BusInformation vehicle={data} staff={staff} />
+        <BusInformation
+          vehicle={data}
+          staff={staff}
+          canEditPhoto={staff}
+          onPhotoChanged={(photoUrl) => setData({ ...data, photoUrl })}
+        />
         <div className="iz-flex iz-wrap" style={{ marginTop: 20 }}>
           <button className="iz-btn iz-btn-primary" onClick={() => navigate(`/signaler?${new URLSearchParams({ plaque: data.immatriculation })}`)}>Signaler un problème</button>
           {(user?.role === 'admin' || user?.role === 'superadmin') && <button className="iz-btn iz-btn-outline" onClick={() => setQr(true)}>Afficher le QR code</button>}

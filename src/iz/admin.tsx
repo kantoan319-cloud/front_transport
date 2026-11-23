@@ -12,6 +12,7 @@ import type { DataColumn, TableSelection } from './DataTable'
 import { DashboardShell } from './dashboard'
 import { downloadQrSheetPdf, downloadReceiptA4, downloadRegisterPdf, printReceipt, printRegisterPdf } from '../documentPdf'
 import type { RegisterPayload } from '../documentPdf'
+import { photoDataUrl } from './photo'
 
 const when = (value?: string | null) => (value ? String(value).slice(0, 16).replace('T', ' ') : '—')
 const dateOnly = (value?: string | null) => (value ? String(value).slice(0, 10) : '')
@@ -118,24 +119,6 @@ export function AdminDashboard() {
 /* ------------------------------------------------------------------ */
 /* CRUD générique                                                      */
 /* ------------------------------------------------------------------ */
-
-async function photoDataUrl(file: File): Promise<string> {
-  if (!file.type.startsWith('image/')) throw new Error('Choisissez un fichier image.')
-  if (file.size > 12 * 1024 * 1024) throw new Error('Image trop volumineuse : 12 Mo maximum.')
-  const bitmap = await createImageBitmap(file)
-  try {
-    const ratio = Math.min(1, 1000 / Math.max(bitmap.width, bitmap.height))
-    const canvas = document.createElement('canvas')
-    canvas.width = Math.max(1, Math.round(bitmap.width * ratio))
-    canvas.height = Math.max(1, Math.round(bitmap.height * ratio))
-    const context = canvas.getContext('2d')
-    if (!context) throw new Error('Lecture de l’image indisponible.')
-    context.drawImage(bitmap, 0, 0, canvas.width, canvas.height)
-    return canvas.toDataURL('image/jpeg', 0.82)
-  } finally {
-    bitmap.close()
-  }
-}
 
 interface FieldDef {
   key: string
@@ -763,24 +746,28 @@ export function AdminOwners() {
   return (
     <CrudPage
       title={t('admin.owners')}
-      subtitle="Fiches des propriétaires : nom, téléphone, coopérative et photo. La photo du propriétaire n’est visible que par les agents habilités."
+      subtitle="Fiches des propriétaires : nom, téléphone, CIN, adresse, coopérative et photo. La photo du propriétaire n’est visible que par les agents habilités."
       load={izApi.owners}
       create={izApi.createOwner}
       update={izApi.updateOwner}
       remove={izApi.deleteOwner}
       patchOnlyChanges
-      searchText={(row) => [row.nom, row.telephone, row.cooperativeCode].join(' ')}
+      searchText={(row) => [row.nom, row.telephone, row.cin, row.adresse, row.cooperativeCode].join(' ')}
       initialSort="nom"
       exportCible="proprietaires"
       columns={[
         { key: 'photoUrl', label: 'Photo', render: (row) => row.photoUrl ? <img className="iz-thumb" src={String(row.photoUrl)} alt={`Propriétaire ${row.nom}`} /> : <span className="iz-small iz-muted">—</span> },
         { key: 'nom', label: t('search.owner'), sortValue: (row) => String(row.nom ?? ''), render: (row) => <strong>{row.nom}</strong> },
         { key: 'telephone', label: 'Téléphone', sortValue: (row) => String(row.telephone ?? ''), render: (row) => text(row.telephone) },
+        { key: 'cin', label: 'CIN', sortValue: (row) => String(row.cin ?? ''), render: (row) => text(row.cin) },
+        { key: 'adresse', label: 'Adresse', sortValue: (row) => String(row.adresse ?? ''), render: (row) => text(row.adresse) },
         { key: 'cooperativeCode', label: t('search.cooperative'), sortValue: (row) => String(row.cooperativeCode ?? ''), render: (row) => text(row.cooperativeCode) },
       ]}
       fields={[
         { key: 'nom', label: t('search.owner'), required: true, maxLength: 200 },
         { key: 'telephone', label: 'Téléphone', maxLength: 40, clearValue: null },
+        { key: 'cin', label: 'Numéro de CIN', maxLength: 40, clearValue: null },
+        { key: 'adresse', label: 'Adresse', maxLength: 200, full: true, clearValue: null },
         { key: 'cooperativeId', label: t('search.cooperative'), type: 'select', options: coopOptions, numeric: true, clearValue: null },
         { key: 'photoUrl', label: 'Photo du propriétaire (agents habilités)', type: 'photo', full: true, clearValue: null },
       ]}

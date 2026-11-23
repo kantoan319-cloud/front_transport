@@ -114,8 +114,8 @@ export function DataTable<T>({
   const pageRowsSelectable = selection && visible.length > 0
 
   const listTable = (list: T[], scoped = false) => (
-    <div className="iz-table-wrap" aria-busy={busy}>
-      <table className="iz-table">
+    <div className="iz-table-wrap iz-stacked-wrap" aria-busy={busy}>
+      <table className="iz-table iz-table-stacked">
         <thead>
           <tr>
             {selection && (
@@ -139,7 +139,7 @@ export function DataTable<T>({
             return (
               <tr key={key} className={selection?.isSelected(row) ? 'iz-row-selected' : undefined}>
                 {selection && (
-                  <td className="iz-select-cell">
+                  <td className="iz-select-cell" data-label="Sélection">
                     <input
                       type="checkbox"
                       checked={selection.isSelected(row)}
@@ -148,8 +148,10 @@ export function DataTable<T>({
                     />
                   </td>
                 )}
-                {columns.map((column) => <td key={column.key ?? column.label}>{column.render(row)}</td>)}
-                {actions && <td className="iz-nowrap">{actions(row)}</td>}
+                {columns.map((column) => (
+                  <td key={column.key ?? column.label} data-label={column.label}>{column.render(row)}</td>
+                ))}
+                {actions && <td className="iz-actions-cell" data-label={t('common.actions')}>{actions(row)}</td>}
               </tr>
             )
           })}
