@@ -1,7 +1,7 @@
 import { Alert, Footer, Header, Loading, Toast, useApp } from './components'
 import { BusPage, ImpoundsPage, PublicScanPage } from './bus'
 import {
-  CooperativesPage, HomePage, LoginPage,
+  CooperativesPage, HomePage, LoginPage, SearchPage,
   SignalPage, TrackPage,
 } from './public'
 import { NetworkMap } from './network-map'
@@ -31,7 +31,8 @@ export function IzApp() {
 
   const render = () => {
     if (path === '/') return <HomePage />
-    if (path === '/scan' || path === '/recherche') return <PublicScanPage />
+    if (path === '/scan') return <PublicScanPage />
+    if (path === '/recherche') return <SearchPage />
     if (path === '/bus') {
       if (userLoading) return <Loading />
       const plate = new URLSearchParams(route.split('?')[1]).get('plaque') ?? ''
