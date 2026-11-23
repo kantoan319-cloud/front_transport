@@ -150,6 +150,7 @@ export function Header() {
     : publicLinks
   const links = isDashboard
     ? [
+        publicLinks[0],
         { path: isAdmin ? '/admin' : '/controle', key: isAdmin ? 'nav.admin' : 'nav.control' },
         ...publicLinks.slice(1, 4),
       ]

@@ -271,6 +271,8 @@ html[data-theme='dark'] .iz-badge-blue { color: #93b8ff; }
 }
 .iz-sidebar a:hover, .iz-sidebar button:hover { background: rgb(var(--bg-gray-100)); color: rgb(var(--tx-black)); }
 .iz-sidebar a.active, .iz-sidebar button.active { background: rgb(var(--tx-vert) / .12); color: rgb(var(--tx-vert)); }
+.iz-sidebar-search { margin: 0 2px 8px; }
+.iz-sidebar-empty { padding: 8px 10px; }
 .iz-dashboard-main { min-width: 0; }
 .iz-page-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 22px; flex-wrap: wrap; }
 .iz-page-head h1 { font-size: 1.65rem; font-weight: 800; }
@@ -394,6 +396,7 @@ html[data-theme='dark'] .iz-badge-orange { color: #fbbf24; }
   .iz-dashboard { grid-template-columns: 1fr; }
   .iz-sidebar { position: static; display: flex; overflow-x: auto; gap: 4px; }
   .iz-sidebar-title { display: none; }
+  .iz-sidebar-search { flex: 0 0 190px; margin: 0 4px 0 0; }
   .iz-sidebar a, .iz-sidebar button { white-space: nowrap; width: auto; }
   .iz-map-layout { grid-template-columns: 1fr; }
   .iz-map-box { height: 420px; }

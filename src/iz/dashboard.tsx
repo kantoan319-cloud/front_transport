@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import type { ReactNode } from 'react'
 import { useApp } from './components'
 
@@ -7,15 +8,32 @@ export interface DashLink {
   icon?: string
 }
 
+function sansAccents(valeur: string) {
+  return valeur.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+}
+
 export function DashboardShell({
   title, links, children,
 }: { title: string; links: DashLink[]; children: ReactNode }) {
   const { route, navigate } = useApp()
+  const [recherche, setRecherche] = useState('')
+  const terme = sansAccents(recherche.trim())
+  const visibles = terme
+    ? links.filter((link) => sansAccents(`${link.label} ${link.path}`).includes(terme))
+    : links
   return (
     <div className="iz-dashboard">
       <aside className="iz-sidebar">
         <div className="iz-sidebar-title">{title}</div>
-        {links.map((link) => (
+        <input
+          className="iz-input iz-sidebar-search"
+          type="search"
+          value={recherche}
+          onChange={(event) => setRecherche(event.target.value)}
+          placeholder="Rechercher un paramètre…"
+          aria-label="Rechercher un paramètre"
+        />
+        {visibles.map((link) => (
           <a
             key={link.path}
             href={`#${link.path}`}
@@ -26,6 +44,9 @@ export function DashboardShell({
             {link.label}
           </a>
         ))}
+        {!visibles.length && (
+          <div className="iz-small iz-muted iz-sidebar-empty">Aucun résultat.</div>
+        )}
       </aside>
       <div className="iz-dashboard-main">{children}</div>
     </div>
