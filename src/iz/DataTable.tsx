@@ -102,14 +102,14 @@ export function DataTable<T>({
   const groups = useMemo(() => {
     if (!groupBy) return []
     const map = new Map<string, T[]>()
-    for (const row of visible) {
+    for (const row of filtered) {
       const key = groupBy(row)
       const list = map.get(key)
       if (list) list.push(row)
       else map.set(key, [row])
     }
     return [...map.entries()].sort(([a], [b]) => compareValues(a, b))
-  }, [visible, groupBy])
+  }, [filtered, groupBy])
 
   const pageRowsSelectable = selection && visible.length > 0
 
@@ -241,7 +241,7 @@ export function DataTable<T>({
         </div>
       )}
 
-      {filtered.length > 0 && (
+      {filtered.length > 0 && view !== 'group' && (
         <div className="iz-pagination">
           <span className="iz-small iz-muted">
             {start + 1}–{Math.min(start + pageSize, filtered.length)} sur {filtered.length}
