@@ -3,7 +3,7 @@ import type { ChangeEvent, FormEvent } from 'react'
 import VehicleQrDialog from '../VehicleQrDialog'
 import { izApi } from './api'
 import type { IZRecord } from './api'
-import { Alert, ConfirmDialog, ExportButton, Field, Loading, Modal, PageHead, StatusBadge, useApp, useAsync } from './components'
+import { Alert, ConfirmDialog, ExportButton, Field, Loading, Modal, PageHead, StatusBadge, geolocate, useApp, useAsync } from './components'
 import { DataTable } from './DataTable'
 
 export function plateFromQr(raw: string): string {
@@ -190,6 +190,17 @@ export function BusPage({ plate }: { plate: string }) {
   const staff = (user?.role === 'admin' || user?.role === 'superadmin') || user?.role === 'controleur'
   const { data, loading, error, reload } = useAsync(() => staff ? izApi.controlVehicle(plate) : izApi.vehicle(plate), [plate, staff])
   const [qr, setQr] = useState(new URLSearchParams(route.split('?')[1]).get('qr') === '1')
+  // Consultation sans compte (scan du QR) : la position du visiteur est
+  // transmise aux administrateurs, une seule fois par ouverture.
+  const reportedScan = useRef(false)
+  useEffect(() => {
+    if (staff || !data?.immatriculation || reportedScan.current) return
+    reportedScan.current = true
+    void geolocate(8000).then((coords) => {
+      if (!coords) return
+      void izApi.reportPublicScan({ immatriculation: String(data.immatriculation), ...coords }).catch(() => {})
+    })
+  }, [staff, data?.immatriculation])
   const [action, setAction] = useState<'impound' | 'release' | null>(null)
   const [motif, setMotif] = useState('')
   const [busy, setBusy] = useState(false)

@@ -337,6 +337,26 @@ export function StatCard({ value, label, icon }: { value: ReactNode; label: stri
   )
 }
 
+/** Position actuelle du visiteur, ou null si refusée/indisponible. */
+export function geolocate(timeout = 8000): Promise<{ latitude: number; longitude: number } | null> {
+  if (typeof navigator === 'undefined' || !navigator.geolocation) return Promise.resolve(null)
+  return new Promise((resolve) => {
+    let settled = false
+    const finish = (value: { latitude: number; longitude: number } | null) => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      resolve(value)
+    }
+    const timer = setTimeout(() => finish(null), timeout)
+    navigator.geolocation.getCurrentPosition(
+      (result) => finish({ latitude: result.coords.latitude, longitude: result.coords.longitude }),
+      () => finish(null),
+      { enableHighAccuracy: true, timeout, maximumAge: 60000 },
+    )
+  })
+}
+
 export function Loading() {
   const { t } = useApp()
   return <div className="iz-loading"><span className="iz-spinner" />{t('common.loading')}</div>

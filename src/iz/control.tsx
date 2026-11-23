@@ -1,4 +1,6 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
+import MapCanvas from '../MapCanvas'
+import type { MapPoint } from '../MapCanvas'
 import { BusInformation, QrScanner, plateFromQr } from './bus'
 import type { FormEvent, ReactNode } from 'react'
 import { izApi } from './api'
@@ -250,10 +252,37 @@ export function InfractionsPage() {
 }
 
 export function ControlSignalsPage() {
-  const { t, notify, user } = useApp()
+  const { t, notify, user, navigate, theme } = useApp()
   const { data, loading, reload } = useAsync(() => izApi.controlSignals(), [])
   const [deleting, setDeleting] = useState<IZRecord | null>(null)
-  const isSuper = user?.role === 'superadmin'
+  const isAdmin = user?.role === 'admin' || user?.role === 'superadmin'
+  // Scans QR du public : positions transmises uniquement aux administrateurs.
+  const { data: scans, reload: reloadScans } = useAsync(
+    () => (isAdmin ? izApi.adminPublicScans() : Promise.resolve([])),
+    [isAdmin],
+  )
+  const [deletingScan, setDeletingScan] = useState<IZRecord | null>(null)
+  const mapPoints = useMemo<MapPoint[]>(() => {
+    const list: MapPoint[] = []
+    for (const signal of data ?? []) {
+      if (signal.latitude == null || signal.longitude == null) continue
+      list.push({
+        key: `signal-${signal.id}`,
+        label: `${String(signal.reference ?? 'Signalement')} · ${String(signal.categorie ?? '')}`,
+        kind: 'signal', color: '#dc2626',
+        latitude: Number(signal.latitude), longitude: Number(signal.longitude),
+      })
+    }
+    for (const scan of scans ?? []) {
+      list.push({
+        key: `scan-${scan.id}`,
+        label: `Scan QR · ${String(scan.immatriculation ?? 'public')}`,
+        kind: 'scan', color: '#0ea5e9',
+        latitude: Number(scan.latitude), longitude: Number(scan.longitude),
+      })
+    }
+    return list
+  }, [data, scans])
   const resolve = async (id: number, statut: string) => {
     try {
       await izApi.resolveSignal(id, { statut })
@@ -274,9 +303,59 @@ export function ControlSignalsPage() {
       notify(error instanceof Error ? error.message : t('common.error'), 'error')
     }
   }
+  const removeScan = async () => {
+    if (!deletingScan) return
+    try {
+      await izApi.deletePublicScan(Number(deletingScan.id))
+      notify('Position de scan supprimée.', 'success')
+      setDeletingScan(null)
+      await reloadScans()
+    } catch (error) {
+      notify(error instanceof Error ? error.message : t('common.error'), 'error')
+    }
+  }
   return (
     <>
-      <PageHead title={t('control.signals')} action={(user?.role === 'admin' || user?.role === 'superadmin') ? <ExportButton cible="signalements" label="Excel" /> : undefined} />
+      <PageHead
+        title={t('control.signals')}
+        subtitle={isAdmin ? 'Signalements et positions GPS des scans QR — visibles par les administrateurs.' : undefined}
+        action={(user?.role === 'admin' || user?.role === 'superadmin') ? <ExportButton cible="signalements" label="Excel" /> : undefined}
+      />
+      {isAdmin && (
+        <div className="iz-card" style={{ marginBottom: 16 }}>
+          <div className="iz-flex iz-wrap" style={{ justifyContent: 'space-between', marginBottom: 8 }}>
+            <h3 style={{ fontSize: '.95rem', margin: 0 }}>🗺 Positions transmises</h3>
+            <span className="iz-small iz-muted">
+              <span className="iz-badge iz-badge-orange">Signalement</span>{' '}
+              <span className="iz-badge">Scan QR</span> · {mapPoints.length} point(s)
+            </span>
+          </div>
+          <div className="iz-map-box" style={{ height: 380 }}>
+            <MapCanvas
+              points={mapPoints}
+              lines={[]}
+              vehicle={null}
+              follow={false}
+              terrain={false}
+              focus={null}
+              selectedKey=""
+              center={{ latitude: -19.865, longitude: 47.033 }}
+              zoom={12.5}
+              basemap="plan"
+              viewMode="2d"
+              night={theme === 'dark'}
+              onSelect={(key) => {
+                const signal = (data ?? []).find((item) => `signal-${item.id}` === key)
+                if (signal?.reference) navigate(`/suivi?ref=${encodeURIComponent(String(signal.reference))}`)
+              }}
+              onMove={() => {}}
+            />
+          </div>
+          <p className="iz-small iz-muted" style={{ marginTop: 8 }}>
+            Cliquez sur un signalement pour ouvrir son suivi et sa position précise.
+          </p>
+        </div>
+      )}
       {loading ? <Loading /> : (
         <DataTable
           rows={data ?? []}
@@ -290,24 +369,56 @@ export function ControlSignalsPage() {
             { key: 'categorie', label: t('signal.category'), sortValue: (signal) => String(signal.categorie ?? ''), render: (signal) => <>{signal.categorie}</> },
             { key: 'description', label: t('signal.description'), sortValue: (signal) => String(signal.description ?? ''), render: (signal) => <span className="iz-small" style={{ maxWidth: 260 }}>{signal.description}</span> },
             { key: 'createdAt', label: t('common.date'), sortValue: (signal) => String(signal.createdAt ?? ''), render: (signal) => <span className="iz-small iz-nowrap">{when(signal.createdAt)}</span> },
+            { key: 'position', label: 'Position', sortValue: (signal) => (signal.latitude == null ? '' : 'GPS'), render: (signal) => signal.latitude != null && signal.longitude != null ? (
+              <button className="iz-btn iz-btn-ghost iz-btn-sm" onClick={() => navigate(`/suivi?ref=${encodeURIComponent(String(signal.reference))}`)}>🗺 Voir</button>
+            ) : <span className="iz-small iz-muted">—</span> },
             { key: 'statut', label: t('common.status'), sortValue: (signal) => String(signal.statut ?? ''), render: (signal) => <StatusBadge status={signal.statut} /> },
           ]}
           actions={(signal) => (
             <>
               <button className="iz-btn iz-btn-primary iz-btn-sm" onClick={() => resolve(Number(signal.id), 'En cours')}>{t('control.process')}</button>{' '}
               <button className="iz-btn iz-btn-outline iz-btn-sm" onClick={() => resolve(Number(signal.id), 'Résolu')}>✓</button>
-              {isSuper && (
+              {isAdmin && (
                 <> <button className="iz-btn iz-btn-danger iz-btn-sm" onClick={() => setDeleting(signal)}>Supprimer</button></>
               )}
             </>
           )}
         />
       )}
+      {isAdmin && (
+        <div className="iz-card" style={{ marginTop: 18 }}>
+          <h3 style={{ fontSize: '.95rem', marginBottom: 10 }}>📱 Derniers scans QR du public</h3>
+          {scans?.length ? (
+            <div className="iz-table-wrap">
+              <table className="iz-report-table">
+                <thead><tr><th>Date et heure</th><th>Bus</th><th>Position</th><th></th></tr></thead>
+                <tbody>
+                  {scans.slice(0, 30).map((scan) => (
+                    <tr key={scan.id}>
+                      <td>{when(scan.createdAt)}</td>
+                      <td className="iz-mono">{scan.immatriculation ?? '—'}</td>
+                      <td className="iz-small">{Number(scan.latitude).toFixed(5)}, {Number(scan.longitude).toFixed(5)}</td>
+                      <td>{isAdmin && <button className="iz-btn iz-btn-danger iz-btn-sm" onClick={() => setDeletingScan(scan)}>Supprimer</button>}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : <p className="iz-small iz-muted">Aucun scan QR public enregistré pour le moment.</p>}
+        </div>
+      )}
       {deleting && (
         <ConfirmDialog
           message={`Supprimer définitivement le signalement ${deleting.reference ?? ''} ?`}
           onCancel={() => setDeleting(null)}
           onConfirm={() => void remove()}
+        />
+      )}
+      {deletingScan && (
+        <ConfirmDialog
+          message="Supprimer définitivement cette position de scan QR ?"
+          onCancel={() => setDeletingScan(null)}
+          onConfirm={() => void removeScan()}
         />
       )}
     </>

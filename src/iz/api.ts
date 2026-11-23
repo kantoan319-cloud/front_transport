@@ -120,6 +120,7 @@ export const izApi = {
   map: () => request<IZRecord[]>('/iz/public/map'),
   incidents: () => request<IZRecord[]>('/iz/public/incidents'),
   createSignal: (data: IZRecord) => send<{ reference: string }>('/iz/public/signals', 'POST', data),
+  reportPublicScan: (data: IZRecord) => send<{ ok: boolean }>('/iz/public/scans', 'POST', data),
   followSignal: (reference: string) =>
     request<IZRecord>(`/iz/public/signals/${encodeURIComponent(reference)}`),
 
@@ -148,6 +149,8 @@ export const izApi = {
   // ---------- Administrateur ----------
   adminStats: () => request<IZRecord>('/iz/admin/stats'),
   adminAnalytics: () => request<IZRecord>('/iz/admin/analytics'),
+  adminPublicScans: () => request<IZRecord[]>('/iz/admin/public-scans'),
+  deletePublicScan: (id: number) => request<void>(`/iz/admin/public-scans/${id}`, { method: 'DELETE' }),
   adminVehicles: (query: VehicleQuery = {}) =>
     request<IZRecord[]>(`/iz/admin/vehicles${queryString(query as Record<string, unknown>)}`),
   createVehicle: (data: IZRecord) => send<IZRecord>('/iz/admin/vehicles', 'POST', data),

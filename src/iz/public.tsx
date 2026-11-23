@@ -5,7 +5,7 @@ import type { MapLine, MapPoint } from '../MapCanvas'
 import { izApi } from './api'
 import type { IZRecord } from './api'
 import {
-  Alert, Empty, Field, Loading, Modal, PageHead, PasswordInput, StatCard, StatusBadge, useApp, useAsync,
+  Alert, Empty, Field, Loading, Modal, PageHead, PasswordInput, StatusBadge, geolocate, useApp, useAsync,
 } from './components'
 
 const dateText = (value?: string | null) => (value ? String(value).slice(0, 10) : '—')
@@ -58,10 +58,26 @@ export function HomePage() {
 
       <section className="iz-section" style={{ marginTop: 28 }}>
         <div className="iz-grid iz-grid-4">
-          <StatCard icon="🚐" value={data?.vehicules ?? '—'} label={t('home.statVehicles')} />
-          <StatCard icon="🤝" value={data?.cooperatives ?? '—'} label={t('home.statCoops')} />
-          <StatCard icon="👥" value={data?.proprietaires ?? '—'} label={t('home.statOwners')} />
-          <StatCard icon="📣" value={data?.signalements ?? '—'} label={t('home.statSignals')} />
+          <button type="button" className="iz-card iz-stat iz-card-hover iz-stat-link" onClick={() => navigate('/recherche')} title="Rechercher un bus">
+            <div className="iz-stat-icon">🚐</div>
+            <div className="iz-stat-value">{data?.vehicules ?? '—'}</div>
+            <div className="iz-stat-label">{t('home.statVehicles')}</div>
+          </button>
+          <button type="button" className="iz-card iz-stat iz-card-hover iz-stat-link" onClick={() => navigate('/cooperatives')} title="Voir les coopératives">
+            <div className="iz-stat-icon">🤝</div>
+            <div className="iz-stat-value">{data?.cooperatives ?? '—'}</div>
+            <div className="iz-stat-label">{t('home.statCoops')}</div>
+          </button>
+          <button type="button" className="iz-card iz-stat iz-card-hover iz-stat-link" onClick={() => navigate('/admin/owners')} title="Voir les propriétaires">
+            <div className="iz-stat-icon">👥</div>
+            <div className="iz-stat-value">{data?.proprietaires ?? '—'}</div>
+            <div className="iz-stat-label">{t('home.statOwners')}</div>
+          </button>
+          <button type="button" className="iz-card iz-stat iz-card-hover iz-stat-link" onClick={() => navigate('/suivi')} title="Suivre un signalement">
+            <div className="iz-stat-icon">📣</div>
+            <div className="iz-stat-value">{data?.signalements ?? '—'}</div>
+            <div className="iz-stat-label">{t('home.statSignals')}</div>
+          </button>
         </div>
       </section>
 
@@ -327,7 +343,12 @@ export function SignalPage() {
     }
     setSending(true)
     try {
-      const result = await izApi.createSignal({ ...form, ...position })
+      let coords = position
+      if (!coords) {
+        coords = await geolocate(8000)
+        if (coords) setPosition(coords)
+      }
+      const result = await izApi.createSignal({ ...form, ...(coords ?? {}) })
       setReference(result.reference)
       notify(t('signal.success'), 'success')
     } catch (error) {
@@ -418,14 +439,14 @@ export function SignalPage() {
               <input className="iz-input" value={form.adresse} onChange={(e) => set('adresse', e.target.value)} />
             </Field>
             <div className="full">
-              <button type="button" className="iz-btn iz-btn-outline" onClick={() => {
-                if (!navigator.geolocation) { notify('Géolocalisation indisponible.', 'error'); return }
-                navigator.geolocation.getCurrentPosition(
-                  ({ coords }) => setPosition({ latitude: coords.latitude, longitude: coords.longitude }),
-                  () => notify('Position indisponible. Vous pouvez saisir une adresse.', 'error'),
-                  { timeout: 10000 },
-                )
-              }}>Joindre ma position (facultatif)</button>
+              <p className="iz-small iz-muted" style={{ marginTop: 0 }}>
+                📍 Votre position actuelle est transmise automatiquement avec le signalement (si la localisation est autorisée).
+              </p>
+              <button type="button" className="iz-btn iz-btn-outline" onClick={async () => {
+                const coords = await geolocate(10000)
+                if (coords) setPosition(coords)
+                else notify('Position indisponible. Vous pouvez saisir une adresse.', 'error')
+              }}>Joindre ma position maintenant</button>
               {position && <p className="iz-small">Position jointe <button type="button" className="iz-btn iz-btn-ghost iz-btn-sm" onClick={() => setPosition(null)}>Retirer</button></p>}
             </div>
             <Field label={t('signal.photo')} full>
@@ -448,7 +469,7 @@ export function SignalPage() {
 /* ------------------------------------------------------------------ */
 
 export function TrackPage() {
-  const { t } = useApp()
+  const { t, theme } = useApp()
   const initialRef = new URLSearchParams(window.location.hash.split('?')[1] ?? '').get('ref') ?? ''
   const [reference, setReference] = useState(initialRef)
   const [searched, setSearched] = useState(initialRef)
@@ -482,6 +503,35 @@ export function TrackPage() {
               <div className="iz-detail-item"><span>{t('signal.address')}</span><strong>{data.adresse ?? '—'}</strong></div>
             </div>
             <p className="iz-muted" style={{ marginTop: 14 }}>{data.description}</p>
+            {data.latitude != null && data.longitude != null && (
+              <div style={{ marginTop: 16 }}>
+                <h3 style={{ fontSize: '.95rem', marginBottom: 8 }}>Position du signalement</h3>
+                <div className="iz-map-box" style={{ height: 340 }}>
+                  <MapCanvas
+                    points={[{
+                      key: 'signal', label: String(data.reference ?? 'Signalement'), kind: 'signal', color: '#dc2626',
+                      latitude: Number(data.latitude), longitude: Number(data.longitude),
+                    }]}
+                    lines={[]}
+                    vehicle={null}
+                    follow={false}
+                    terrain={false}
+                    focus={null}
+                    selectedKey="signal"
+                    center={{ latitude: Number(data.latitude), longitude: Number(data.longitude) }}
+                    zoom={16}
+                    basemap="plan"
+                    viewMode="2d"
+                    night={theme === 'dark'}
+                    onSelect={() => {}}
+                    onMove={() => {}}
+                  />
+                </div>
+              </div>
+            )}
+            {data.latitude == null && data.longitude == null && (
+              <p className="iz-small iz-muted" style={{ marginTop: 12 }}>Aucune position GPS n’a été transmise avec ce signalement.</p>
+            )}
           </div>
         )}
       </div>
