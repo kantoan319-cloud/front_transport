@@ -173,6 +173,15 @@ export const izApi = {
     send<IZRecord>(`/iz/admin/owners/${id}`, 'PATCH', data),
   deleteOwner: (id: number) => request<void>(`/iz/admin/owners/${id}`, { method: 'DELETE' }),
 
+  adminAttestations: (type: 'capacite' | 'receveur') =>
+    request<IZRecord[]>(`/iz/admin/attestations/${type}`),
+  linkAttestation: (type: 'capacite' | 'receveur', id: number, vehicleId: number | null) =>
+    send<IZRecord>(`/iz/admin/attestations/${type}/${id}/link`, 'PATCH', { vehicleId }),
+  vehicleAttestations: (plate: string) =>
+    request<{ capacite: IZRecord | null; receveur: IZRecord | null }>(
+      `/iz/admin/attestations/vehicle/${encodeURIComponent(plate)}`,
+    ),
+
   adminLines: () => request<IZRecord[]>('/iz/admin/lines'),
   createLine: (data: IZRecord) => send<IZRecord>('/iz/admin/lines', 'POST', data),
   updateLine: (id: number, data: IZRecord) => send<IZRecord>(`/iz/admin/lines/${id}`, 'PATCH', data),

@@ -63,6 +63,7 @@ export function AdminLayout({ children }: { children: ReactNode }) {
     { path: '/admin/cooperatives', label: t('nav.coops'), icon: '🤝' },
     { path: '/admin/owners', label: t('admin.owners'), icon: '👥' },
     { path: '/admin/lines', label: t('admin.lines'), icon: '🛣️' },
+    { path: '/admin/attestations', label: 'Capacité & receveur', icon: '📄' },
     { path: '/admin/licenses', label: t('admin.licences'), icon: '⚠️' },
     { path: '/admin/payments', label: t('admin.payments'), icon: '💳' },
     { path: '/admin/payments/register', label: 'Registre des paiements', icon: '🧾' },

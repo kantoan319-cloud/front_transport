@@ -5,6 +5,7 @@ import { izApi } from './api'
 import type { IZRecord } from './api'
 import { Alert, ConfirmDialog, ExportButton, Field, Loading, Modal, PageHead, StatusBadge, geolocate, useApp, useAsync } from './components'
 import { DataTable } from './DataTable'
+import { attestationState } from './attestation-utils'
 
 export function plateFromQr(raw: string): string {
   let value = raw.trim()
@@ -204,7 +205,14 @@ export function BusInformation({ vehicle, staff = false }: { vehicle: IZRecord; 
 export function BusPage({ plate }: { plate: string }) {
   const { user, route, navigate, notify } = useApp()
   const staff = (user?.role === 'admin' || user?.role === 'superadmin') || user?.role === 'controleur'
+  const isAdmin = user?.role === 'admin' || user?.role === 'superadmin'
   const { data, loading, error, reload } = useAsync(() => staff ? izApi.controlVehicle(plate) : izApi.vehicle(plate), [plate, staff])
+  const attestations = useAsync(
+    () => isAdmin && data?.immatriculation
+      ? izApi.vehicleAttestations(String(data.immatriculation))
+      : Promise.resolve(null),
+    [isAdmin, data?.immatriculation],
+  )
   const [qr, setQr] = useState(new URLSearchParams(route.split('?')[1]).get('qr') === '1')
   // Consultation sans compte (scan du QR) : la position du visiteur est
   // transmise aux administrateurs, une seule fois par ouverture.
@@ -248,6 +256,36 @@ export function BusPage({ plate }: { plate: string }) {
           {!staff && <button className="iz-btn iz-btn-outline" onClick={() => navigate(`/connexion?${new URLSearchParams({ retour: `/bus?${new URLSearchParams({ plaque: plate })}` })}`)}>Connexion contrôleur / administrateur</button>}
         </div>
       </div>
+      {isAdmin && attestations.data && (attestations.data.capacite || attestations.data.receveur) && (
+        <div className="iz-card" style={{ marginTop: 16 }}>
+          <div className="iz-section-head">
+            <h3>Attestations liées au bus</h3>
+            <button className="iz-btn iz-btn-outline iz-btn-sm" onClick={() => navigate('/admin/attestations')}>Gérer</button>
+          </div>
+          <div className="iz-detail-grid">
+            {attestations.data.capacite && (
+              <div className="iz-detail-item">
+                <span>Capacité — {attestations.data.capacite.nom} {attestations.data.capacite.prenoms}</span>
+                <strong>{attestations.data.capacite.numero_attestation || 'N° non renseigné'}</strong>
+                <StatusBadge status={attestationState(attestations.data.capacite)} />
+                <div className="iz-small iz-muted">
+                  Valable jusqu’au {String(attestations.data.capacite.valable_jusquau ?? '').slice(0, 10) || attestations.data.capacite.valable_texte || '—'}
+                </div>
+              </div>
+            )}
+            {attestations.data.receveur && (
+              <div className="iz-detail-item">
+                <span>Receveur — {attestations.data.receveur.nom} {attestations.data.receveur.prenoms}</span>
+                <strong>{attestations.data.receveur.numero_attestation_receveur || attestations.data.receveur.numero_attestation || 'N° non renseigné'}</strong>
+                <StatusBadge status={attestationState(attestations.data.receveur)} />
+                <div className="iz-small iz-muted">
+                  Valable jusqu’au {String(attestations.data.receveur.valable_jusquau ?? '').slice(0, 10) || attestations.data.receveur.valable_texte || '—'}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
       {staff && data.activeImpound && <div style={{ marginTop: 16 }}><Alert type="error">Véhicule en fourrière : {data.activeImpound.motif}</Alert></div>}
       {staff && data.scans?.length > 0 && <div className="iz-card" style={{ marginTop: 16 }}><h3>Derniers contrôles</h3><ul>{data.scans.map((scan: IZRecord) => <li key={scan.id}>{String(scan.scanTime ?? '').slice(0, 16).replace('T', ' ')} — {scan.resultat}</li>)}</ul></div>}
       {qr && (user?.role === 'admin' || user?.role === 'superadmin') && <VehicleQrDialog immatriculation={data.immatriculation} onClose={() => setQr(false)} />}

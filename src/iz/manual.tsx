@@ -78,6 +78,16 @@ const ADMIN: Section[] = [
     ],
   },
   {
+    title: 'Capacité et receveur',
+    points: [
+      'Rubrique « Capacité & receveur » : deux onglets listent les attestations de capacité et de receveur importées.',
+      'Recherchez un titulaire, un numéro d’attestation, un CIN ou un bus. Filtrez par statut ou sur les attestations non liées.',
+      'Bouton « Lier à un bus » : choisissez le bus dans la liste, puis enregistrez. Un bus ne porte qu’une attestation de chaque type : une nouvelle liaison remplace l’ancienne.',
+      '« Détails » affiche toutes les informations de l’attestation. « Délier » retire la liaison sans supprimer l’attestation.',
+      'La fiche d’un bus affiche aux administrateurs les attestations de capacité et de receveur qui lui sont liées.',
+    ],
+  },
+  {
     title: 'Paiements et reçus',
     points: [
       'Rubrique « Paiements » : enregistrez un paiement (type, montant, moyen) et suivez sa validation.',
