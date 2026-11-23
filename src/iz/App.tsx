@@ -68,7 +68,10 @@ export function IzApp() {
       else if (path === '/controle/infractions') content = <InfractionsPage />
       else if (path === '/controle/signals') content = <ControlSignalsPage />
       else if (path === '/controle/manuel') content = <ManualPage scope="controle" />
-      return <ControlLayout>{content}</ControlLayout>
+      // Un administrateur garde son menu d'administration sur les pages de terrain.
+      return user.role === 'admin' || user.role === 'superadmin'
+        ? <AdminLayout>{content}</AdminLayout>
+        : <ControlLayout>{content}</ControlLayout>
     }
 
     if (path.startsWith('/admin')) {
