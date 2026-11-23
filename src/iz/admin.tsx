@@ -13,6 +13,7 @@ import { DashboardShell } from './dashboard'
 import { downloadQrSheetPdf, downloadReceiptA4, downloadRegisterPdf, printReceipt, printRegisterPdf } from '../documentPdf'
 import type { RegisterPayload } from '../documentPdf'
 import { photoDataUrl } from './photo'
+import { AgentProfileDialog, IdentityPhotoField } from './profiles'
 
 const when = (value?: string | null) => (value ? String(value).slice(0, 16).replace('T', ' ') : '—')
 const dateOnly = (value?: string | null) => (value ? String(value).slice(0, 10) : '')
@@ -70,6 +71,7 @@ export function AdminLayout({ children }: { children: ReactNode }) {
     { path: '/admin/payments/register', label: 'Registre des paiements', icon: '🧾' },
     { path: '/admin/requests', label: t('admin.requests'), icon: '📝' },
     { path: '/admin/users', label: t('admin.users'), icon: '🔐' },
+    { path: '/admin/profiles', label: 'Profils des contrôleurs', icon: '👤' },
     { path: '/admin/manuel', label: 'Manuel d’utilisation', icon: '📘' },
     historyLink,
   ]
@@ -1396,6 +1398,8 @@ export function AdminUsers() {
   const [form, setForm] = useState<IZCreateUser>({ nom: '', prenom: '', email: '', motDePasse: '', telephone: '', role: 'controleur' })
   const [editingAccount, setEditingAccount] = useState<IZRecord | null>(null)
   const [editForm, setEditForm] = useState<IZRecord>({ nom: '', prenom: '', email: '', telephone: '', motDePasse: '' })
+  const [photoTouched, setPhotoTouched] = useState(false)
+  const [viewingAgent, setViewingAgent] = useState<number | null>(null)
   const [resetTarget, setResetTarget] = useState<IZRecord | null>(null)
   const [resetPassword, setResetPassword] = useState('')
   const [resetConfirm, setResetConfirm] = useState('')
@@ -1406,6 +1410,7 @@ export function AdminUsers() {
   const controllers = accounts.filter((account) => account.role === 'controleur').length
   const superadmins = accounts.filter((account) => account.role === 'superadmin').length
   const isSuper = currentUser?.role === 'superadmin'
+  const isAdmin = isSuper || currentUser?.role === 'admin'
   const atLimit = (role: IZAccountRole) => role === 'admin' ? admins >= 5 : role === 'controleur' ? controllers >= 100 : role === 'superadmin' && superadmins >= 1
   const isOwn = (account: IZRecord) => !currentUser || String(account.id) === String(currentUser.id)
   const canDelete = (account: IZRecord) => !isOwn(account) && (isSuper ? account.role !== 'superadmin' || superadmins > 1 : account.role === 'controleur')
@@ -1431,8 +1436,18 @@ export function AdminUsers() {
     }
     setBusy(true)
     try {
-      await izApi.createUser({ ...form, nom: form.nom.trim(), prenom: form.prenom?.trim(), email: form.email.trim(), telephone: form.telephone?.trim() })
-      setForm({ nom: '', prenom: '', email: '', motDePasse: '', telephone: '', role: 'controleur' })
+      await izApi.createUser({
+        ...form,
+        nom: form.nom.trim(),
+        prenom: form.prenom?.trim(),
+        email: form.email.trim(),
+        telephone: form.telephone?.trim(),
+        cin: form.cin?.trim(),
+        fonction: form.fonction?.trim(),
+        matricule: form.matricule?.trim(),
+        photoIdentite: form.photoIdentite || null,
+      })
+      setForm({ nom: '', prenom: '', email: '', motDePasse: '', telephone: '', role: 'controleur', cin: '', fonction: '', matricule: '', photoIdentite: null })
       setCreating(false)
       notify('Compte créé.', 'success')
       await users.reload()
@@ -1486,9 +1501,12 @@ export function AdminUsers() {
   const openEdit = (account: IZRecord) => {
     setError('')
     setEditingAccount(account)
+    setPhotoTouched(false)
     setEditForm({
       nom: account.nom ?? '', prenom: account.prenom ?? '',
-      email: account.email ?? '', telephone: account.telephone ?? '', motDePasse: '',
+      email: account.email ?? '', telephone: account.telephone ?? '',
+      cin: account.cin ?? '', fonction: account.fonction ?? '',
+      matricule: account.matricule ?? '', motDePasse: '',
     })
   }
 
@@ -1503,8 +1521,12 @@ export function AdminUsers() {
         prenom: String(editForm.prenom ?? '').trim(),
         email: String(editForm.email ?? '').trim(),
         telephone: String(editForm.telephone ?? '').trim(),
+        cin: String(editForm.cin ?? '').trim(),
+        fonction: String(editForm.fonction ?? '').trim(),
+        matricule: String(editForm.matricule ?? '').trim(),
       }
       if (editForm.motDePasse) payload.motDePasse = String(editForm.motDePasse)
+      if (photoTouched) payload.photoIdentite = editForm.photoIdentite || null
       await izApi.updateUserDetails(Number(editingAccount.id), payload)
       notify('Compte mis à jour.', 'success')
       setEditingAccount(null)
@@ -1562,7 +1584,7 @@ export function AdminUsers() {
           <ExportButton cible="utilisateurs" label="Excel" />
           <button className="iz-btn iz-btn-primary" disabled={disabled} onClick={() => {
             setError('')
-            setForm({ nom: '', prenom: '', email: '', motDePasse: '', telephone: '', role: 'controleur' })
+            setForm({ nom: '', prenom: '', email: '', motDePasse: '', telephone: '', role: 'controleur', cin: '', fonction: '', matricule: '', photoIdentite: null })
             setCreating(true)
           }}>+ Créer un compte</button>
         </div>}
@@ -1603,7 +1625,7 @@ export function AdminUsers() {
           rows={accounts}
           rowKey={(account) => String(account.id)}
           rowLabel={(account) => String(account.nom ?? account.email ?? account.id)}
-          searchText={(account) => [account.nom, account.prenom, account.email, account.telephone, account.role].join(' ')}
+          searchText={(account) => [account.nom, account.prenom, account.email, account.telephone, account.role, account.cin, account.fonction, account.matricule].join(' ')}
           initialSort="nom"
           busy={busy}
           empty={<Empty />}
@@ -1618,9 +1640,22 @@ export function AdminUsers() {
                 <option value="controleur" disabled={account.role !== 'controleur' && controllers >= 100}>Contrôleur</option>
               </select>
             ) },
+            ...(isAdmin ? [
+              { key: 'cin', label: 'CIN', sortValue: (account: IZRecord) => String(account.cin ?? ''), render: (account: IZRecord) => <span className="iz-small iz-mono">{account.cin ?? '—'}</span> },
+              { key: 'fonction', label: 'Fonction', sortValue: (account: IZRecord) => String(account.fonction ?? ''), render: (account: IZRecord) => <span className="iz-small">{account.fonction ?? '—'}</span> },
+              { key: 'matricule', label: 'Matricule', sortValue: (account: IZRecord) => String(account.matricule ?? ''), render: (account: IZRecord) => <span className="iz-small iz-mono">{account.matricule ?? '—'}</span> },
+              { key: 'profilComplet', label: 'Profil', sortValue: (account: IZRecord) => (account.profilComplet ? 1 : 0), render: (account: IZRecord) => account.role === 'controleur' ? (
+                <span className={`iz-badge ${account.profilComplet ? 'iz-badge-green' : 'iz-badge-amber'}`}>
+                  {account.profilComplet ? 'Complet' : 'À compléter'}
+                </span>
+              ) : <span className="iz-small iz-muted">—</span> },
+            ] : []),
           ]}
           actions={(account) => (
             <>
+              {account.role === 'controleur' && (
+                <><button className="iz-btn iz-btn-ghost iz-btn-sm" onClick={() => setViewingAgent(Number(account.id))}>Profil</button>{' '}</>
+              )}
               <button className="iz-btn iz-btn-outline iz-btn-sm" disabled={busy} onClick={() => openEdit(account)}>Modifier</button>{' '}
               {canDelete(account) && (
                 <button className="iz-btn iz-btn-danger iz-btn-sm" disabled={disabled} onClick={() => { setError(''); setDeleting(account) }}>{t('common.delete')}</button>
@@ -1640,6 +1675,12 @@ export function AdminUsers() {
             <Field label="Prénom"><input className="iz-input" maxLength={100} autoComplete="given-name" disabled={busy} value={form.prenom ?? ''} onChange={(event) => setForm({ ...form, prenom: event.target.value })} /></Field>
             <Field label="E-mail *"><input className="iz-input" type="email" required maxLength={190} autoComplete="off" disabled={busy} value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} /></Field>
             <Field label="Téléphone"><input className="iz-input" type="tel" maxLength={30} autoComplete="off" disabled={busy} value={form.telephone ?? ''} onChange={(event) => setForm({ ...form, telephone: event.target.value })} /></Field>
+            <Field label="Numéro de CIN"><input className="iz-input" maxLength={40} disabled={busy} value={form.cin ?? ''} onChange={(event) => setForm({ ...form, cin: event.target.value })} /></Field>
+            <Field label="Fonction"><input className="iz-input" maxLength={120} disabled={busy} value={form.fonction ?? ''} onChange={(event) => setForm({ ...form, fonction: event.target.value })} /></Field>
+            <Field label="Numéro matricule"><input className="iz-input" maxLength={60} disabled={busy} value={form.matricule ?? ''} onChange={(event) => setForm({ ...form, matricule: event.target.value })} /></Field>
+            <Field label="Photo d’identité" full>
+              <IdentityPhotoField value={form.photoIdentite ?? null} onChange={(photo) => setForm({ ...form, photoIdentite: photo })} disabled={busy} />
+            </Field>
             <Field label="Mot de passe * (8 à 100 caractères, lettres et chiffres)" full>
               <PasswordInput required minLength={8} maxLength={100} autoComplete="new-password" disabled={busy} value={form.motDePasse} onChange={(value) => setForm({ ...form, motDePasse: value })} />
             </Field>
@@ -1682,6 +1723,23 @@ export function AdminUsers() {
             <Field label="Téléphone">
               <input className="iz-input" type="tel" maxLength={30} disabled={busy} value={String(editForm.telephone ?? '')} onChange={(event) => setEditForm({ ...editForm, telephone: event.target.value })} />
             </Field>
+            <Field label="Numéro de CIN">
+              <input className="iz-input" maxLength={40} disabled={busy} value={String(editForm.cin ?? '')} onChange={(event) => setEditForm({ ...editForm, cin: event.target.value })} />
+            </Field>
+            <Field label="Fonction">
+              <input className="iz-input" maxLength={120} disabled={busy} value={String(editForm.fonction ?? '')} onChange={(event) => setEditForm({ ...editForm, fonction: event.target.value })} />
+            </Field>
+            <Field label="Numéro matricule">
+              <input className="iz-input" maxLength={60} disabled={busy} value={String(editForm.matricule ?? '')} onChange={(event) => setEditForm({ ...editForm, matricule: event.target.value })} />
+            </Field>
+            <Field label="Photo d’identité" full>
+              <IdentityPhotoField
+                value={String(editForm.photoIdentite ?? '') || null}
+                existing={Boolean(editingAccount.photoDisponible) && !photoTouched}
+                disabled={busy}
+                onChange={(photo) => { setPhotoTouched(true); setEditForm({ ...editForm, photoIdentite: photo }) }}
+              />
+            </Field>
             <Field label="Nouveau mot de passe (facultatif, 8 caractères minimum)" full>
               <PasswordInput minLength={8} maxLength={100} autoComplete="new-password" disabled={busy} value={String(editForm.motDePasse ?? '')} onChange={(value) => setEditForm({ ...editForm, motDePasse: value })} />
             </Field>
@@ -1705,6 +1763,7 @@ export function AdminUsers() {
           </form>
         </Modal>
       )}
+      {viewingAgent && <AgentProfileDialog id={viewingAgent} onClose={() => setViewingAgent(null)} />}
     </>
   )
 }

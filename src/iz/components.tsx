@@ -20,6 +20,8 @@ interface AppContextValue {
   setLang: (lang: Lang) => void
   theme: 'light' | 'dark'
   toggleTheme: () => void
+  fontScale: number
+  setFontScale: (scale: number) => void
   t: (key: string, variables?: Record<string, string | number>) => string
   user: IZUser | null
   userLoading: boolean
@@ -45,6 +47,11 @@ function initialTheme(): 'light' | 'dark' {
   return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
 }
 
+function initialFontScale(): number {
+  const saved = Number(localStorage.getItem('izotra-font-scale'))
+  return saved >= 0.9 && saved <= 1.4 ? saved : 1
+}
+
 function currentRoute(): string {
   const hash = window.location.hash.replace(/^#/, '')
   if (!hash) {
@@ -60,6 +67,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return saved === 'mg' ? 'mg' : 'fr'
   })
   const [theme, setTheme] = useState<'light' | 'dark'>(initialTheme)
+  const [fontScale, setFontScaleState] = useState(initialFontScale)
   const [user, setUser] = useState<IZUser | null>(null)
   const [userLoading, setUserLoading] = useState(true)
   const [toast, setToast] = useState<Toast>(null)
@@ -69,6 +77,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     document.documentElement.dataset.theme = theme
     localStorage.setItem('izotra-theme', theme)
   }, [theme])
+  useEffect(() => {
+    // Échelle typographique globale : toutes les tailles en rem suivent.
+    document.documentElement.style.fontSize = `${16 * fontScale}px`
+    localStorage.setItem('izotra-font-scale', String(fontScale))
+  }, [fontScale])
   useEffect(() => {
     localStorage.setItem('izotra-lang', lang)
     document.documentElement.lang = lang
@@ -88,6 +101,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [toast])
 
   const setLang = useCallback((value: Lang) => setLangState(value), [])
+  const setFontScale = useCallback((value: number) => {
+    setFontScaleState(Math.min(1.4, Math.max(0.9, value)))
+  }, [])
   const toggleTheme = useCallback(
     () => setTheme((value) => (value === 'dark' ? 'light' : 'dark')),
     [],
@@ -115,10 +131,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo<AppContextValue>(
     () => ({
-      lang, setLang, theme, toggleTheme, t, user, userLoading, setUser, refreshUser,
-      toast, notify, route, navigate,
+      lang, setLang, theme, toggleTheme, fontScale, setFontScale, t, user, userLoading,
+      setUser, refreshUser, toast, notify, route, navigate,
     }),
-    [lang, setLang, theme, toggleTheme, t, user, userLoading, refreshUser, toast, notify, route, navigate],
+    [
+      lang, setLang, theme, toggleTheme, fontScale, setFontScale, t, user, userLoading,
+      refreshUser, toast, notify, route, navigate,
+    ],
   )
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>
@@ -140,6 +159,7 @@ const publicLinks = [
 export function Header() {
   const { t, theme, toggleTheme, lang, setLang, user, navigate, route } = useApp()
   const [passwordOpen, setPasswordOpen] = useState(false)
+  const [fontOpen, setFontOpen] = useState(false)
   const isDashboard = route.startsWith('/controle') || route.startsWith('/admin')
   const isAdmin = user?.role === 'admin' || user?.role === 'superadmin'
   // Application Android : scan et signalement pour tous, suivi pour les agents connectés.
@@ -193,6 +213,14 @@ export function Header() {
           <button className="iz-icon-btn" title={t('nav.theme')} onClick={toggleTheme}>
             {theme === 'dark' ? '☀' : '☾'}
           </button>
+          <button
+            className="iz-icon-btn"
+            title="Taille du texte"
+            aria-label="Modifier la taille du texte"
+            onClick={() => setFontOpen(true)}
+          >
+            Aa
+          </button>
           {user ? (
             <>
               <button className="iz-btn iz-btn-outline iz-btn-sm" onClick={() => navigate(isAdmin ? '/admin' : '/controle')}>
@@ -221,7 +249,42 @@ export function Header() {
     </header>
     {/* Hors du <header> : son backdrop-filter capturerait le fixed de l'overlay. */}
     {passwordOpen && <PasswordDialog onClose={() => setPasswordOpen(false)} />}
+    {fontOpen && <FontSizeDialog onClose={() => setFontOpen(false)} />}
     </>
+  )
+}
+
+const FONT_SCALES = [
+  { value: 0.9, label: 'Petit', sample: 'Aa' },
+  { value: 1, label: 'Normal', sample: 'Aa' },
+  { value: 1.15, label: 'Grand', sample: 'Aa' },
+  { value: 1.3, label: 'Très grand', sample: 'Aa' },
+]
+
+function FontSizeDialog({ onClose }: { onClose: () => void }) {
+  const { fontScale, setFontScale } = useApp()
+  return (
+    <Modal title="Taille du texte" onClose={onClose}>
+      <p className="iz-muted" style={{ marginBottom: 14 }}>
+        Choisissez la taille de police de l’application. Le réglage est conservé sur cet appareil.
+      </p>
+      <div className="iz-font-options">
+        {FONT_SCALES.map((option) => (
+          <button
+            key={option.value}
+            type="button"
+            className={`iz-font-option${fontScale === option.value ? ' active' : ''}`}
+            onClick={() => setFontScale(option.value)}
+          >
+            <span style={{ fontSize: `${option.value}em` }}>{option.sample}</span>
+            <small>{option.label}</small>
+          </button>
+        ))}
+      </div>
+      <div className="iz-flex" style={{ marginTop: 16, justifyContent: 'flex-end' }}>
+        <button className="iz-btn iz-btn-primary" onClick={onClose}>Terminé</button>
+      </div>
+    </Modal>
   )
 }
 

@@ -10,6 +10,7 @@ import {
 } from './components'
 import { DashboardShell } from './dashboard'
 import { DataTable } from './DataTable'
+import { AgentIdentityButton, AgentProfileDialog } from './profiles'
 
 const when = (value?: string | null) => (value ? String(value).slice(0, 16).replace('T', ' ') : '—')
 
@@ -23,6 +24,7 @@ export function ControlLayout({ children }: { children: ReactNode }) {
     { path: '/controle/signals', label: t('control.signals'), icon: '📣' },
     { path: '/controle/fourriere', label: 'Fourrière', icon: 'P' },
     { path: '/signaler', label: 'Faire un signalement', icon: '+' },
+    { path: '/controle/profil', label: 'Mon profil agent', icon: '👤' },
     { path: '/controle/manuel', label: 'Manuel d’utilisation', icon: '📘' },
   ]
   return (
@@ -39,11 +41,22 @@ export function ControlLayout({ children }: { children: ReactNode }) {
 }
 
 export function ControlDashboard() {
-  const { t, navigate } = useApp()
+  const { t, navigate, user } = useApp()
   const { data, loading } = useAsync(() => izApi.controlDashboard(), [])
   return (
     <>
       <PageHead title={t('control.dashboard')} subtitle={t('app.tagline')} />
+      {user?.role === 'controleur' && !user.profilComplet && (
+        <div style={{ marginBottom: 16 }}>
+          <Alert type="error">
+            Votre profil agent est incomplet. Renseignez le CIN, la fonction, le matricule, le téléphone et la photo
+            d’identité pour pouvoir scanner, signaler ou mettre un véhicule en fourrière.{' '}
+            <button className="iz-btn iz-btn-primary iz-btn-sm" onClick={() => navigate('/controle/profil')}>
+              Compléter mon profil
+            </button>
+          </Alert>
+        </div>
+      )}
       {loading ? <Loading /> : (
         <>
           <div className="iz-grid iz-grid-4">
@@ -71,12 +84,13 @@ export function ControlDashboard() {
 }
 
 export function ScanPage() {
-  const { t, notify, navigate, route } = useApp()
+  const { t, notify, navigate, route, user } = useApp()
   const [plate, setPlate] = useState(new URLSearchParams(route.split('?')[1]).get('plaque') ?? '')
   const [observation, setObservation] = useState('')
   const [position, setPosition] = useState<{ latitude: number; longitude: number } | null>(null)
   const [result, setResult] = useState<IZRecord | null>(null)
   const [busy, setBusy] = useState(false)
+  const profilBloque = user?.role === 'controleur' && !user.profilComplet
 
   const submit = async (event?: FormEvent) => {
     event?.preventDefault()
@@ -102,6 +116,14 @@ export function ScanPage() {
   return (
     <>
       <PageHead title={t('control.scanTitle')} subtitle={t('control.scanSubtitle')} />
+      {profilBloque && (
+        <div style={{ marginBottom: 16 }}>
+          <Alert type="error">
+            Complétez votre profil agent avant de scanner un véhicule.{' '}
+            <button className="iz-btn iz-btn-primary iz-btn-sm" onClick={() => navigate('/controle/profil')}>Mon profil agent</button>
+          </Alert>
+        </div>
+      )}
       <div className="iz-card" style={{ maxWidth: 640 }}>
         <QrScanner onScan={(value) => navigate(`/bus?${new URLSearchParams({ plaque: value })}`)} />
         <form className="iz-form-grid" onSubmit={submit}>
@@ -112,7 +134,7 @@ export function ScanPage() {
             <textarea className="iz-textarea" value={observation} onChange={(e) => setObservation(e.target.value)} />
           </Field>
           <div className="full iz-flex iz-wrap">
-            <button className="iz-btn iz-btn-primary" disabled={busy} type="submit">
+            <button className="iz-btn iz-btn-primary" disabled={busy || profilBloque} type="submit">
               {busy ? <span className="iz-spinner" /> : null}{t('control.scan')}
             </button>
             <button className="iz-btn iz-btn-outline" type="button" onClick={locate}>📍 GPS</button>
@@ -149,7 +171,9 @@ export function ScansPage() {
   const { t, user, notify } = useApp()
   const { data, loading, reload } = useAsync(() => izApi.scans(), [])
   const [deleting, setDeleting] = useState<IZRecord | null>(null)
+  const [viewingAgent, setViewingAgent] = useState<number | null>(null)
   const isSuper = user?.role === 'superadmin'
+  const isAdmin = user?.role === 'admin' || user?.role === 'superadmin'
   const remove = async () => {
     if (!deleting) return
     try {
@@ -168,14 +192,30 @@ export function ScansPage() {
         <DataTable
           rows={data ?? []}
           rowKey={(scan) => String(scan.id)}
-          searchText={(scan) => [scan.immatriculation, scan.resultat, scan.controleurNom, scan.observation].join(' ')}
+          searchText={(scan) => [scan.immatriculation, scan.resultat, scan.controleurNom, scan.agentPrenom, scan.agentCin, scan.agentFonction, scan.agentMatricule, scan.agentTelephone, scan.observation].join(' ')}
           initialSort="scanTime"
           empty={<Empty />}
           columns={[
             { key: 'scanTime', label: t('common.date'), sortValue: (scan) => String(scan.scanTime ?? ''), render: (scan) => <span className="iz-small iz-nowrap">{when(scan.scanTime)}</span> },
             { key: 'immatriculation', label: t('search.plate'), sortValue: (scan) => String(scan.immatriculation ?? ''), render: (scan) => <span className="iz-mono iz-upper">{scan.immatriculation ?? '—'}</span> },
             { key: 'resultat', label: t('common.status'), sortValue: (scan) => String(scan.resultat ?? ''), render: (scan) => <StatusBadge status={scan.resultat} /> },
-            { key: 'controleurNom', label: t('search.owner'), sortValue: (scan) => String(scan.controleurNom ?? ''), render: (scan) => <>{scan.controleurNom ?? '—'}</> },
+            {
+              key: 'controleurNom', label: 'Contrôleur',
+              sortValue: (scan) => `${scan.agentPrenom ?? ''} ${scan.controleurNom ?? ''}`,
+              render: (scan) => (
+                <AgentIdentityButton
+                  id={isAdmin ? scan.agentId : null}
+                  name={[scan.agentPrenom, scan.controleurNom].filter(Boolean).join(' ') || scan.controleurNom}
+                  onOpen={setViewingAgent}
+                />
+              ),
+            },
+            ...(isAdmin ? [
+              { key: 'agentCin', label: 'CIN', sortValue: (scan: IZRecord) => String(scan.agentCin ?? ''), render: (scan: IZRecord) => <span className="iz-small iz-mono">{scan.agentCin ?? '—'}</span> },
+              { key: 'agentFonction', label: 'Fonction', sortValue: (scan: IZRecord) => String(scan.agentFonction ?? ''), render: (scan: IZRecord) => <span className="iz-small">{scan.agentFonction ?? '—'}</span> },
+              { key: 'agentMatricule', label: 'Matricule', sortValue: (scan: IZRecord) => String(scan.agentMatricule ?? ''), render: (scan: IZRecord) => <span className="iz-small iz-mono">{scan.agentMatricule ?? '—'}</span> },
+              { key: 'agentTelephone', label: 'Téléphone', sortValue: (scan: IZRecord) => String(scan.agentTelephone ?? ''), render: (scan: IZRecord) => <span className="iz-small">{scan.agentTelephone ?? '—'}</span> },
+            ] : []),
             { key: 'observation', label: t('signal.address'), sortValue: (scan) => String(scan.observation ?? ''), render: (scan) => <span className="iz-small">{scan.observation ?? '—'}</span> },
           ]}
           actions={isSuper ? (scan) => (
@@ -183,6 +223,7 @@ export function ScansPage() {
           ) : undefined}
         />
       )}
+      {viewingAgent && <AgentProfileDialog id={viewingAgent} onClose={() => setViewingAgent(null)} />}
       {deleting && (
         <ConfirmDialog
           message={`Supprimer définitivement le scan du ${when(deleting.scanTime)} ?`}
@@ -198,7 +239,9 @@ export function InfractionsPage() {
   const { t, notify, user } = useApp()
   const { data, loading, reload } = useAsync(() => izApi.infractions(), [])
   const [deleting, setDeleting] = useState<IZRecord | null>(null)
+  const [viewingAgent, setViewingAgent] = useState<number | null>(null)
   const isSuper = user?.role === 'superadmin'
+  const isAdmin = user?.role === 'admin' || user?.role === 'superadmin'
   const setStatut = async (id: number, statut: string) => {
     try {
       await izApi.updateInfraction(id, { statut })
@@ -226,7 +269,7 @@ export function InfractionsPage() {
         <DataTable
           rows={data ?? []}
           rowKey={(item) => String(item.id)}
-          searchText={(item) => [item.immatriculation, item.type, item.statut].join(' ')}
+          searchText={(item) => [item.immatriculation, item.type, item.statut, item.controleurNom, item.agentPrenom, item.agentCin, item.agentFonction, item.agentMatricule, item.agentTelephone].join(' ')}
           initialSort="dateInfraction"
           empty={<Empty />}
           columns={[
@@ -235,6 +278,23 @@ export function InfractionsPage() {
             { key: 'type', label: t('signal.category'), sortValue: (item) => String(item.type ?? ''), render: (item) => <>{item.type}</> },
             { key: 'montant', label: t('admin.amount'), sortValue: (item) => Number(item.montant ?? 0), render: (item) => <>{item.montant} Ar</> },
             { key: 'statut', label: t('common.status'), sortValue: (item) => String(item.statut ?? ''), render: (item) => <StatusBadge status={item.statut} /> },
+            {
+              key: 'controleurNom', label: 'Agent',
+              sortValue: (item) => `${item.agentPrenom ?? ''} ${item.controleurNom ?? ''}`,
+              render: (item) => (
+                <AgentIdentityButton
+                  id={isAdmin ? item.agentId : null}
+                  name={[item.agentPrenom, item.controleurNom].filter(Boolean).join(' ') || item.controleurNom}
+                  onOpen={setViewingAgent}
+                />
+              ),
+            },
+            ...(isAdmin ? [
+              { key: 'agentCin', label: 'CIN', sortValue: (item: IZRecord) => String(item.agentCin ?? ''), render: (item: IZRecord) => <span className="iz-small iz-mono">{item.agentCin ?? '—'}</span> },
+              { key: 'agentFonction', label: 'Fonction', sortValue: (item: IZRecord) => String(item.agentFonction ?? ''), render: (item: IZRecord) => <span className="iz-small">{item.agentFonction ?? '—'}</span> },
+              { key: 'agentMatricule', label: 'Matricule', sortValue: (item: IZRecord) => String(item.agentMatricule ?? ''), render: (item: IZRecord) => <span className="iz-small iz-mono">{item.agentMatricule ?? '—'}</span> },
+              { key: 'agentTelephone', label: 'Téléphone', sortValue: (item: IZRecord) => String(item.agentTelephone ?? ''), render: (item: IZRecord) => <span className="iz-small">{item.agentTelephone ?? '—'}</span> },
+            ] : []),
           ]}
           actions={(item) => (
             <>
@@ -255,6 +315,7 @@ export function InfractionsPage() {
           onConfirm={() => void remove()}
         />
       )}
+      {viewingAgent && <AgentProfileDialog id={viewingAgent} onClose={() => setViewingAgent(null)} />}
     </>
   )
 }
@@ -263,6 +324,7 @@ export function ControlSignalsPage() {
   const { t, notify, user, navigate, theme } = useApp()
   const { data, loading, reload } = useAsync(() => izApi.controlSignals(), [])
   const [deleting, setDeleting] = useState<IZRecord | null>(null)
+  const [viewingAgent, setViewingAgent] = useState<number | null>(null)
   const isAdmin = user?.role === 'admin' || user?.role === 'superadmin'
   // Scans QR du public : positions transmises uniquement aux administrateurs.
   const { data: scans, reload: reloadScans } = useAsync(
@@ -368,7 +430,7 @@ export function ControlSignalsPage() {
         <DataTable
           rows={data ?? []}
           rowKey={(signal) => String(signal.id)}
-          searchText={(signal) => [signal.reference, signal.immatriculation, signal.categorie, signal.description, signal.statut].join(' ')}
+          searchText={(signal) => [signal.reference, signal.immatriculation, signal.categorie, signal.description, signal.statut, signal.controleurNom, signal.agentPrenom, signal.agentCin, signal.agentFonction, signal.agentMatricule, signal.agentTelephone].join(' ')}
           initialSort="createdAt"
           empty={<Empty />}
           columns={[
@@ -377,6 +439,23 @@ export function ControlSignalsPage() {
             { key: 'categorie', label: t('signal.category'), sortValue: (signal) => String(signal.categorie ?? ''), render: (signal) => <>{signal.categorie}</> },
             { key: 'description', label: t('signal.description'), sortValue: (signal) => String(signal.description ?? ''), render: (signal) => <span className="iz-small" style={{ maxWidth: 260 }}>{signal.description}</span> },
             { key: 'createdAt', label: t('common.date'), sortValue: (signal) => String(signal.createdAt ?? ''), render: (signal) => <span className="iz-small iz-nowrap">{when(signal.createdAt)}</span> },
+            {
+              key: 'agent', label: 'Agent',
+              sortValue: (signal) => `${signal.agentPrenom ?? ''} ${signal.controleurNom ?? ''}`,
+              render: (signal) => signal.agentId ? (
+                <AgentIdentityButton
+                  id={isAdmin ? signal.agentId : null}
+                  name={[signal.agentPrenom, signal.controleurNom].filter(Boolean).join(' ')}
+                  onOpen={setViewingAgent}
+                />
+              ) : <span className="iz-small iz-muted">Signal public</span>,
+            },
+            ...(isAdmin ? [
+              { key: 'agentCin', label: 'CIN', sortValue: (signal: IZRecord) => String(signal.agentCin ?? ''), render: (signal: IZRecord) => <span className="iz-small iz-mono">{signal.agentCin ?? '—'}</span> },
+              { key: 'agentFonction', label: 'Fonction', sortValue: (signal: IZRecord) => String(signal.agentFonction ?? ''), render: (signal: IZRecord) => <span className="iz-small">{signal.agentFonction ?? '—'}</span> },
+              { key: 'agentMatricule', label: 'Matricule', sortValue: (signal: IZRecord) => String(signal.agentMatricule ?? ''), render: (signal: IZRecord) => <span className="iz-small iz-mono">{signal.agentMatricule ?? '—'}</span> },
+              { key: 'agentTelephone', label: 'Téléphone', sortValue: (signal: IZRecord) => String(signal.agentTelephone ?? ''), render: (signal: IZRecord) => <span className="iz-small">{signal.agentTelephone ?? '—'}</span> },
+            ] : []),
             { key: 'position', label: 'Position', sortValue: (signal) => (signal.latitude == null ? '' : 'GPS'), render: (signal) => signal.latitude != null && signal.longitude != null ? (
               <button className="iz-btn iz-btn-ghost iz-btn-sm" onClick={() => navigate(`/suivi?ref=${encodeURIComponent(String(signal.reference))}`)}>🗺 Voir</button>
             ) : <span className="iz-small iz-muted">—</span> },
@@ -429,6 +508,7 @@ export function ControlSignalsPage() {
           onConfirm={() => void removeScan()}
         />
       )}
+      {viewingAgent && <AgentProfileDialog id={viewingAgent} onClose={() => setViewingAgent(null)} />}
     </>
   )
 }

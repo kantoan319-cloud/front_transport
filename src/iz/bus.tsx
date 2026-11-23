@@ -7,6 +7,7 @@ import { Alert, ConfirmDialog, ExportButton, Field, Loading, Modal, PageHead, St
 import { DataTable } from './DataTable'
 import { attestationState } from './attestation-utils'
 import { photoDataUrl } from './photo'
+import { AgentIdentityButton, AgentProfileDialog } from './profiles'
 
 export function plateFromQr(raw: string): string {
   let value = raw.trim()
@@ -253,6 +254,7 @@ export function BusPage({ plate }: { plate: string }) {
   const { user, route, navigate, notify } = useApp()
   const staff = (user?.role === 'admin' || user?.role === 'superadmin') || user?.role === 'controleur'
   const isAdmin = user?.role === 'admin' || user?.role === 'superadmin'
+  const profilBloque = user?.role === 'controleur' && !user.profilComplet
   const { data, loading, error, reload, setData } = useAsync(() => staff ? izApi.controlVehicle(plate) : izApi.vehicle(plate), [plate, staff])
   const attestations = useAsync(
     () => isAdmin && data?.immatriculation
@@ -299,11 +301,19 @@ export function BusPage({ plate }: { plate: string }) {
           canEditPhoto={staff}
           onPhotoChanged={(photoUrl) => setData({ ...data, photoUrl })}
         />
+        {profilBloque && (
+          <div style={{ marginTop: 14 }}>
+            <Alert type="error">
+              Complétez votre profil agent pour contrôler ou mettre un véhicule en fourrière.{' '}
+              <button className="iz-btn iz-btn-primary iz-btn-sm" onClick={() => navigate('/controle/profil')}>Mon profil agent</button>
+            </Alert>
+          </div>
+        )}
         <div className="iz-flex iz-wrap" style={{ marginTop: 20 }}>
           <button className="iz-btn iz-btn-primary" onClick={() => navigate(`/signaler?${new URLSearchParams({ plaque: data.immatriculation })}`)}>Signaler un problème</button>
           {(user?.role === 'admin' || user?.role === 'superadmin') && <button className="iz-btn iz-btn-outline" onClick={() => setQr(true)}>Afficher le QR code</button>}
           {staff && <button className="iz-btn iz-btn-outline" onClick={() => navigate(`/controle/scan?${new URLSearchParams({ plaque: data.immatriculation })}`)}>Enregistrer un contrôle</button>}
-          {staff && !data.activeImpound && data.statut !== 'En fourrière' && <button className="iz-btn iz-btn-danger" onClick={() => setAction('impound')}>Mettre en fourrière</button>}
+          {staff && !data.activeImpound && data.statut !== 'En fourrière' && <button className="iz-btn iz-btn-danger" disabled={profilBloque} onClick={() => setAction('impound')}>Mettre en fourrière</button>}
           {(user?.role === 'admin' || user?.role === 'superadmin') && data.activeImpound && <button className="iz-btn iz-btn-outline" onClick={() => setAction('release')}>Autoriser la sortie de fourrière</button>}
           {!staff && <button className="iz-btn iz-btn-outline" onClick={() => navigate(`/connexion?${new URLSearchParams({ retour: `/bus?${new URLSearchParams({ plaque: plate })}` })}`)}>Connexion contrôleur / administrateur</button>}
         </div>
@@ -356,7 +366,9 @@ export function ImpoundsPage() {
   const { navigate, user, notify } = useApp()
   const { data, loading, error, reload } = useAsync(() => izApi.impounds(), [])
   const [deleting, setDeleting] = useState<IZRecord | null>(null)
+  const [viewingAgent, setViewingAgent] = useState<number | null>(null)
   const isSuper = user?.role === 'superadmin'
+  const isAdmin = user?.role === 'admin' || user?.role === 'superadmin'
   const remove = async () => {
     if (!deleting) return
     try {
@@ -375,13 +387,29 @@ export function ImpoundsPage() {
         rows={data ?? []}
         rowKey={(row) => String(row.id)}
         rowLabel={(row) => String(row.immatriculation ?? row.id)}
-        searchText={(row) => [row.immatriculation, row.motif, row.createdByName, row.releasedByName, row.statutPrecedent].join(' ')}
+        searchText={(row) => [row.immatriculation, row.motif, row.createdByName, row.agentNom, row.agentPrenom, row.agentCin, row.agentFonction, row.agentMatricule, row.agentTelephone, row.releasedByName, row.statutPrecedent].join(' ')}
         initialSort="createdAt"
         empty={<p className="iz-list-empty">Aucun véhicule en fourrière.</p>}
         columns={[
           { key: 'immatriculation', label: 'Véhicule', sortValue: (row) => String(row.immatriculation ?? ''), render: (row) => <button className="iz-btn iz-btn-outline iz-btn-sm" onClick={() => navigate(`/bus?${new URLSearchParams({ plaque: row.immatriculation })}`)}>{row.immatriculation}</button> },
           { key: 'motif', label: 'Motif', sortValue: (row) => String(row.motif ?? ''), render: (row) => <>{row.motif}</> },
-          { key: 'createdByName', label: 'Agent', sortValue: (row) => String(row.createdByName ?? ''), render: (row) => <>{row.createdByName}</> },
+          {
+            key: 'createdByName', label: 'Agent',
+            sortValue: (row) => String(row.agentNom ?? row.createdByName ?? ''),
+            render: (row) => (
+              <AgentIdentityButton
+                id={isAdmin ? row.agentId : null}
+                name={[row.agentPrenom, row.agentNom].filter(Boolean).join(' ') || row.createdByName}
+                onOpen={setViewingAgent}
+              />
+            ),
+          },
+          ...(isAdmin ? [
+            { key: 'agentCin', label: 'CIN', sortValue: (row: IZRecord) => String(row.agentCin ?? ''), render: (row: IZRecord) => <span className="iz-small iz-mono">{row.agentCin ?? '—'}</span> },
+            { key: 'agentFonction', label: 'Fonction', sortValue: (row: IZRecord) => String(row.agentFonction ?? ''), render: (row: IZRecord) => <span className="iz-small">{row.agentFonction ?? '—'}</span> },
+            { key: 'agentMatricule', label: 'Matricule', sortValue: (row: IZRecord) => String(row.agentMatricule ?? ''), render: (row: IZRecord) => <span className="iz-small iz-mono">{row.agentMatricule ?? '—'}</span> },
+            { key: 'agentTelephone', label: 'Téléphone', sortValue: (row: IZRecord) => String(row.agentTelephone ?? ''), render: (row: IZRecord) => <span className="iz-small">{row.agentTelephone ?? '—'}</span> },
+          ] : []),
           { key: 'createdAt', label: 'Entrée', sortValue: (row) => String(row.createdAt ?? ''), render: (row) => <span className="iz-small iz-nowrap">{String(row.createdAt).slice(0, 16).replace('T', ' ')}</span> },
           { key: 'releasedAt', label: 'Sortie', sortValue: (row) => String(row.releasedAt ?? ''), render: (row) => <span className="iz-small iz-nowrap">{row.releasedAt ? String(row.releasedAt).slice(0, 16).replace('T', ' ') : 'En fourrière'}</span> },
         ]}
@@ -397,5 +425,6 @@ export function ImpoundsPage() {
         onConfirm={() => void remove()}
       />
     )}
+    {viewingAgent && <AgentProfileDialog id={viewingAgent} onClose={() => setViewingAgent(null)} />}
   </>
 }

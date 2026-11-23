@@ -369,9 +369,14 @@ export function SignalPage() {
   const [reference, setReference] = useState('')
   const [sending, setSending] = useState(false)
   const set = (key: string, value: string) => setForm((current) => ({ ...current, [key]: value }))
+  const profilBloque = user?.role === 'controleur' && !user.profilComplet
 
   const submit = async (event?: FormEvent) => {
     event?.preventDefault()
+    if (profilBloque) {
+      notify('Complétez votre profil agent avant d’envoyer un signalement.', 'error')
+      return
+    }
     if (!form.immatriculation || !form.categorie || form.description.length < 10) {
       notify(t('signal.required'), 'error')
       return
@@ -387,7 +392,10 @@ export function SignalPage() {
         notify('La position GPS est obligatoire : activez la localisation puis réessayez.', 'error')
         return
       }
-      const result = await izApi.createSignal({ ...form, ...coords })
+      // Agent connecté : le signalement porte son identité pour l'administration.
+      const result = user
+        ? await izApi.createControlSignal({ ...form, ...coords })
+        : await izApi.createSignal({ ...form, ...coords })
       setReference(result.reference)
       notify(t('signal.success'), 'success')
     } catch (error) {
@@ -462,6 +470,14 @@ export function SignalPage() {
           </div>
         ) : (
           <form className="iz-form-grid" onSubmit={submit}>
+            {profilBloque && (
+              <div className="full">
+                <Alert type="error">
+                  Complétez votre profil agent (CIN, fonction, matricule, téléphone et photo d’identité) avant d’envoyer un signalement.{' '}
+                  <button type="button" className="iz-btn iz-btn-primary iz-btn-sm" onClick={() => navigate('/controle/profil')}>Mon profil agent</button>
+                </Alert>
+              </div>
+            )}
             <Field label={t('signal.plate')}>
               <input className="iz-input iz-upper" required value={form.immatriculation} onChange={(e) => set('immatriculation', e.target.value)} placeholder="0169 TBF" />
             </Field>
@@ -492,7 +508,7 @@ export function SignalPage() {
               <input className="iz-input" type="file" accept="image/*" onChange={(e) => onPhoto(e.target.files?.[0])} />
             </Field>
             <div className="full">
-              <button className="iz-btn iz-btn-primary" disabled={sending} type="submit">
+              <button className="iz-btn iz-btn-primary" disabled={sending || profilBloque} type="submit">
                 {sending ? <span className="iz-spinner" /> : null}{t('signal.send')}
               </button>
             </div>

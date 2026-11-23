@@ -4,8 +4,27 @@ export interface IZUser {
   id: string | number
   firstName?: string
   lastName?: string
+  nom?: string
+  prenom?: string
   email: string
   role?: string
+  telephone?: string | null
+  cin?: string | null
+  fonction?: string | null
+  matricule?: string | null
+  photoIdentite?: string | null
+  profilComplet?: boolean
+}
+
+export interface IZAgentProfile {
+  nom?: string | null
+  prenom?: string | null
+  email?: string | null
+  telephone?: string | null
+  cin?: string | null
+  fonction?: string | null
+  matricule?: string | null
+  photoIdentite?: string | null
 }
 
 export type IZAccountRole = 'admin' | 'controleur' | 'superadmin'
@@ -17,6 +36,10 @@ export interface IZCreateUser {
   motDePasse: string
   telephone?: string
   role: IZAccountRole
+  cin?: string
+  fonction?: string
+  matricule?: string
+  photoIdentite?: string | null
 }
 
 export interface VehicleQuery {
@@ -97,6 +120,8 @@ const send = <T>(path: string, method: string, data: unknown) =>
 export const izApi = {
   // ---------- Authentification ----------
   me: () => request<{ user: IZUser }>('/auth/me').then((result) => result.user),
+  profile: () => request<IZUser>('/auth/profile'),
+  updateProfile: (data: IZAgentProfile) => send<IZUser>('/auth/profile', 'PATCH', data),
   login: (email: string, password: string) =>
     send<{ user: IZUser }>('/auth/login', 'POST', { email, password }).then((result) => result.user),
   logout: () => request<void>('/auth/logout', { method: 'POST' }),
@@ -142,6 +167,8 @@ export const izApi = {
   updateInfraction: (id: number, data: IZRecord) =>
     send<IZRecord>(`/iz/control/infractions/${id}/statut`, 'PATCH', data),
   controlSignals: (statut = '') => request<IZRecord[]>(`/iz/control/signals${queryString({ statut })}`),
+  createControlSignal: (data: IZRecord) =>
+    send<{ id: number; reference: string; statut: string }>('/iz/control/signals', 'POST', data),
   resolveSignal: (id: number, data: IZRecord) =>
     send<IZRecord>(`/iz/control/signals/${id}`, 'PATCH', data),
   deleteScan: (id: number) => request<void>(`/iz/control/scans/${id}`, { method: 'DELETE' }),
@@ -219,6 +246,7 @@ export const izApi = {
   deleteUser: (id: number) => request<void>(`/users/${id}`, { method: 'DELETE' }),
   updateUserDetails: (id: number, data: IZRecord) =>
     send<IZRecord>(`/users/${id}/details`, 'PATCH', data),
+  agentProfile: (id: number | string) => request<IZAgentProfile>(`/users/${id}/profile`),
   passwordResetRequests: () => request<IZRecord[]>('/users/password-reset-requests'),
   resolvePasswordResetRequest: (id: number, data: IZRecord) =>
     send<IZRecord>(`/users/password-reset-requests/${id}`, 'PATCH', data),
