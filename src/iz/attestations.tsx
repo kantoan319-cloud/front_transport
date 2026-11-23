@@ -66,6 +66,7 @@ export function AdminAttestations() {
   const { notify, navigate } = useApp()
   const [type, setType] = useState<AttestationType>('capacite')
   const [unlinkedOnly, setUnlinkedOnly] = useState(false)
+  const [showHistory, setShowHistory] = useState(false)
   const [status, setStatus] = useState('')
   const [target, setTarget] = useState<IZRecord | null>(null)
   const [detail, setDetail] = useState<IZRecord | null>(null)
@@ -74,8 +75,8 @@ export function AdminAttestations() {
   const [busy, setBusy] = useState(false)
 
   const { data, loading, error, reload, setData } = useAsync(
-    () => izApi.adminAttestations(type),
-    [type],
+    () => izApi.adminAttestations(type, showHistory),
+    [type, showHistory],
   )
   const vehicles = useAsync(() => izApi.adminVehicles({ limit: 500 }), [])
 
@@ -154,7 +155,7 @@ export function AdminAttestations() {
     <>
       <PageHead
         title="Capacité & receveur"
-        subtitle="Attestations importées : consultez-les et liez chaque attestation de capacité ou de receveur à son bus."
+        subtitle="Une seule fiche par titulaire (la plus récente, ou celle déjà liée à un bus). Consultez l’historique si nécessaire."
       />
 
       <div className="iz-card" style={{ marginBottom: 16 }}>
@@ -182,6 +183,14 @@ export function AdminAttestations() {
             Seulement les non liées
           </label>
           <label className="iz-flex iz-small" style={{ gap: 6, alignItems: 'center' }}>
+            <input
+              type="checkbox"
+              checked={showHistory}
+              onChange={(event) => setShowHistory(event.target.checked)}
+            />
+            Inclure les anciennes versions
+          </label>
+          <label className="iz-flex iz-small" style={{ gap: 6, alignItems: 'center' }}>
             Statut
             <select className="iz-select" value={status} onChange={(event) => setStatus(event.target.value)}>
               <option value="">Tous</option>
@@ -192,7 +201,7 @@ export function AdminAttestations() {
           </label>
           {data && (
             <span className="iz-small iz-muted">
-              {rows.length} sur {data.length} attestations
+              {rows.length} sur {data.length} attestations{showHistory ? ' (historique)' : ' uniques'}
             </span>
           )}
         </div>
@@ -229,10 +238,7 @@ export function AdminAttestations() {
             {
               key: 'numero', label: 'N° attestation',
               sortValue: (row) => number(row),
-              render: (row) => <div>
-                <span className="iz-mono iz-small">{number(row)}</span>
-                {row.doublon === true && <div><span className="iz-badge">Doublon</span></div>}
-              </div>,
+              render: (row) => <span className="iz-mono iz-small">{number(row)}</span>,
             },
             {
               key: 'validite', label: 'Validité',
