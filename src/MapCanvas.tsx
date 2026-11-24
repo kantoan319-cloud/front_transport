@@ -52,6 +52,8 @@ interface MapCanvasProps {
   onSelect: (key: string) => void
   onMove: (center: Coordinates, zoom: number) => void
   onMapClick?: (coordinates: Coordinates) => void
+  zoomLabels?: { group: string; zoomIn: string; zoomOut: string }
+  mapLabel?: string
 }
 
 // Styles vectoriels libres (aucune cle d'API), avec batiments et routes.
@@ -682,6 +684,7 @@ export default function MapCanvas(props: MapCanvasProps) {
       })
       map = instance
       mapRef.current = instance
+      instance.getCanvas().setAttribute('aria-label', propsRef.current.mapLabel ?? 'Carte')
       if (propsRef.current.viewMode === '3d') instance.jumpTo({ pitch: 55 })
 
       let dernierClicPoint = 0
@@ -846,6 +849,13 @@ export default function MapCanvas(props: MapCanvasProps) {
     }
   }, [props.vehicle, props.follow])
 
+  // Libelle accessible de la carte, mis a jour avec la langue de l'interface.
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !props.mapLabel) return
+    map.getCanvas().setAttribute('aria-label', props.mapLabel)
+  }, [props.mapLabel])
+
   // Recentrage demande par la page (selection dans la liste, actualisation).
   useEffect(() => {
     const map = mapRef.current
@@ -861,9 +871,9 @@ export default function MapCanvas(props: MapCanvasProps) {
   return (
     <>
       <div ref={containerRef} className="map-page__canvas" />
-      <div className="map-page__zoom" role="group" aria-label="Zoom de la carte">
-        <button type="button" aria-label="Zoom avant" onClick={() => mapRef.current?.zoomIn()}>+</button>
-        <button type="button" aria-label="Zoom arrière" onClick={() => mapRef.current?.zoomOut()}>−</button>
+      <div className="map-page__zoom" role="group" aria-label={props.zoomLabels?.group ?? 'Zoom de la carte'}>
+        <button type="button" aria-label={props.zoomLabels?.zoomIn ?? 'Zoom avant'} onClick={() => mapRef.current?.zoomIn()}>+</button>
+        <button type="button" aria-label={props.zoomLabels?.zoomOut ?? 'Zoom arrière'} onClick={() => mapRef.current?.zoomOut()}>−</button>
       </div>
     </>
   )

@@ -16,7 +16,7 @@ function sansAccents(valeur: string) {
 export function DashboardShell({
   title, links, children,
 }: { title: string; links: DashLink[]; children: ReactNode }) {
-  const { route, navigate, unreadNotifications } = useApp()
+  const { t, route, navigate, unreadNotifications } = useApp()
   const [recherche, setRecherche] = useState('')
   const terme = sansAccents(recherche.trim())
   const visibles = terme
@@ -31,8 +31,8 @@ export function DashboardShell({
           type="search"
           value={recherche}
           onChange={(event) => setRecherche(event.target.value)}
-          placeholder="Rechercher un paramètre…"
-          aria-label="Rechercher un paramètre"
+          placeholder={t('sidebar.search')}
+          aria-label={t('sidebar.searchLabel')}
         />
         {visibles.map((link) => (
           <a
@@ -49,7 +49,7 @@ export function DashboardShell({
           </a>
         ))}
         {!visibles.length && (
-          <div className="iz-small iz-muted iz-sidebar-empty">Aucun résultat.</div>
+          <div className="iz-small iz-muted iz-sidebar-empty">{t('sidebar.empty')}</div>
         )}
       </aside>
       <div className="iz-dashboard-main">{children}</div>

@@ -4,6 +4,7 @@ import MapCanvas from '../MapCanvas'
 import type { MapLine, MapPoint } from '../MapCanvas'
 import { izApi } from './api'
 import type { IZRecord } from './api'
+import { translate, translateError, translateValue } from './i18n'
 import {
   Alert, Empty, Field, Loading, Modal, PageHead, PasswordInput, StatusBadge, geolocate, useApp, useAsync,
 } from './components'
@@ -58,22 +59,22 @@ export function HomePage() {
 
       <section className="iz-section" style={{ marginTop: 28 }}>
         <div className="iz-grid iz-grid-4">
-          <button type="button" className="iz-card iz-stat iz-card-hover iz-stat-link" onClick={() => navigate('/recherche')} title="Rechercher un bus">
+          <button type="button" className="iz-card iz-stat iz-card-hover iz-stat-link" onClick={() => navigate('/recherche')} title={t('home.searchTitleAttr')}>
             <div className="iz-stat-icon">🚐</div>
             <div className="iz-stat-value">{data?.vehicules ?? '—'}</div>
             <div className="iz-stat-label">{t('home.statVehicles')}</div>
           </button>
-          <button type="button" className="iz-card iz-stat iz-card-hover iz-stat-link" onClick={() => navigate('/cooperatives')} title="Voir les coopératives">
+          <button type="button" className="iz-card iz-stat iz-card-hover iz-stat-link" onClick={() => navigate('/cooperatives')} title={t('home.coopsTitleAttr')}>
             <div className="iz-stat-icon">🤝</div>
             <div className="iz-stat-value">{data?.cooperatives ?? '—'}</div>
             <div className="iz-stat-label">{t('home.statCoops')}</div>
           </button>
-          <button type="button" className="iz-card iz-stat iz-card-hover iz-stat-link" onClick={() => navigate('/admin/owners')} title="Voir les propriétaires">
+          <button type="button" className="iz-card iz-stat iz-card-hover iz-stat-link" onClick={() => navigate('/admin/owners')} title={t('home.ownersTitleAttr')}>
             <div className="iz-stat-icon">👥</div>
             <div className="iz-stat-value">{data?.proprietaires ?? '—'}</div>
             <div className="iz-stat-label">{t('home.statOwners')}</div>
           </button>
-          <button type="button" className="iz-card iz-stat iz-card-hover iz-stat-link" onClick={() => navigate('/suivi')} title="Suivre un signalement">
+          <button type="button" className="iz-card iz-stat iz-card-hover iz-stat-link" onClick={() => navigate('/suivi')} title={t('home.trackTitleAttr')}>
             <div className="iz-stat-icon">📣</div>
             <div className="iz-stat-value">{data?.signalements ?? '—'}</div>
             <div className="iz-stat-label">{t('home.statSignals')}</div>
@@ -84,7 +85,7 @@ export function HomePage() {
       <section className="iz-section">
         <div className="iz-section-head">
           <div>
-            <div className="iz-eyebrow">Gestion de Bus CU/ABE</div>
+            <div className="iz-eyebrow">{t('nav.brand')} CU/ABE</div>
             <h2>{t('home.featuresTitle')}</h2>
             <p className="iz-muted">{t('home.featuresSubtitle')}</p>
           </div>
@@ -103,7 +104,7 @@ export function HomePage() {
       <section className="iz-section">
         <div className="iz-section-head">
           <div>
-            <div className="iz-eyebrow">Gestion de Bus CU/ABE</div>
+            <div className="iz-eyebrow">{t('nav.brand')} CU/ABE</div>
             <h2>{t('home.mobileTitle')}</h2>
             <p className="iz-muted">{t('home.mobileSubtitle')}</p>
           </div>
@@ -111,10 +112,9 @@ export function HomePage() {
         <div className="iz-grid">
           <div className="iz-card iz-card-hover">
             <div className="iz-feature-icon">📱</div>
-            <h3 style={{ fontSize: '1rem', marginBottom: 6 }}>Application Android — Bus CU/ABE</h3>
+            <h3 style={{ fontSize: '1rem', marginBottom: 6 }}>{t('home.androidCard')}</h3>
             <p className="iz-muted iz-small">
-              Une seule application : accédez au scan et au signalement sans compte, ou
-              connectez-vous avec votre compte contrôleur pour ajouter et gérer les comptes.
+              {t('home.androidText')}
             </p>
             <div className="iz-flex iz-wrap" style={{ marginTop: 12 }}>
               <a className="iz-btn iz-btn-primary iz-btn-sm" href="/downloads/gestion-bus.apk" download>
@@ -139,7 +139,7 @@ export function HomePage() {
             <button type="button" className="iz-card iz-card-hover iz-link-card" onClick={() => navigate('/cooperatives')}>
               <div className="iz-feature-icon">🤝</div>
               <h3 style={{ fontSize: '1rem', marginBottom: 6 }}>{t('nav.coops')}</h3>
-              <p className="iz-muted iz-small">{data?.cooperatives ?? '—'} coopérative(s) · {data?.vehicules ?? '—'} véhicule(s)</p>
+              <p className="iz-muted iz-small">{t('home.coopsSummary', { coops: data?.cooperatives ?? '—', vehicles: data?.vehicules ?? '—' })}</p>
               <span className="iz-btn iz-btn-outline iz-btn-sm" style={{ marginTop: 12 }}>{t('common.details')} →</span>
             </button>
           </div>
@@ -195,13 +195,13 @@ export function SearchPage() {
     const map = new Map<string, IZRecord[]>()
     for (const vehicle of vehicles) {
       const line = String(vehicle.ligne ?? '').trim()
-      const key = line ? `Ligne ${line}` : 'Sans ligne'
+      const key = line ? t('search.lineGroup', { line }) : t('search.noLineGroup')
       const list = map.get(key)
       if (list) list.push(vehicle)
       else map.set(key, [vehicle])
     }
     return [...map.entries()].sort(([a], [b]) => a.localeCompare(b, 'fr', { numeric: true }))
-  }, [vehicles])
+  }, [vehicles, t])
 
   const vehicleTable = (rows: IZRecord[]) => (
     <div className="iz-table-wrap">
@@ -285,9 +285,9 @@ export function SearchPage() {
         <h2 style={{ fontSize: '1.1rem' }}>
           {data?.total ?? 0} {t('search.resultCount')}
         </h2>
-        <div className="iz-view-toggle" role="group" aria-label="Affichage">
-          <button type="button" className={`iz-btn iz-btn-sm ${view === 'list' ? 'iz-btn-primary' : 'iz-btn-outline'}`} onClick={() => setView('list')} aria-pressed={view === 'list'}>Liste</button>
-          <button type="button" className={`iz-btn iz-btn-sm ${view === 'line' ? 'iz-btn-primary' : 'iz-btn-outline'}`} onClick={() => setView('line')} aria-pressed={view === 'line'}>Par ligne</button>
+        <div className="iz-view-toggle" role="group" aria-label={t('common.viewMode')}>
+          <button type="button" className={`iz-btn iz-btn-sm ${view === 'list' ? 'iz-btn-primary' : 'iz-btn-outline'}`} onClick={() => setView('list')} aria-pressed={view === 'list'}>{t('common.list')}</button>
+          <button type="button" className={`iz-btn iz-btn-sm ${view === 'line' ? 'iz-btn-primary' : 'iz-btn-outline'}`} onClick={() => setView('line')} aria-pressed={view === 'line'}>{t('table.groupBy')}</button>
         </div>
       </div>
       {error && <Alert type="error">{error}</Alert>}
@@ -295,7 +295,7 @@ export function SearchPage() {
         <div className="iz-groups">
           {groups.map(([group, rows]) => (
             <section className="iz-group" key={group}>
-              <h3 className="iz-group-title">{group} · {rows.length} bus</h3>
+              <h3 className="iz-group-title">{group} · {t('search.busCount', { count: rows.length })}</h3>
               {vehicleTable(rows)}
             </section>
           ))}
@@ -323,8 +323,8 @@ function VehicleDetail({ vehicle, onClose }: { vehicle: IZRecord; onClose: () =>
         <>
           {record.photoUrl && (
             <figure className="iz-photo-card" style={{ maxWidth: 420, marginBottom: 16 }}>
-              <img src={String(record.photoUrl)} alt={`Véhicule ${vehicle.immatriculation}`} />
-              <figcaption>Photo du véhicule</figcaption>
+              <img src={String(record.photoUrl)} alt={t('search.photoAlt', { plate: String(vehicle.immatriculation) })} />
+              <figcaption>{t('search.photoCaption')}</figcaption>
             </figure>
           )}
           <div className="iz-detail-grid">
@@ -362,7 +362,7 @@ function VehicleDetail({ vehicle, onClose }: { vehicle: IZRecord; onClose: () =>
 /* ------------------------------------------------------------------ */
 
 export function SignalPage() {
-  const { t, notify, navigate, route, user } = useApp()
+  const { t, lang, notify, navigate, route, user } = useApp()
   const initialPlate = new URLSearchParams(route.split('?')[1]).get('plaque') ?? ''
   const [form, setForm] = useState({ immatriculation: initialPlate, categorie: '', description: '', adresse: '', photo: '' })
   const [position, setPosition] = useState<{ latitude: number; longitude: number } | null>(null)
@@ -374,7 +374,7 @@ export function SignalPage() {
   const submit = async (event?: FormEvent) => {
     event?.preventDefault()
     if (profilBloque) {
-      notify('Complétez votre profil agent avant d’envoyer un signalement.', 'error')
+      notify(t('signal.profileRequired'), 'error')
       return
     }
     if (!form.immatriculation || !form.categorie || form.description.length < 10) {
@@ -389,7 +389,7 @@ export function SignalPage() {
         if (coords) setPosition(coords)
       }
       if (!coords) {
-        notify('La position GPS est obligatoire : activez la localisation puis réessayez.', 'error')
+        notify(t('signal.gpsRequired'), 'error')
         return
       }
       // Agent connecté : le signalement porte son identité pour l'administration.
@@ -399,7 +399,7 @@ export function SignalPage() {
       setReference(result.reference)
       notify(t('signal.success'), 'success')
     } catch (error) {
-      notify(error instanceof Error ? error.message : t('common.error'), 'error')
+      notify(translateError(lang, error, 'common.error'), 'error')
     } finally {
       setSending(false)
     }
@@ -460,7 +460,7 @@ export function SignalPage() {
                 </button>
               ) : (
                 <p className="iz-small iz-muted" style={{ margin: 0 }}>
-                  Conservez cette référence. Le suivi est réservé aux agents habilités : connectez-vous pour consulter l’avancement.
+                  {t('signal.keepRef')}
                 </p>
               )}
               <button className="iz-btn iz-btn-outline" onClick={() => { setReference(''); setPosition(null); setForm({ immatriculation: initialPlate, categorie: '', description: '', adresse: '', photo: '' }) }}>
@@ -473,8 +473,8 @@ export function SignalPage() {
             {profilBloque && (
               <div className="full">
                 <Alert type="error">
-                  Complétez votre profil agent (CIN, fonction, matricule, téléphone et photo d’identité) avant d’envoyer un signalement.{' '}
-                  <button type="button" className="iz-btn iz-btn-primary iz-btn-sm" onClick={() => navigate('/controle/profil')}>Mon profil agent</button>
+                  {t('signal.profileIncomplete')}{' '}
+                  <button type="button" className="iz-btn iz-btn-primary iz-btn-sm" onClick={() => navigate('/controle/profil')}>{t('signal.myProfile')}</button>
                 </Alert>
               </div>
             )}
@@ -484,7 +484,12 @@ export function SignalPage() {
             <Field label={t('signal.category')}>
               <select className="iz-select" required value={form.categorie} onChange={(e) => set('categorie', e.target.value)}>
                 <option value="">—</option>
-                {[1, 2, 3, 4].map((index) => <option key={index} value={t(`signal.cat${index}`)}>{t(`signal.cat${index}`)}</option>)}
+                {[{ value: 'Conduite dangereuse', key: 'signal.cat1' },
+                  { value: 'Véhicule abandonné', key: 'signal.cat2' },
+                  { value: 'Surcharge', key: 'signal.cat3' },
+                  { value: 'Autre', key: 'signal.cat4' }].map((option) => (
+                  <option key={option.value} value={option.value}>{t(option.key)}</option>
+                ))}
               </select>
             </Field>
             <Field label={t('signal.description')} full>
@@ -495,14 +500,14 @@ export function SignalPage() {
             </Field>
             <div className="full">
               <p className="iz-small iz-muted" style={{ marginTop: 0 }}>
-                📍 La position GPS est obligatoire : le signalement ne peut pas être envoyé sans elle. Autorisez la localisation dans votre navigateur.
+                {t('signal.gpsNotice')}
               </p>
               <button type="button" className="iz-btn iz-btn-outline" onClick={async () => {
                 const coords = await geolocate(10000)
                 if (coords) setPosition(coords)
-                else notify('Position indisponible : activez la localisation pour pouvoir envoyer le signalement.', 'error')
-              }}>Joindre ma position maintenant</button>
-              {position && <p className="iz-small">Position jointe <button type="button" className="iz-btn iz-btn-ghost iz-btn-sm" onClick={() => setPosition(null)}>Retirer</button></p>}
+                else notify(t('signal.gpsUnavailable'), 'error')
+              }}>{t('signal.attachPosition')}</button>
+              {position && <p className="iz-small">{t('signal.positionAttached')} <button type="button" className="iz-btn iz-btn-ghost iz-btn-sm" onClick={() => setPosition(null)}>{t('common.remove')}</button></p>}
             </div>
             <Field label={t('signal.photo')} full>
               <input className="iz-input" type="file" accept="image/*" onChange={(e) => onPhoto(e.target.files?.[0])} />
@@ -524,7 +529,7 @@ export function SignalPage() {
 /* ------------------------------------------------------------------ */
 
 export function TrackPage() {
-  const { t, theme } = useApp()
+  const { t, lang, theme } = useApp()
   const initialRef = new URLSearchParams(window.location.hash.split('?')[1] ?? '').get('ref') ?? ''
   const [reference, setReference] = useState(initialRef)
   const [searched, setSearched] = useState(initialRef)
@@ -553,18 +558,18 @@ export function TrackPage() {
             </div>
             <div className="iz-detail-grid" style={{ marginTop: 16 }}>
               <div className="iz-detail-item"><span>{t('signal.plate')}</span><strong>{data.immatriculation}</strong></div>
-              <div className="iz-detail-item"><span>{t('signal.category')}</span><strong>{data.categorie}</strong></div>
+              <div className="iz-detail-item"><span>{t('signal.category')}</span><strong>{translateValue(lang, data.categorie)}</strong></div>
               <div className="iz-detail-item"><span>{t('track.created')}</span><strong>{String(data.createdAt).slice(0, 16).replace('T', ' ')}</strong></div>
               <div className="iz-detail-item"><span>{t('signal.address')}</span><strong>{data.adresse ?? '—'}</strong></div>
             </div>
             <p className="iz-muted" style={{ marginTop: 14 }}>{data.description}</p>
             {data.latitude != null && data.longitude != null && (
               <div style={{ marginTop: 16 }}>
-                <h3 style={{ fontSize: '.95rem', marginBottom: 8 }}>Position du signalement</h3>
+                <h3 style={{ fontSize: '.95rem', marginBottom: 8 }}>{t('track.positionTitle')}</h3>
                 <div className="iz-map-box" style={{ height: 340 }}>
                   <MapCanvas
                     points={[{
-                      key: 'signal', label: String(data.reference ?? 'Signalement'), kind: 'signal', color: '#dc2626',
+                      key: 'signal', label: t('track.signalLabel'), kind: 'signal', color: '#dc2626',
                       latitude: Number(data.latitude), longitude: Number(data.longitude),
                     }]}
                     lines={[]}
@@ -580,12 +585,14 @@ export function TrackPage() {
                     night={theme === 'dark'}
                     onSelect={() => {}}
                     onMove={() => {}}
+                    zoomLabels={{ group: t('map.zoomGroup'), zoomIn: t('map.zoomIn'), zoomOut: t('map.zoomOut') }}
+                    mapLabel={t('map.canvasAria')}
                   />
                 </div>
               </div>
             )}
             {data.latitude == null && data.longitude == null && (
-              <p className="iz-small iz-muted" style={{ marginTop: 12 }}>Aucune position GPS n’a été transmise avec ce signalement.</p>
+              <p className="iz-small iz-muted" style={{ marginTop: 12 }}>{t('track.noGps')}</p>
             )}
           </div>
         )}
@@ -656,7 +663,7 @@ export function MapPage() {
         action={
           <div className="iz-flex iz-wrap">
             <button className="iz-btn iz-btn-outline iz-btn-sm" onClick={() => setBasemap(basemap === 'plan' ? 'satellite' : 'plan')}>
-              {basemap === 'plan' ? '🛰 Satellite' : '🗺 Plan'}
+              {basemap === 'plan' ? t('map.satellite') : t('map.plan')}
             </button>
             <button className="iz-btn iz-btn-outline iz-btn-sm" onClick={() => setViewMode(viewMode === '2d' ? '3d' : '2d')}>
               {viewMode.toUpperCase()}
@@ -681,6 +688,8 @@ export function MapPage() {
             night={theme === 'dark'}
             onSelect={setSelectedKey}
             onMove={(nextCenter, nextZoom) => { setCenter(nextCenter); setZoom(nextZoom) }}
+            zoomLabels={{ group: t('map.zoomGroup'), zoomIn: t('map.zoomIn'), zoomOut: t('map.zoomOut') }}
+            mapLabel={t('map.canvasAria')}
           />
         </div>
         <aside className="iz-card">
@@ -761,11 +770,11 @@ export function CooperativesPage() {
       )}
       {active && (
         <Modal wide title={`${active.nom} — ${buses.length} ${t('coops.vehicles')}`} onClose={() => setActive(null)}>
-          <p className="iz-small iz-muted">Code {active.code} · cliquez sur un véhicule pour ouvrir sa fiche.</p>
-          {busesLoading ? <Loading /> : buses.length === 0 ? <Empty message="Aucun véhicule rattaché à cette coopérative." /> : (
+          <p className="iz-small iz-muted">{t('coops.codeHelp', { code: active.code })}</p>
+          {busesLoading ? <Loading /> : buses.length === 0 ? <Empty message={t('coops.none')} /> : (
             <div className="iz-table-wrap">
               <table className="iz-table">
-                <thead><tr><th>{t('search.plate')}</th><th>{t('search.line')}</th><th>Type</th><th>{t('common.status')}</th></tr></thead>
+                <thead><tr><th>{t('search.plate')}</th><th>{t('search.line')}</th><th>{t('bus.type')}</th><th>{t('common.status')}</th></tr></thead>
                 <tbody>
                   {buses.map((bus) => (
                     <tr key={bus.id} style={{ cursor: 'pointer' }} onClick={() => navigate('/bus?plaque=' + encodeURIComponent(String(bus.immatriculation)))}>
@@ -790,7 +799,7 @@ export function CooperativesPage() {
 /* ------------------------------------------------------------------ */
 
 export function LoginPage() {
-  const { t, notify, navigate, setUser, route } = useApp()
+  const { t, lang, notify, navigate, setUser, route } = useApp()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [busy, setBusy] = useState(false)
@@ -805,11 +814,11 @@ export function LoginPage() {
     try {
       const user = await izApi.login(email, password)
       setUser(user)
-      notify(`Bienvenue ${user.firstName || user.email}`, 'success')
+      notify(t('auth.welcome', { name: user.firstName || user.email }), 'success')
       const destination = new URLSearchParams(route.split('?')[1]).get('retour')
       navigate(destination?.startsWith('/bus?') ? destination : route.startsWith('/controle') || route.startsWith('/admin') ? route : user.role === 'admin' || user.role === 'superadmin' ? '/admin' : '/controle')
     } catch (error) {
-      notify(error instanceof Error ? error.message : t('auth.error'), 'error')
+      notify(translateError(lang, error, 'auth.error'), 'error')
     } finally {
       setBusy(false)
     }
@@ -822,9 +831,9 @@ export function LoginPage() {
     setResetMessage('')
     try {
       const result = await izApi.requestPasswordReset(resetEmail.trim())
-      setResetMessage(result.message)
+      setResetMessage(translate(lang, result.message))
     } catch (error) {
-      notify(error instanceof Error ? error.message : t('common.error'), 'error')
+      notify(translateError(lang, error, 'common.error'), 'error')
     } finally {
       setResetBusy(false)
     }
@@ -834,8 +843,8 @@ export function LoginPage() {
     <div className="iz-auth-wrap">
       <div className="iz-card iz-auth-card">
         <div className="iz-brand">
-          <img className="iz-brand-logo" src="/brand/logo-bus.png" alt="Logo bus" />
-          <span>Gestion de Bus<small>CU/ABE · Commune Urbaine d’Antsirabe</small></span>
+          <img className="iz-brand-logo" src="/brand/logo-bus.png" alt={t('auth.logoAlt')} />
+          <span>{t('nav.brand')}<small>{t('nav.brandSub')}</small></span>
         </div>
         <div className="iz-center" style={{ marginBottom: 20 }}>
           <h2 style={{ fontSize: '1.3rem' }}>{t('auth.title')}</h2>
@@ -854,20 +863,20 @@ export function LoginPage() {
         </form>
         <div className="iz-center" style={{ marginTop: 12 }}>
           <button type="button" className="iz-btn iz-btn-ghost iz-btn-sm" onClick={() => { setForgotOpen((value) => !value); setResetEmail(email); setResetMessage('') }}>
-            Mot de passe oublié ?
+            {t('auth.forgot')}
           </button>
         </div>
         {forgotOpen && (
           <form className="iz-card" style={{ marginTop: 12, boxShadow: 'none' }} onSubmit={requestReset}>
             <p className="iz-small iz-muted" style={{ marginTop: 0 }}>
-              Indiquez l’adresse de votre compte. Le super administrateur validera la demande et définira un nouveau mot de passe.
+              {t('auth.resetHelp')}
             </p>
             <Field label={t('auth.email')} full>
               <input className="iz-input" type="email" required autoComplete="username" value={resetEmail} onChange={(e) => setResetEmail(e.target.value)} />
             </Field>
             <div className="iz-flex iz-wrap" style={{ marginTop: 10 }}>
               <button className="iz-btn iz-btn-primary iz-btn-sm" disabled={resetBusy} type="submit">
-                {resetBusy ? <span className="iz-spinner" /> : null}Envoyer la demande
+                {resetBusy ? <span className="iz-spinner" /> : null}{t('auth.sendRequest')}
               </button>
               <button className="iz-btn iz-btn-outline iz-btn-sm" type="button" onClick={() => setForgotOpen(false)}>{t('common.cancel')}</button>
             </div>

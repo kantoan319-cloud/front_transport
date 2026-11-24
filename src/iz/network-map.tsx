@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import MapCanvas, { type MapLine, type MapPoint, type MapVehiclePosition } from '../MapCanvas'
 import { useApp, useAsync } from './components'
+import { translateValue } from './i18n'
 import { izApi, type IZRecord } from './api'
 
 export type TracePoint = { latitude: number; longitude: number }
@@ -117,7 +118,7 @@ type Layer = 'lignes' | 'arrets' | 'vehicules' | 'incidents'
 type MapFocus = TracePoint & { zoom: number; pitch: number; bearing: number; key: number }
 
 export function NetworkMap() {
-  const { notify, navigate } = useApp()
+  const { t, lang, notify, navigate } = useApp()
   const [center, setCenter] = useState({ latitude: -19.865, longitude: 47.033 })
   const [zoom, setZoom] = useState(13)
   const [basemap, setBasemap] = useState<'plan' | 'satellite'>('plan')
@@ -171,8 +172,8 @@ export function NetworkMap() {
     () => positionOnTrace(segments, simulationDistance, night),
     [segments, simulationDistance, night],
   )
-  const simulationStatus = !simulatedVehicle ? 'Indisponible'
-    : playing ? 'En cours' : simulationDistance >= totalDistance ? 'Terminée' : simulationDistance > 0 ? 'En pause' : 'Prête'
+  const simulationStatusKey = !simulatedVehicle ? 'nmap.simUnavailable'
+    : playing ? 'nmap.simRunning' : simulationDistance >= totalDistance ? 'nmap.simFinished' : simulationDistance > 0 ? 'nmap.simPaused' : 'nmap.simReady'
 
   useEffect(() => {
     if (!playing || totalDistance === 0) return
@@ -267,7 +268,7 @@ export function NetworkMap() {
         const longitude = toNumber(stop.longitude)
         if (latitude === null || longitude === null) continue
         result.push({
-          key: `arret-${stop.id}`, label: String(stop.nom ?? 'Arrêt'), kind: 'arret',
+          key: `arret-${stop.id}`, label: String(stop.nom ?? t('nmap.stopFallback')), kind: 'arret',
           color: String(stop.couleur ?? '#2563eb'), latitude, longitude,
         })
       }
@@ -279,7 +280,7 @@ export function NetworkMap() {
         if (latitude === null || longitude === null) continue
         result.push({
           key: `vehicle-${vehicle.id}`,
-          label: `${String(vehicle.immatriculation ?? 'Véhicule')}${vehicle.statut ? ` · ${String(vehicle.statut)}` : ''}`,
+          label: `${String(vehicle.immatriculation ?? t('nmap.vehicleFallback'))}${vehicle.statut ? ` · ${translateValue(lang, vehicle.statut)}` : ''}`,
           kind: 'vehicle', color: '#64748b', latitude, longitude,
         })
       }
@@ -290,7 +291,7 @@ export function NetworkMap() {
         const longitude = toNumber(incident.longitude)
         if (latitude === null || longitude === null) continue
         result.push({
-          key: `incident-${incident.id}`, label: String(incident.type ?? 'Incident'), kind: 'signal',
+          key: `incident-${incident.id}`, label: String(incident.type ?? t('map.incidentLabel')), kind: 'signal',
           color: '#f59e0b', latitude, longitude,
         })
       }
@@ -306,7 +307,7 @@ export function NetworkMap() {
       }
     }
     return result
-  }, [layers.arrets, layers.vehicules, layers.incidents, stops, vehicles, incidents, query])
+  }, [layers.arrets, layers.vehicules, layers.incidents, stops, vehicles, incidents, query, lang, t])
 
   const filteredStops = useMemo(() => {
     const value = query.trim().toLocaleLowerCase()
@@ -323,13 +324,13 @@ export function NetworkMap() {
     const depart = findStop(stops, departure)
     const arrivee = findStop(stops, arrival)
     if (!depart || !arrivee) {
-      unavailable('Choisissez un départ et une arrivée dans la liste.')
+      unavailable(t('nmap.chooseStops'))
       return
     }
     const a = readPoints([depart])[0]
     const b = readPoints([arrivee])[0]
     if (!a || !b) {
-      unavailable('Itinéraire indisponible : coordonnées des arrêts manquantes.')
+      unavailable(t('nmap.coordsMissing'))
       return
     }
     for (const line of lines ?? []) {
@@ -351,27 +352,30 @@ export function NetworkMap() {
         setRoute(path.slice(debut, fin + 1))
         setFollow(false)
         focusMap(path[debut], 15)
-        setRouteStatus(`${String(line.nom ?? line.code ?? 'Ligne')} · ${sens} · tracé enregistré, sans données de trafic.`)
-        notify(`Itinéraire sur la ligne : ${depart.nom} → ${arrivee.nom}`, 'success')
+        setRouteStatus(t('nmap.routeFound', {
+          line: String(line.nom ?? line.code ?? t('nmap.lineFallback')),
+          direction: sens === 'aller' ? t('nmap.outbound') : t('nmap.return'),
+        }))
+        notify(t('nmap.routeNotify', { from: String(depart.nom), to: String(arrivee.nom) }), 'success')
         return
       }
     }
-    unavailable('Itinéraire indisponible : aucun tracé exploitable sur une ligne commune dans ce sens. Aucun trajet direct inventé.')
+    unavailable(t('nmap.noRoute'))
   }
 
   function geolocaliser() {
     if (!navigator.geolocation) {
-      setGeoStatus('Géolocalisation indisponible sur ce navigateur.')
+      setGeoStatus('map.geoUnavailable')
       return
     }
-    setGeoStatus('Recherche de votre position…')
+    setGeoStatus('map.geoSearching')
     navigator.geolocation.getCurrentPosition(
       (position) => {
         setFollow(false)
         focusMap({ latitude: position.coords.latitude, longitude: position.coords.longitude }, 16)
-        setGeoStatus('Position trouvée : carte recentrée sur vous.')
+        setGeoStatus('map.geoFound')
       },
-      () => setGeoStatus('Géolocalisation refusée – aucune position.'),
+      () => setGeoStatus('map.geoDenied'),
       { enableHighAccuracy: true, timeout: 10000 },
     )
   }
@@ -380,14 +384,14 @@ export function NetworkMap() {
     <>
       <div className="iz-page-head">
         <div>
-          <h1>Trajets de bus — Commune Urbaine</h1>
-          <p>Recherchez un arrêt, tracez un itinéraire et consultez l’état du réseau.</p>
+          <h1>{t('nmap.title')}</h1>
+          <p>{t('nmap.subtitle')}</p>
         </div>
         <div className="iz-flex iz-wrap">
           <button className="iz-btn iz-btn-outline iz-btn-sm" onClick={() => setBasemap(basemap === 'plan' ? 'satellite' : 'plan')}>
-            {basemap === 'plan' ? '🛰 Satellite' : '🗺 Plan'}
+            {basemap === 'plan' ? t('map.satellite') : t('map.plan')}
           </button>
-          <button className="iz-btn iz-btn-outline iz-btn-sm" aria-label="Vue 3D" aria-pressed={viewMode === '3d'} onClick={() => {
+          <button className="iz-btn iz-btn-outline iz-btn-sm" aria-label={t('map.view3d')} aria-pressed={viewMode === '3d'} onClick={() => {
             const nextMode = viewMode === '2d' ? '3d' : '2d'
             setViewMode(nextMode)
             setFocus((current) => ({ ...center, zoom, pitch: nextMode === '3d' ? 55 : 0,
@@ -395,8 +399,8 @@ export function NetworkMap() {
           }}>
             {viewMode.toUpperCase()}
           </button>
-          <button className="iz-btn iz-btn-outline iz-btn-sm" aria-label="Mode nuit de la carte" aria-pressed={night} onClick={() => setNight(!night)}>
-            Carte : {night ? 'Nuit' : 'Jour'}
+          <button className="iz-btn iz-btn-outline iz-btn-sm" aria-label={t('map.nightAria')} aria-pressed={night} onClick={() => setNight(!night)}>
+            {night ? t('map.nightOn') : t('map.nightOff')}
           </button>
         </div>
       </div>
@@ -421,59 +425,60 @@ export function NetworkMap() {
               if (vehicle?.immatriculation) navigate(`/bus?plaque=${encodeURIComponent(String(vehicle.immatriculation))}`)
             }}
             onMove={(nextCenter, nextZoom) => { setCenter(nextCenter); setZoom(nextZoom) }}
+            zoomLabels={{ group: t('map.zoomGroup'), zoomIn: t('map.zoomIn'), zoomOut: t('map.zoomOut') }}
+            mapLabel={t('map.canvasAria')}
           />
           {simulatedVehicle && (
             <div className="iz-card iz-small" style={{ position: 'absolute', top: 12, left: 12, zIndex: 2, padding: '8px 12px', maxWidth: 'calc(100% - 70px)', pointerEvents: 'none' }}>
-              <strong>SIMULATION · {simulationStatus}</strong>
-              <span style={{ display: 'block' }}>{String(simulationLine?.nom ?? simulationLine?.code ?? 'Ligne')} · {direction}</span>
-              <span className="iz-muted">{estimatedTrace ? 'Bus simulé le long des arrêts — liaisons estimées, pas de GPS' : 'Bus simulé — pas de GPS en temps réel'}</span>
+              <strong>{t('nmap.simOverlay', { status: t(simulationStatusKey) })}</strong>
+              <span style={{ display: 'block' }}>{String(simulationLine?.nom ?? simulationLine?.code ?? t('nmap.lineFallback'))} · {direction === 'aller' ? t('nmap.outbound') : t('nmap.return')}</span>
+              <span className="iz-muted">{estimatedTrace ? t('nmap.simEstimated') : t('nmap.simNoGps')}</span>
             </div>
           )}
         </div>
 
         <aside className="iz-card iz-citizen-map-panel">
-          <h3 className="iz-map-section-title" style={{ marginTop: 0 }}>Simulation du trajet</h3>
+          <h3 className="iz-map-section-title" style={{ marginTop: 0 }}>{t('nmap.simTitle')}</h3>
           <p className="iz-small iz-muted">
-            <strong>SIMULATION</strong> sur le tracé enregistré de la ligne ou, à défaut, le long de ses
-            arrêts géolocalisés (liaisons estimées). Le bus animé ne représente pas une position GPS réelle.
+            {t('nmap.simIntro')}
           </p>
           <div className="iz-form-grid">
             <label className="iz-field full">
-              <span className="iz-label">Ligne à simuler</span>
+              <span className="iz-label">{t('nmap.simLineLabel')}</span>
               <select className="iz-input" value={simulationLineId} disabled={linesLoading || !lines?.length} onChange={(event) => { clearSimulation(); setSimulationLineId(event.target.value) }}>
-                <option value="">Choisir une ligne</option>
+                <option value="">{t('nmap.chooseLine')}</option>
                 {(lines ?? []).map((line) => (
-                  <option key={line.id} value={String(line.id)}>{String(line.nom ?? line.code ?? `Ligne ${line.id}`)}</option>
+                  <option key={line.id} value={String(line.id)}>{String(line.nom ?? line.code ?? t('nmap.lineFallback'))}</option>
                 ))}
               </select>
             </label>
             <label className="iz-field full">
-              <span className="iz-label">Sens du tracé</span>
+              <span className="iz-label">{t('nmap.directionLabel')}</span>
               <select className="iz-input" value={direction} disabled={!simulationLine} onChange={(event) => { clearSimulation(); setDirection(event.target.value as keyof TraceData) }}>
-                <option value="aller">Aller</option>
-                <option value="retour">Retour</option>
+                <option value="aller">{t('nmap.outbound')}</option>
+                <option value="retour">{t('nmap.return')}</option>
               </select>
             </label>
           </div>
           {!simulatedVehicle && (
             <p className="iz-small iz-muted" role="status">
-              {linesLoading ? 'Chargement des lignes…' : linesError ? `Lignes indisponibles : ${linesError}`
-                : !lines?.length ? 'Aucune ligne disponible.' : !simulationLine ? 'Choisissez une ligne et un sens pour commencer.'
-                  : `Tracé ${direction} absent et moins de deux arrêts géolocalisés : simulation indisponible.`}
+              {linesLoading ? t('nmap.loadingLines') : linesError ? t('nmap.linesUnavailable', { error: linesError })
+                : !lines?.length ? t('nmap.noLines') : !simulationLine ? t('nmap.chooseLineDirection')
+                  : t('nmap.traceMissing', { direction: direction === 'aller' ? t('nmap.outbound') : t('nmap.return') })}
             </p>
           )}
           <div className="iz-flex iz-wrap" style={{ marginTop: 12 }}>
             <button className="iz-btn iz-btn-primary iz-btn-sm" disabled={!simulatedVehicle} onClick={toggleSimulation}>
-              {playing ? 'Pause' : simulationDistance >= totalDistance && totalDistance > 0 ? 'Rejouer' : simulationDistance > 0 ? 'Reprendre' : 'Démarrer'}
+              {playing ? t('nmap.pause') : simulationDistance >= totalDistance && totalDistance > 0 ? t('nmap.replay') : simulationDistance > 0 ? t('nmap.resume') : t('nmap.play')}
             </button>
-            <button className="iz-btn iz-btn-outline iz-btn-sm" disabled={!simulatedVehicle} onClick={resetSimulation}>Réinitialiser</button>
+            <button className="iz-btn iz-btn-outline iz-btn-sm" disabled={!simulatedVehicle} onClick={resetSimulation}>{t('nmap.reset')}</button>
           </div>
           {simulatedVehicle && (
             <div style={{ marginTop: 10 }}>
-              <progress aria-label="Progression de la simulation" value={Math.min(simulationDistance, totalDistance)} max={totalDistance} style={{ width: '100%', accentColor: '#7c3aed' }} />
+              <progress aria-label={t('nmap.progressAria')} value={Math.min(simulationDistance, totalDistance)} max={totalDistance} style={{ width: '100%', accentColor: '#7c3aed' }} />
               <p className="iz-small iz-muted" style={{ margin: '4px 0' }}>
-                {simulationStatus} · {Math.round(Math.min(1, simulationDistance / totalDistance) * 100)} % · {(totalDistance / 1000).toFixed(1)} km
-                <br />Vitesse simulée : {SIMULATION_SPEED_KMH} km/h
+                {t(simulationStatusKey)} · {Math.round(Math.min(1, simulationDistance / totalDistance) * 100)} % · {(totalDistance / 1000).toFixed(1)} km
+                <br />{t('nmap.speed', { speed: SIMULATION_SPEED_KMH })}
               </p>
             </div>
           )}
@@ -482,9 +487,9 @@ export function NetworkMap() {
               setFollow(event.target.checked)
               if (event.target.checked && simulatedVehicle) focusMap(simulatedVehicle, 17.5, simulatedVehicle.bearing)
             }} />
-            <span>Suivre le bus simulé</span>
+            <span>{t('nmap.followSim')}</span>
           </label>
-          {basemap === 'satellite' && <p className="iz-small iz-muted">Les bâtiments 3D et l’éclairage jour/nuit sont disponibles sur le fond Plan.</p>}
+          {basemap === 'satellite' && <p className="iz-small iz-muted">{t('nmap.satelliteNote')}</p>}
 
           <datalist id="iz-arrets">
             {stopOptions.map((name) => <option key={name} value={name} />)}
@@ -494,7 +499,7 @@ export function NetworkMap() {
             <input
               className="iz-input"
               list="iz-arrets"
-              placeholder="Rechercher un arrêt (nom, ligne…)"
+              placeholder={t('nmap.searchStop')}
               value={query}
               onChange={(event) => setQuery(event.target.value)}
             />
@@ -514,73 +519,73 @@ export function NetworkMap() {
                   <strong>{String(stop.nom ?? '')}</strong>
                   <span className="iz-small iz-muted" style={{ display: 'block' }}>{String(stop.cooperativeCode ?? '')}</span>
                 </button>
-              )) : <p className="iz-muted iz-small">Aucun arrêt trouvé.</p>}
+              )) : <p className="iz-muted iz-small">{t('nmap.noStopFound')}</p>}
             </div>
           )}
 
-          <h3 className="iz-map-section-title">🧭 Itinéraire</h3>
+          <h3 className="iz-map-section-title">{t('nmap.itineraryTitle')}</h3>
           <div className="iz-form-grid">
             <label className="iz-field">
-              <span className="iz-label">Départ</span>
-              <input className="iz-input" list="iz-arrets" value={departure} onChange={(event) => { setDeparture(event.target.value); setRoute([]); setRouteStatus('') }} placeholder="Ex : Gare routière" />
+              <span className="iz-label">{t('nmap.departure')}</span>
+              <input className="iz-input" list="iz-arrets" value={departure} onChange={(event) => { setDeparture(event.target.value); setRoute([]); setRouteStatus('') }} placeholder={t('nmap.departurePlaceholder')} />
             </label>
             <label className="iz-field">
-              <span className="iz-label">Arrivée</span>
-              <input className="iz-input" list="iz-arrets" value={arrival} onChange={(event) => { setArrival(event.target.value); setRoute([]); setRouteStatus('') }} placeholder="Ex : Hôpital" />
+              <span className="iz-label">{t('nmap.arrival')}</span>
+              <input className="iz-input" list="iz-arrets" value={arrival} onChange={(event) => { setArrival(event.target.value); setRoute([]); setRouteStatus('') }} placeholder={t('nmap.arrivalPlaceholder')} />
             </label>
           </div>
-          <p className="iz-small iz-muted">Tracé sur une ligne commune uniquement, dans le sens enregistré. Pas de calcul ni d’optimisation selon le trafic.</p>
+          <p className="iz-small iz-muted">{t('nmap.itineraryNote')}</p>
           <button className="iz-btn iz-btn-primary iz-btn-sm" style={{ width: '100%' }} onClick={calculerItineraire}>
-            Calculer l’itinéraire
+            {t('nmap.computeRoute')}
           </button>
           {routeStatus && <p className="iz-small iz-muted" role="status" style={{ marginTop: 8 }}>{routeStatus}</p>}
 
-          <h3 className="iz-map-section-title">Incidents signalés</h3>
+          <h3 className="iz-map-section-title">{t('nmap.incidentsTitle')}</h3>
           <div className="iz-traffic-status">
             <span className="iz-dot" style={{ background: '#64748b' }} />
-            <span>{incidentsLoading ? 'Chargement des signalements…' : incidentsError ? 'Signalements indisponibles.'
-              : incidents?.length ? `${incidents.length} incident${incidents.length > 1 ? 's' : ''} signalé${incidents.length > 1 ? 's' : ''}` : 'Aucun incident signalé.'}</span>
+            <span>{incidentsLoading ? t('nmap.loadingIncidents') : incidentsError ? t('nmap.incidentsUnavailable')
+              : incidents?.length ? t('nmap.incidentCount', { count: incidents.length }) : t('nmap.noIncidentReport')}</span>
           </div>
-          <p className="iz-small iz-muted">Signalements uniquement, sans mesure du trafic en temps réel.</p>
+          <p className="iz-small iz-muted">{t('nmap.incidentNote')}</p>
 
-          <h3 className="iz-map-section-title">🗂 Couches</h3>
+          <h3 className="iz-map-section-title">{t('map.layers')}</h3>
           <div className="iz-layer-grid">
-            {([['lignes', 'Lignes'], ['arrets', 'Arrêts'], ['vehicules', 'Véhicules'], ['incidents', 'Incidents']] as const).map(([key, label]) => (
+            {([['lignes', 'coops.lines'], ['arrets', 'map.stops'], ['vehicules', 'map.vehicles'], ['incidents', 'map.incidents']] as const).map(([key, label]) => (
               <label className="iz-check-row" key={key}>
                 <input
                   type="checkbox"
                   checked={layers[key]}
                   onChange={(event) => setLayers({ ...layers, [key]: event.target.checked })}
                 />
-                <span>{label}</span>
+                <span>{t(label)}</span>
               </label>
             ))}
           </div>
 
-          <h3 className="iz-map-section-title">🕘 Historique incidents</h3>
+          <h3 className="iz-map-section-title">{t('map.history')}</h3>
           <div className="iz-map-list iz-map-incidents">
             {incidents?.length ? incidents.slice(0, 8).map((incident) => (
               <div key={incident.id} className="iz-incident-row">
-                <strong>{String(incident.type ?? 'Incident')}</strong>
+                <strong>{translateValue(lang, incident.type ?? t('map.incidentLabel'))}</strong>
                 <span className="iz-small iz-muted">{String(incident.adresse ?? incident.createdAt ?? '')}</span>
-                <span className="iz-badge iz-badge-orange">{String(incident.statut ?? '')}</span>
+                <span className="iz-badge iz-badge-orange">{translateValue(lang, incident.statut ?? '')}</span>
               </div>
-            )) : <p className="iz-muted iz-small">{incidentsLoading ? 'Chargement…' : incidentsError ? 'Historique indisponible.' : 'Aucun incident enregistré.'}</p>}
+            )) : <p className="iz-muted iz-small">{incidentsLoading ? t('common.loading') : incidentsError ? t('map.historyUnavailable') : t('map.noIncident')}</p>}
           </div>
 
-          <h3 className="iz-map-section-title">🎯 Légende</h3>
+          <h3 className="iz-map-section-title">{t('map.legend')}</h3>
           <div className="iz-legend">
-            <span><i style={{ background: '#2563eb' }} /> Arrêt</span>
-            <span><i style={{ background: '#dc2626' }} /> Itinéraire</span>
-            <span><i style={{ background: '#64748b' }} /> Véhicule enregistré</span>
-            <span><i style={{ background: '#7c3aed' }} /> Tracé de simulation</span>
-            <span><i style={{ background: '#f59e0b' }} /> Incident</span>
+            <span><i style={{ background: '#2563eb' }} /> {t('nmap.stopFallback')}</span>
+            <span><i style={{ background: '#dc2626' }} /> {t('nmap.itineraryLegend')}</span>
+            <span><i style={{ background: '#64748b' }} /> {t('map.legendRegistered')}</span>
+            <span><i style={{ background: '#7c3aed' }} /> {t('nmap.simLegend')}</span>
+            <span><i style={{ background: '#f59e0b' }} /> {t('map.legendIncident')}</span>
           </div>
 
           <button className="iz-btn iz-btn-outline iz-btn-sm" style={{ width: '100%', marginTop: 14 }} onClick={geolocaliser}>
-            ⌖ Me géolocaliser
+            {t('map.geolocate')}
           </button>
-          {geoStatus && <p className="iz-small iz-muted" style={{ marginTop: 6 }}>{geoStatus}</p>}
+          {geoStatus && <p className="iz-small iz-muted" style={{ marginTop: 6 }}>{t(geoStatus)}</p>}
         </aside>
       </div>
     </>

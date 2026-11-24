@@ -10,6 +10,7 @@ import {
 } from './components'
 import { DashboardShell } from './dashboard'
 import { DataTable } from './DataTable'
+import { translateError, translateValue } from './i18n'
 import { AgentIdentityButton, AgentProfileDialog } from './profiles'
 
 const when = (value?: string | null) => (value ? String(value).slice(0, 16).replace('T', ' ') : '—')
@@ -23,10 +24,10 @@ export function ControlLayout({ children }: { children: ReactNode }) {
     { path: '/controle/scans', label: t('control.scans'), icon: '📋' },
     { path: '/controle/infractions', label: t('control.infractions'), icon: '⚠️' },
     { path: '/controle/signals', label: t('control.signals'), icon: '📣' },
-    { path: '/controle/fourriere', label: 'Fourrière', icon: 'P' },
-    { path: '/signaler', label: 'Faire un signalement', icon: '+' },
-    { path: '/controle/profil', label: 'Mon profil agent', icon: '👤' },
-    { path: '/controle/manuel', label: 'Manuel d’utilisation', icon: '📘' },
+    { path: '/controle/fourriere', label: t('control.fourriere'), icon: 'P' },
+    { path: '/signaler', label: t('control.makeSignal'), icon: '+' },
+    { path: '/controle/profil', label: t('control.myProfile'), icon: '👤' },
+    { path: '/controle/manuel', label: t('control.manual'), icon: '📘' },
   ]
   return (
     <DashboardShell
@@ -50,10 +51,9 @@ export function ControlDashboard() {
       {user?.role === 'controleur' && !user.profilComplet && (
         <div style={{ marginBottom: 16 }}>
           <Alert type="error">
-            Votre profil agent est incomplet. Renseignez le CIN, la fonction, le matricule, le téléphone et la photo
-            d’identité pour pouvoir scanner, signaler ou mettre un véhicule en fourrière.{' '}
+            {t('control.profileIncomplete')}{' '}
             <button className="iz-btn iz-btn-primary iz-btn-sm" onClick={() => navigate('/controle/profil')}>
-              Compléter mon profil
+              {t('control.completeProfile')}
             </button>
           </Alert>
         </div>
@@ -85,7 +85,7 @@ export function ControlDashboard() {
 }
 
 export function ScanPage() {
-  const { t, notify, navigate, route, user } = useApp()
+  const { t, lang, notify, navigate, route, user } = useApp()
   const [plate, setPlate] = useState(new URLSearchParams(route.split('?')[1]).get('plaque') ?? '')
   const [observation, setObservation] = useState('')
   const [position, setPosition] = useState<{ latitude: number; longitude: number } | null>(null)
@@ -99,9 +99,10 @@ export function ScanPage() {
     try {
       const response = await izApi.scan({ immatriculation: plateFromQr(plate), observation, genererInfraction: false, ...position })
       setResult(response)
-      notify(response.scan?.resultat ?? '', response.scan?.resultat === 'Conforme' ? 'success' : 'error')
+      const statut = response.scan?.resultat
+      notify(statut ? translateValue(lang, statut) : '', statut === 'Conforme' ? 'success' : 'error')
     } catch (error) {
-      notify(error instanceof Error ? error.message : t('common.error'), 'error')
+      notify(translateError(lang, error, 'common.error'), 'error')
     } finally {
       setBusy(false)
     }
@@ -110,7 +111,7 @@ export function ScanPage() {
   const locate = () => {
     navigator.geolocation?.getCurrentPosition(
       (coords) => setPosition({ latitude: coords.coords.latitude, longitude: coords.coords.longitude }),
-      () => notify('Position indisponible.', 'error'),
+      () => notify(t('control.gpsUnavailable'), 'error'),
     )
   }
 
@@ -120,8 +121,8 @@ export function ScanPage() {
       {profilBloque && (
         <div style={{ marginBottom: 16 }}>
           <Alert type="error">
-            Complétez votre profil agent avant de scanner un véhicule.{' '}
-            <button className="iz-btn iz-btn-primary iz-btn-sm" onClick={() => navigate('/controle/profil')}>Mon profil agent</button>
+            {t('control.profileRequiredScan')}{' '}
+            <button className="iz-btn iz-btn-primary iz-btn-sm" onClick={() => navigate('/controle/profil')}>{t('signal.myProfile')}</button>
           </Alert>
         </div>
       )}
@@ -131,7 +132,7 @@ export function ScanPage() {
           <Field label={t('control.plate')} full>
             <input className="iz-input iz-upper" required value={plate} onChange={(e) => setPlate(e.target.value)} placeholder="0169 TBF" />
           </Field>
-          <Field label={t('signal.description')} full>
+          <Field label={t('control.observation')} full>
             <textarea className="iz-textarea" value={observation} onChange={(e) => setObservation(e.target.value)} />
           </Field>
           <div className="full iz-flex iz-wrap">
@@ -159,7 +160,7 @@ export function ScanPage() {
                   ? { ...current, vehicle: { ...current.vehicle, photoUrl } }
                   : current)}
               />
-              <button className="iz-btn iz-btn-outline" style={{ marginTop: 16 }} onClick={() => navigate(`/bus?${new URLSearchParams({ plaque: result.vehicle.immatriculation })}`)}>Fiche, signalement et fourrière</button>
+              <button className="iz-btn iz-btn-outline" style={{ marginTop: 16 }} onClick={() => navigate(`/bus?${new URLSearchParams({ plaque: result.vehicle.immatriculation })}`)}>{t('control.ficheLink')}</button>
             </>
           )}
         </div>
@@ -169,7 +170,7 @@ export function ScanPage() {
 }
 
 export function ScansPage() {
-  const { t, user, notify } = useApp()
+  const { t, lang, user, notify } = useApp()
   const { data, loading, reload } = useAsync(() => izApi.scans(), [])
   const [deleting, setDeleting] = useState<IZRecord | null>(null)
   const [viewingAgent, setViewingAgent] = useState<number | null>(null)
@@ -179,11 +180,11 @@ export function ScansPage() {
     if (!deleting) return
     try {
       await izApi.deleteScan(Number(deleting.id))
-      notify('Scan supprimé.', 'success')
+      notify(t('control.scanDeleted'), 'success')
       setDeleting(null)
       await reload()
     } catch (error) {
-      notify(error instanceof Error ? error.message : t('common.error'), 'error')
+      notify(translateError(lang, error, 'common.error'), 'error')
     }
   }
   return (
@@ -201,7 +202,7 @@ export function ScansPage() {
             { key: 'immatriculation', label: t('search.plate'), sortValue: (scan) => String(scan.immatriculation ?? ''), render: (scan) => <span className="iz-mono iz-upper">{scan.immatriculation ?? '—'}</span> },
             { key: 'resultat', label: t('common.status'), sortValue: (scan) => String(scan.resultat ?? ''), render: (scan) => <StatusBadge status={scan.resultat} /> },
             {
-              key: 'controleurNom', label: 'Contrôleur',
+              key: 'controleurNom', label: t('control.controller'),
               sortValue: (scan) => `${scan.agentPrenom ?? ''} ${scan.controleurNom ?? ''}`,
               render: (scan) => (
                 <AgentIdentityButton
@@ -212,22 +213,22 @@ export function ScansPage() {
               ),
             },
             ...(isAdmin ? [
-              { key: 'agentCin', label: 'CIN', sortValue: (scan: IZRecord) => String(scan.agentCin ?? ''), render: (scan: IZRecord) => <span className="iz-small iz-mono">{scan.agentCin ?? '—'}</span> },
-              { key: 'agentFonction', label: 'Fonction', sortValue: (scan: IZRecord) => String(scan.agentFonction ?? ''), render: (scan: IZRecord) => <span className="iz-small">{scan.agentFonction ?? '—'}</span> },
-              { key: 'agentMatricule', label: 'Matricule', sortValue: (scan: IZRecord) => String(scan.agentMatricule ?? ''), render: (scan: IZRecord) => <span className="iz-small iz-mono">{scan.agentMatricule ?? '—'}</span> },
-              { key: 'agentTelephone', label: 'Téléphone', sortValue: (scan: IZRecord) => String(scan.agentTelephone ?? ''), render: (scan: IZRecord) => <span className="iz-small">{scan.agentTelephone ?? '—'}</span> },
+              { key: 'agentCin', label: t('control.cin'), sortValue: (scan: IZRecord) => String(scan.agentCin ?? ''), render: (scan: IZRecord) => <span className="iz-small iz-mono">{scan.agentCin ?? '—'}</span> },
+              { key: 'agentFonction', label: t('control.fonction'), sortValue: (scan: IZRecord) => String(scan.agentFonction ?? ''), render: (scan: IZRecord) => <span className="iz-small">{scan.agentFonction ?? '—'}</span> },
+              { key: 'agentMatricule', label: t('control.matricule'), sortValue: (scan: IZRecord) => String(scan.agentMatricule ?? ''), render: (scan: IZRecord) => <span className="iz-small iz-mono">{scan.agentMatricule ?? '—'}</span> },
+              { key: 'agentTelephone', label: t('control.phone'), sortValue: (scan: IZRecord) => String(scan.agentTelephone ?? ''), render: (scan: IZRecord) => <span className="iz-small">{scan.agentTelephone ?? '—'}</span> },
             ] : []),
-            { key: 'observation', label: t('signal.address'), sortValue: (scan) => String(scan.observation ?? ''), render: (scan) => <span className="iz-small">{scan.observation ?? '—'}</span> },
+            { key: 'observation', label: t('control.observation'), sortValue: (scan) => String(scan.observation ?? ''), render: (scan) => <span className="iz-small">{scan.observation ?? '—'}</span> },
           ]}
           actions={isSuper ? (scan) => (
-            <button className="iz-btn iz-btn-danger iz-btn-sm" onClick={() => setDeleting(scan)}>Supprimer</button>
+            <button className="iz-btn iz-btn-danger iz-btn-sm" onClick={() => setDeleting(scan)}>{t('common.delete')}</button>
           ) : undefined}
         />
       )}
       {viewingAgent && <AgentProfileDialog id={viewingAgent} onClose={() => setViewingAgent(null)} />}
       {deleting && (
         <ConfirmDialog
-          message={`Supprimer définitivement le scan du ${when(deleting.scanTime)} ?`}
+          message={t('control.deleteScan', { date: when(deleting.scanTime) })}
           onCancel={() => setDeleting(null)}
           onConfirm={() => void remove()}
         />
@@ -237,7 +238,7 @@ export function ScansPage() {
 }
 
 export function InfractionsPage() {
-  const { t, notify, user } = useApp()
+  const { t, lang, notify, user } = useApp()
   const { data, loading, reload } = useAsync(() => izApi.infractions(), [])
   const [deleting, setDeleting] = useState<IZRecord | null>(null)
   const [viewingAgent, setViewingAgent] = useState<number | null>(null)
@@ -246,21 +247,21 @@ export function InfractionsPage() {
   const setStatut = async (id: number, statut: string) => {
     try {
       await izApi.updateInfraction(id, { statut })
-      notify(`${t('control.infractions')} : ${statut}`, 'success')
+      notify(`${t('control.infractions')} : ${translateValue(lang, statut)}`, 'success')
       await reload()
     } catch (error) {
-      notify(error instanceof Error ? error.message : t('common.error'), 'error')
+      notify(translateError(lang, error, 'common.error'), 'error')
     }
   }
   const remove = async () => {
     if (!deleting) return
     try {
       await izApi.deleteInfraction(Number(deleting.id))
-      notify('Infraction supprimée.', 'success')
+      notify(t('control.infractionDeleted'), 'success')
       setDeleting(null)
       await reload()
     } catch (error) {
-      notify(error instanceof Error ? error.message : t('common.error'), 'error')
+      notify(translateError(lang, error, 'common.error'), 'error')
     }
   }
   return (
@@ -276,11 +277,11 @@ export function InfractionsPage() {
           columns={[
             { key: 'dateInfraction', label: t('common.date'), sortValue: (item) => String(item.dateInfraction ?? ''), render: (item) => <span className="iz-small iz-nowrap">{when(item.dateInfraction)}</span> },
             { key: 'immatriculation', label: t('search.plate'), sortValue: (item) => String(item.immatriculation ?? ''), render: (item) => <span className="iz-mono">{item.immatriculation ?? '—'}</span> },
-            { key: 'type', label: t('signal.category'), sortValue: (item) => String(item.type ?? ''), render: (item) => <>{item.type}</> },
+            { key: 'type', label: t('signal.category'), sortValue: (item) => String(item.type ?? ''), render: (item) => <>{translateValue(lang, item.type)}</> },
             { key: 'montant', label: t('admin.amount'), sortValue: (item) => Number(item.montant ?? 0), render: (item) => <>{item.montant} Ar</> },
             { key: 'statut', label: t('common.status'), sortValue: (item) => String(item.statut ?? ''), render: (item) => <StatusBadge status={item.statut} /> },
             {
-              key: 'controleurNom', label: 'Agent',
+              key: 'controleurNom', label: t('control.agent'),
               sortValue: (item) => `${item.agentPrenom ?? ''} ${item.controleurNom ?? ''}`,
               render: (item) => (
                 <AgentIdentityButton
@@ -291,10 +292,10 @@ export function InfractionsPage() {
               ),
             },
             ...(isAdmin ? [
-              { key: 'agentCin', label: 'CIN', sortValue: (item: IZRecord) => String(item.agentCin ?? ''), render: (item: IZRecord) => <span className="iz-small iz-mono">{item.agentCin ?? '—'}</span> },
-              { key: 'agentFonction', label: 'Fonction', sortValue: (item: IZRecord) => String(item.agentFonction ?? ''), render: (item: IZRecord) => <span className="iz-small">{item.agentFonction ?? '—'}</span> },
-              { key: 'agentMatricule', label: 'Matricule', sortValue: (item: IZRecord) => String(item.agentMatricule ?? ''), render: (item: IZRecord) => <span className="iz-small iz-mono">{item.agentMatricule ?? '—'}</span> },
-              { key: 'agentTelephone', label: 'Téléphone', sortValue: (item: IZRecord) => String(item.agentTelephone ?? ''), render: (item: IZRecord) => <span className="iz-small">{item.agentTelephone ?? '—'}</span> },
+              { key: 'agentCin', label: t('control.cin'), sortValue: (item: IZRecord) => String(item.agentCin ?? ''), render: (item: IZRecord) => <span className="iz-small iz-mono">{item.agentCin ?? '—'}</span> },
+              { key: 'agentFonction', label: t('control.fonction'), sortValue: (item: IZRecord) => String(item.agentFonction ?? ''), render: (item: IZRecord) => <span className="iz-small">{item.agentFonction ?? '—'}</span> },
+              { key: 'agentMatricule', label: t('control.matricule'), sortValue: (item: IZRecord) => String(item.agentMatricule ?? ''), render: (item: IZRecord) => <span className="iz-small iz-mono">{item.agentMatricule ?? '—'}</span> },
+              { key: 'agentTelephone', label: t('control.phone'), sortValue: (item: IZRecord) => String(item.agentTelephone ?? ''), render: (item: IZRecord) => <span className="iz-small">{item.agentTelephone ?? '—'}</span> },
             ] : []),
           ]}
           actions={(item) => (
@@ -303,7 +304,7 @@ export function InfractionsPage() {
                 {t('admin.approve')}
               </button>
               {isSuper && (
-                <> <button className="iz-btn iz-btn-danger iz-btn-sm" onClick={() => setDeleting(item)}>Supprimer</button></>
+                <> <button className="iz-btn iz-btn-danger iz-btn-sm" onClick={() => setDeleting(item)}>{t('common.delete')}</button></>
               )}
             </>
           )}
@@ -311,7 +312,7 @@ export function InfractionsPage() {
       )}
       {deleting && (
         <ConfirmDialog
-          message={`Supprimer définitivement l'infraction ${deleting.type ?? ''} du ${when(deleting.dateInfraction)} ?`}
+          message={t('control.deleteInfraction', { type: String(deleting.type ?? ''), date: when(deleting.dateInfraction) })}
           onCancel={() => setDeleting(null)}
           onConfirm={() => void remove()}
         />
@@ -322,7 +323,7 @@ export function InfractionsPage() {
 }
 
 export function ControlSignalsPage() {
-  const { t, notify, user, navigate, theme } = useApp()
+  const { t, lang, notify, user, navigate, theme } = useApp()
   const { data, loading, reload } = useAsync(() => izApi.controlSignals(), [])
   const [deleting, setDeleting] = useState<IZRecord | null>(null)
   const [viewingAgent, setViewingAgent] = useState<number | null>(null)
@@ -339,7 +340,7 @@ export function ControlSignalsPage() {
       if (signal.latitude == null || signal.longitude == null) continue
       list.push({
         key: `signal-${signal.id}`,
-        label: `${String(signal.reference ?? 'Signalement')} · ${String(signal.categorie ?? '')}`,
+        label: `${String(signal.reference ?? t('track.signalLabel'))} · ${translateValue(lang, signal.categorie)}`,
         kind: 'signal', color: '#dc2626',
         latitude: Number(signal.latitude), longitude: Number(signal.longitude),
       })
@@ -347,58 +348,58 @@ export function ControlSignalsPage() {
     for (const scan of scans ?? []) {
       list.push({
         key: `scan-${scan.id}`,
-        label: `Scan QR · ${String(scan.immatriculation ?? 'public')}`,
+        label: `Scan QR · ${String(scan.immatriculation ?? t('control.publicSignal'))}`,
         kind: 'scan', color: '#0ea5e9',
         latitude: Number(scan.latitude), longitude: Number(scan.longitude),
       })
     }
     return list
-  }, [data, scans])
+  }, [data, scans, lang, t])
   const resolve = async (id: number, statut: string) => {
     try {
       await izApi.resolveSignal(id, { statut })
-      notify(`${t('control.signals')} : ${statut}`, 'success')
+      notify(`${t('control.signals')} : ${translateValue(lang, statut)}`, 'success')
       await reload()
     } catch (error) {
-      notify(error instanceof Error ? error.message : t('common.error'), 'error')
+      notify(translateError(lang, error, 'common.error'), 'error')
     }
   }
   const remove = async () => {
     if (!deleting) return
     try {
       await izApi.deleteSignal(Number(deleting.id))
-      notify('Signalement supprimé.', 'success')
+      notify(t('control.signalDeleted'), 'success')
       setDeleting(null)
       await reload()
     } catch (error) {
-      notify(error instanceof Error ? error.message : t('common.error'), 'error')
+      notify(translateError(lang, error, 'common.error'), 'error')
     }
   }
   const removeScan = async () => {
     if (!deletingScan) return
     try {
       await izApi.deletePublicScan(Number(deletingScan.id))
-      notify('Position de scan supprimée.', 'success')
+      notify(t('control.scanPosDeleted'), 'success')
       setDeletingScan(null)
       await reloadScans()
     } catch (error) {
-      notify(error instanceof Error ? error.message : t('common.error'), 'error')
+      notify(translateError(lang, error, 'common.error'), 'error')
     }
   }
   return (
     <>
       <PageHead
         title={t('control.signals')}
-        subtitle={isAdmin ? 'Signalements et positions GPS des scans QR — visibles par les administrateurs.' : undefined}
+        subtitle={isAdmin ? t('control.signalsAdminSubtitle') : undefined}
         action={(user?.role === 'admin' || user?.role === 'superadmin') ? <ExportButton cible="signalements" label="Excel" /> : undefined}
       />
       {isAdmin && (
         <div className="iz-card" style={{ marginBottom: 16 }}>
           <div className="iz-flex iz-wrap" style={{ justifyContent: 'space-between', marginBottom: 8 }}>
-            <h3 style={{ fontSize: '.95rem', margin: 0 }}>🗺 Positions transmises</h3>
+            <h3 style={{ fontSize: '.95rem', margin: 0 }}>{t('control.positionsSent')}</h3>
             <span className="iz-small iz-muted">
-              <span className="iz-badge iz-badge-orange">Signalement</span>{' '}
-              <span className="iz-badge">Scan QR</span> · {mapPoints.length} point(s)
+              <span className="iz-badge iz-badge-orange">{t('track.signalLabel')}</span>{' '}
+              <span className="iz-badge">Scan QR</span> · {t('control.points', { count: mapPoints.length })}
             </span>
           </div>
           <div className="iz-map-box" style={{ height: 380 }}>
@@ -415,6 +416,8 @@ export function ControlSignalsPage() {
               basemap="plan"
               viewMode="2d"
               night={theme === 'dark'}
+              zoomLabels={{ group: t('map.zoomGroup'), zoomIn: t('map.zoomIn'), zoomOut: t('map.zoomOut') }}
+              mapLabel={t('map.canvasAria')}
               onSelect={(key) => {
                 const signal = (data ?? []).find((item) => `signal-${item.id}` === key)
                 if (signal?.reference) navigate(`/suivi?ref=${encodeURIComponent(String(signal.reference))}`)
@@ -423,7 +426,7 @@ export function ControlSignalsPage() {
             />
           </div>
           <p className="iz-small iz-muted" style={{ marginTop: 8 }}>
-            Cliquez sur un signalement pour ouvrir son suivi et sa position précise.
+            {t('control.mapHint')}
           </p>
         </div>
       )}
@@ -437,11 +440,11 @@ export function ControlSignalsPage() {
           columns={[
             { key: 'reference', label: t('admin.reference'), sortValue: (signal) => String(signal.reference ?? ''), render: (signal) => <span className="iz-mono iz-small">{signal.reference}</span> },
             { key: 'immatriculation', label: t('search.plate'), sortValue: (signal) => String(signal.immatriculation ?? ''), render: (signal) => <span className="iz-mono">{signal.immatriculation}</span> },
-            { key: 'categorie', label: t('signal.category'), sortValue: (signal) => String(signal.categorie ?? ''), render: (signal) => <>{signal.categorie}</> },
+            { key: 'categorie', label: t('signal.category'), sortValue: (signal) => String(signal.categorie ?? ''), render: (signal) => <>{translateValue(lang, signal.categorie)}</> },
             { key: 'description', label: t('signal.description'), sortValue: (signal) => String(signal.description ?? ''), render: (signal) => <span className="iz-small" style={{ maxWidth: 260 }}>{signal.description}</span> },
             { key: 'createdAt', label: t('common.date'), sortValue: (signal) => String(signal.createdAt ?? ''), render: (signal) => <span className="iz-small iz-nowrap">{when(signal.createdAt)}</span> },
             {
-              key: 'agent', label: 'Agent',
+              key: 'agent', label: t('control.agent'),
               sortValue: (signal) => `${signal.agentPrenom ?? ''} ${signal.controleurNom ?? ''}`,
               render: (signal) => signal.agentId ? (
                 <AgentIdentityButton
@@ -449,16 +452,16 @@ export function ControlSignalsPage() {
                   name={[signal.agentPrenom, signal.controleurNom].filter(Boolean).join(' ')}
                   onOpen={setViewingAgent}
                 />
-              ) : <span className="iz-small iz-muted">Signal public</span>,
+              ) : <span className="iz-small iz-muted">{t('control.publicSignal')}</span>,
             },
             ...(isAdmin ? [
-              { key: 'agentCin', label: 'CIN', sortValue: (signal: IZRecord) => String(signal.agentCin ?? ''), render: (signal: IZRecord) => <span className="iz-small iz-mono">{signal.agentCin ?? '—'}</span> },
-              { key: 'agentFonction', label: 'Fonction', sortValue: (signal: IZRecord) => String(signal.agentFonction ?? ''), render: (signal: IZRecord) => <span className="iz-small">{signal.agentFonction ?? '—'}</span> },
-              { key: 'agentMatricule', label: 'Matricule', sortValue: (signal: IZRecord) => String(signal.agentMatricule ?? ''), render: (signal: IZRecord) => <span className="iz-small iz-mono">{signal.agentMatricule ?? '—'}</span> },
-              { key: 'agentTelephone', label: 'Téléphone', sortValue: (signal: IZRecord) => String(signal.agentTelephone ?? ''), render: (signal: IZRecord) => <span className="iz-small">{signal.agentTelephone ?? '—'}</span> },
+              { key: 'agentCin', label: t('control.cin'), sortValue: (signal: IZRecord) => String(signal.agentCin ?? ''), render: (signal: IZRecord) => <span className="iz-small iz-mono">{signal.agentCin ?? '—'}</span> },
+              { key: 'agentFonction', label: t('control.fonction'), sortValue: (signal: IZRecord) => String(signal.agentFonction ?? ''), render: (signal: IZRecord) => <span className="iz-small">{signal.agentFonction ?? '—'}</span> },
+              { key: 'agentMatricule', label: t('control.matricule'), sortValue: (signal: IZRecord) => String(signal.agentMatricule ?? ''), render: (signal: IZRecord) => <span className="iz-small iz-mono">{signal.agentMatricule ?? '—'}</span> },
+              { key: 'agentTelephone', label: t('control.phone'), sortValue: (signal: IZRecord) => String(signal.agentTelephone ?? ''), render: (signal: IZRecord) => <span className="iz-small">{signal.agentTelephone ?? '—'}</span> },
             ] : []),
-            { key: 'position', label: 'Position', sortValue: (signal) => (signal.latitude == null ? '' : 'GPS'), render: (signal) => signal.latitude != null && signal.longitude != null ? (
-              <button className="iz-btn iz-btn-ghost iz-btn-sm" onClick={() => navigate(`/suivi?ref=${encodeURIComponent(String(signal.reference))}`)}>🗺 Voir</button>
+            { key: 'position', label: t('control.position'), sortValue: (signal) => (signal.latitude == null ? '' : 'GPS'), render: (signal) => signal.latitude != null && signal.longitude != null ? (
+              <button className="iz-btn iz-btn-ghost iz-btn-sm" onClick={() => navigate(`/suivi?ref=${encodeURIComponent(String(signal.reference))}`)}>{t('control.viewMap')}</button>
             ) : <span className="iz-small iz-muted">—</span> },
             { key: 'statut', label: t('common.status'), sortValue: (signal) => String(signal.statut ?? ''), render: (signal) => <StatusBadge status={signal.statut} /> },
           ]}
@@ -467,7 +470,7 @@ export function ControlSignalsPage() {
               <button className="iz-btn iz-btn-primary iz-btn-sm" onClick={() => resolve(Number(signal.id), 'En cours')}>{t('control.process')}</button>{' '}
               <button className="iz-btn iz-btn-outline iz-btn-sm" onClick={() => resolve(Number(signal.id), 'Résolu')}>✓</button>
               {isAdmin && (
-                <> <button className="iz-btn iz-btn-danger iz-btn-sm" onClick={() => setDeleting(signal)}>Supprimer</button></>
+                <> <button className="iz-btn iz-btn-danger iz-btn-sm" onClick={() => setDeleting(signal)}>{t('common.delete')}</button></>
               )}
             </>
           )}
@@ -475,36 +478,36 @@ export function ControlSignalsPage() {
       )}
       {isAdmin && (
         <div className="iz-card" style={{ marginTop: 18 }}>
-          <h3 style={{ fontSize: '.95rem', marginBottom: 10 }}>📱 Derniers scans QR du public</h3>
+          <h3 style={{ fontSize: '.95rem', marginBottom: 10 }}>{t('control.publicScans')}</h3>
           {scans?.length ? (
             <div className="iz-table-wrap">
               <table className="iz-report-table">
-                <thead><tr><th>Date et heure</th><th>Bus</th><th>Position</th><th></th></tr></thead>
+                <thead><tr><th>{t('control.dateTime')}</th><th>{t('control.busColumn')}</th><th>{t('control.position')}</th><th /></tr></thead>
                 <tbody>
                   {scans.slice(0, 30).map((scan) => (
                     <tr key={scan.id}>
                       <td>{when(scan.createdAt)}</td>
                       <td className="iz-mono">{scan.immatriculation ?? '—'}</td>
                       <td className="iz-small">{Number(scan.latitude).toFixed(5)}, {Number(scan.longitude).toFixed(5)}</td>
-                      <td>{isAdmin && <button className="iz-btn iz-btn-danger iz-btn-sm" onClick={() => setDeletingScan(scan)}>Supprimer</button>}</td>
+                      <td>{isAdmin && <button className="iz-btn iz-btn-danger iz-btn-sm" onClick={() => setDeletingScan(scan)}>{t('common.delete')}</button>}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
-          ) : <p className="iz-small iz-muted">Aucun scan QR public enregistré pour le moment.</p>}
+          ) : <p className="iz-small iz-muted">{t('control.noPublicScans')}</p>}
         </div>
       )}
       {deleting && (
         <ConfirmDialog
-          message={`Supprimer définitivement le signalement ${deleting.reference ?? ''} ?`}
+          message={t('control.deleteSignal', { ref: String(deleting.reference ?? '') })}
           onCancel={() => setDeleting(null)}
           onConfirm={() => void remove()}
         />
       )}
       {deletingScan && (
         <ConfirmDialog
-          message="Supprimer définitivement cette position de scan QR ?"
+          message={t('control.deleteScanPos')}
           onCancel={() => setDeletingScan(null)}
           onConfirm={() => void removeScan()}
         />

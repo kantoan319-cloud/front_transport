@@ -7,6 +7,125 @@ const GOLD: [number, number, number] = [232, 163, 61]
 const MUTED: [number, number, number] = [107, 119, 111]
 const LINE: [number, number, number] = [224, 220, 208]
 
+export type PdfLang = 'fr' | 'mg'
+
+const pdfText = {
+  fr: {
+    brand: 'GESTION DE BUS CU/ABE',
+    receiptTitle: 'REÇU DE PAIEMENT',
+    receiptSubtitle: 'Commune Urbaine d’Antsirabe — Transport urbain',
+    issued: 'Émis le',
+    type: 'Type de paiement',
+    plate: 'Immatriculation du bus',
+    owner: 'Nom du propriétaire',
+    method: 'Moyen de paiement',
+    phone: 'Téléphone',
+    external: 'Référence externe',
+    status: 'Statut',
+    designation: 'DÉSIGNATION',
+    amountDetail: 'MONTANT / DÉTAIL',
+    total: 'TOTAL',
+    paid: 'PAYÉ',
+    pending: 'EN ATTENTE',
+    validatedBy: 'Validé par {{name}} le {{date}}',
+    cashier: 'Signature du caissier',
+    client: 'Signature du client',
+    notice: 'Ce reçu atteste du paiement enregistré dans la plateforme Gestion de Bus CU/ABE. Conservez-le pour toute réclamation.',
+    receiptFooter: 'Reçu {{ref}}',
+    registerTitle: 'REGISTRE DES PAIEMENTS',
+    registerSubtitle: "Commune Urbaine d'Antsirabe — Gestion de Bus CU/ABE",
+    year: 'Année {{year}}',
+    month: 'Mois de {{month}}',
+    day: 'Journée du {{day}}',
+    editedAt: 'Édité le {{date}} à {{time}}',
+    operations: 'Opérations : {{count}}',
+    collected: 'Encaissé : {{amount}} Ar',
+    pendingLabel: 'En attente : {{count}}',
+    colDate: 'Date et heure',
+    colReference: 'Référence',
+    colType: 'Type',
+    colPlate: 'Immatriculation',
+    colOwner: 'Propriétaire',
+    colMethod: 'Moyen',
+    colAmount: 'Montant (Ar)',
+    colStatus: 'Statut',
+    registerFooter: 'Antsirabe · registre édité le {{date}} à {{time}}',
+    page: 'Page {{page}}',
+  },
+  mg: {
+    brand: 'FITANTANANA BUS CU/ABE',
+    receiptTitle: 'TARATASY FANAMARINANA FANDOAVAM-BOLA',
+    receiptSubtitle: 'Tanànan’Antsirabe — Fitaterana an-tanàna',
+    issued: 'Navoaka ny',
+    type: 'Karazana fandoavam-bola',
+    plate: 'Laharan’ny bus',
+    owner: 'Anaran’ny tompony',
+    method: 'Fomba fandoavana',
+    phone: 'Telefaonina',
+    external: 'Reference ivelany',
+    status: 'Sata',
+    designation: 'FANONDROANA',
+    amountDetail: 'VOLA / ANTSIPIRIANY',
+    total: 'FITAMBARANA',
+    paid: 'VOALOA',
+    pending: 'MIANDRY',
+    validatedBy: 'Noamarina ny {{name}} tamin’ny {{date}}',
+    cashier: 'Sonian’ny mpandoa vola',
+    client: 'Sonian’ny mpanjifa',
+    notice: 'Manamarina ny fandoavam-bola voarakitra ao amin’ny rafitra Fitantanana Bus CU/ABE ity taratasy ity. Tazony raha misy fitarainana.',
+    receiptFooter: 'Taratasy {{ref}}',
+    registerTitle: 'REJISITRY NY FANDOAVAM-BOLA',
+    registerSubtitle: 'Tanànan’Antsirabe — Fitantanana Bus CU/ABE',
+    year: 'Taona {{year}}',
+    month: 'Volana {{month}}',
+    day: 'Andro {{day}}',
+    editedAt: 'Navoaka ny {{date}} tamin’ny {{time}}',
+    operations: 'Hetsika: {{count}}',
+    collected: 'Vola voaray: {{amount}} Ar',
+    pendingLabel: 'Miandry: {{count}}',
+    colDate: 'Daty sy ora',
+    colReference: 'Reference',
+    colType: 'Karazana',
+    colPlate: 'Laharan’fiara',
+    colOwner: 'Tompony',
+    colMethod: 'Fomba',
+    colAmount: 'Vola (Ar)',
+    colStatus: 'Sata',
+    registerFooter: 'Antsirabe · rejisitra navoaka ny {{date}} tamin’ny {{time}}',
+    page: 'Pejy {{page}}',
+  },
+} as const
+
+const valueMg: Record<string, string> = {
+  Adhésion: 'Fidirana',
+  Affectation: 'Fanendrena',
+  Vignette: 'Vignette',
+  Amende: 'Lamandy',
+  Autre: 'Hafa',
+  'Espèces': 'Vola eny an-tànana',
+  Payé: 'Voaloa',
+  Validé: 'Voamarina',
+  'En attente': 'Miandry',
+  'En cours': 'Eo am-panaovana',
+  Résolu: 'Voavaha',
+}
+
+const pdfValue = (lang: PdfLang, value: unknown) => {
+  const text = value == null || value === '' ? '—' : String(value)
+  return lang === 'mg' ? (valueMg[text] ?? text) : text
+}
+
+const fill = (template: string, variables: Record<string, string | number>) => {
+  let result = template
+  for (const [name, replacement] of Object.entries(variables)) {
+    result = result.replaceAll(`{{${name}}}`, String(replacement))
+  }
+  return result
+}
+
+const monthNamesMg = ['Janoary', 'Febroary', 'Martsa', 'Aprily', 'Mey', 'Jona', 'Jolay', 'Aogositra', 'Septambra', 'Oktobra', 'Novambra', 'Desambra']
+const weekdayNamesMg = ['Alahady', 'Alatsinainy', 'Talata', 'Alarobia', 'Alakamisy', 'Zoma', 'Asabotsy']
+
 async function loadJsPdf() {
   const { jsPDF: JsPdf } = await import('jspdf')
   return JsPdf
@@ -400,7 +519,8 @@ const receiptDate = (value?: string | null) => {
 }
 
 /** Reçu A4 noir et blanc, avec le logo de la commune en niveaux de gris. */
-async function buildReceipt(receipt: ReceiptPayload) {
+async function buildReceipt(receipt: ReceiptPayload, lang: PdfLang = 'fr') {
+  const L = pdfText[lang]
   const JsPdf = await loadJsPdf()
   const doc = new JsPdf({ unit: 'mm', format: 'a4', orientation: 'portrait', compress: true })
   const pageWidth = doc.internal.pageSize.getWidth()
@@ -430,12 +550,12 @@ async function buildReceipt(receipt: ReceiptPayload) {
   doc.setTextColor(0)
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(16)
-  doc.text('GESTION DE BUS CU/ABE', pageWidth / 2, y, { align: 'center' })
+  doc.text(L.brand, pageWidth / 2, y, { align: 'center' })
   y += 6
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(9)
   doc.setTextColor(70)
-  doc.text('Commune Urbaine d’Antsirabe — Transport urbain', pageWidth / 2, y, { align: 'center' })
+  doc.text(L.receiptSubtitle, pageWidth / 2, y, { align: 'center' })
 
   y += 10
   doc.setDrawColor(0)
@@ -445,7 +565,7 @@ async function buildReceipt(receipt: ReceiptPayload) {
   doc.setTextColor(0)
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(13)
-  doc.text('REÇU DE PAIEMENT', pageWidth / 2, y, { align: 'center' })
+  doc.text(L.receiptTitle, pageWidth / 2, y, { align: 'center' })
   y += 3
   doc.setLineWidth(0.5)
   doc.line(left, y, right, y)
@@ -456,18 +576,18 @@ async function buildReceipt(receipt: ReceiptPayload) {
   doc.setFont('helvetica', 'normal')
   doc.setTextColor(60)
   doc.text(`N° ${receipt.reference}`, left, y)
-  doc.text(`Émis le ${receiptDate(receipt.createdAt)}`, right, y, { align: 'right' })
+  doc.text(`${L.issued} ${receiptDate(receipt.createdAt)}`, right, y, { align: 'right' })
   y += 8
 
-  const rows: { label: string; value: string }[] = [
-    { label: 'Type de paiement', value: receipt.type || '—' },
-    { label: 'Immatriculation du bus', value: receipt.immatriculation || '—' },
-    { label: 'Nom du propriétaire', value: receipt.proprietaireNom || '—' },
-    { label: 'Moyen de paiement', value: receipt.moyen || '—' },
-    { label: 'Téléphone', value: receipt.telephone || '—' },
-    { label: 'Référence externe', value: receipt.referenceExterne || '—' },
-    { label: 'Statut', value: receipt.statut || '—' },
-  ].filter((row) => row.value !== '—' || ['Type de paiement', 'Moyen de paiement', 'Statut'].includes(row.label))
+  const rows: { label: string; value: string; required?: boolean }[] = [
+    { label: L.type, value: pdfValue(lang, receipt.type), required: true },
+    { label: L.plate, value: pdfValue(lang, receipt.immatriculation) },
+    { label: L.owner, value: pdfValue(lang, receipt.proprietaireNom) },
+    { label: L.method, value: pdfValue(lang, receipt.moyen), required: true },
+    { label: L.phone, value: pdfValue(lang, receipt.telephone) },
+    { label: L.external, value: pdfValue(lang, receipt.referenceExterne) },
+    { label: L.status, value: pdfValue(lang, receipt.statut), required: true },
+  ].filter((row) => row.required || row.value !== '—')
 
   doc.setDrawColor(0)
   doc.setFillColor(235, 235, 235)
@@ -475,8 +595,8 @@ async function buildReceipt(receipt: ReceiptPayload) {
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(9)
   doc.setTextColor(0)
-  doc.text('DÉSIGNATION', left + 3, y)
-  doc.text('MONTANT / DÉTAIL', right - 3, y, { align: 'right' })
+  doc.text(L.designation, left + 3, y)
+  doc.text(L.amountDetail, right - 3, y, { align: 'right' })
   y += 7.5
 
   for (const row of rows) {
@@ -503,7 +623,7 @@ async function buildReceipt(receipt: ReceiptPayload) {
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(12)
   doc.setTextColor(0)
-  doc.text('TOTAL', left + 3, y)
+  doc.text(L.total, left + 3, y)
   doc.setFontSize(14)
   doc.text(`${Number(receipt.montant || 0).toLocaleString('fr-FR')} Ar`, right - 3, y, { align: 'right' })
   y += 4
@@ -515,7 +635,7 @@ async function buildReceipt(receipt: ReceiptPayload) {
   doc.setFontSize(11)
   doc.setDrawColor(0)
   doc.setLineWidth(0.5)
-  const stamp = paid ? 'PAYÉ' : (receipt.statut || 'EN ATTENTE').toUpperCase()
+  const stamp = paid ? L.paid : (receipt.statut ? pdfValue(lang, receipt.statut).toUpperCase() : L.pending)
   const stampWidth = Math.max(46, doc.getTextWidth(stamp) + 18)
   doc.rect(right - stampWidth, y - 7, stampWidth, 12)
   doc.text(stamp, right - stampWidth / 2, y + 1.5, { align: 'center' })
@@ -524,7 +644,7 @@ async function buildReceipt(receipt: ReceiptPayload) {
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(8.5)
     doc.setTextColor(70)
-    doc.text(`Validé par ${receipt.validatedByName} le ${receiptDate(receipt.validatedAt)}`, left, y - 4)
+    doc.text(fill(L.validatedBy, { name: receipt.validatedByName, date: receiptDate(receipt.validatedAt) }), left, y - 4)
   }
 
   y += 30
@@ -535,17 +655,14 @@ async function buildReceipt(receipt: ReceiptPayload) {
   doc.line(left, y, left + 62, y)
   doc.line(right - 62, y, right, y)
   y += 5
-  doc.text('Signature du caissier', left, y)
-  doc.text('Signature du client', right - 62, y)
+  doc.text(L.cashier, left, y)
+  doc.text(L.client, right - 62, y)
 
   y += 14
   doc.setFontSize(8)
   doc.setTextColor(90)
   doc.text(
-    doc.splitTextToSize(
-      'Ce reçu atteste du paiement enregistré dans la plateforme Gestion de Bus CU/ABE. Conservez-le pour toute réclamation.',
-      width,
-    ),
+    doc.splitTextToSize(L.notice, width),
     left,
     y,
   )
@@ -554,19 +671,19 @@ async function buildReceipt(receipt: ReceiptPayload) {
   doc.setFontSize(7.5)
   doc.setTextColor(90)
   doc.text(`Antsirabe · ${new Date().toLocaleString('fr-FR')}`, left, pageHeight - 13)
-  doc.text(`Reçu ${receipt.reference}`, right, pageHeight - 13, { align: 'right' })
+  doc.text(fill(L.receiptFooter, { ref: receipt.reference }), right, pageHeight - 13, { align: 'right' })
 
   return doc
 }
 
-export async function downloadReceiptA4(receipt: ReceiptPayload, filename?: string): Promise<void> {
-  const doc = await buildReceipt(receipt)
+export async function downloadReceiptA4(receipt: ReceiptPayload, filename?: string, lang: PdfLang = 'fr'): Promise<void> {
+  const doc = await buildReceipt(receipt, lang)
   doc.save(filename ?? `Recu_${receipt.reference}.pdf`)
 }
 
 /** Génère le PDF puis ouvre la boîte d'impression du navigateur. */
-export async function printReceipt(receipt: ReceiptPayload): Promise<void> {
-  const doc = await buildReceipt(receipt)
+export async function printReceipt(receipt: ReceiptPayload, lang: PdfLang = 'fr'): Promise<void> {
+  const doc = await buildReceipt(receipt, lang)
   doc.autoPrint()
   const url = String(doc.output('bloburl'))
   const win = window.open(url, '_blank')
@@ -611,22 +728,32 @@ const shortDateTime = (value?: string | null) => {
   return date.toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' })
 }
 
-function registerPeriodLabel(payload: RegisterPayload): string {
+function registerPeriodLabel(payload: RegisterPayload, lang: PdfLang): string {
+  const L = pdfText[lang]
   const from = new Date(payload.from)
+  const year = from.getUTCFullYear()
+  const month = from.getUTCMonth()
+  const day = from.getUTCDate()
+  if (lang === 'mg') {
+    if (payload.period === 'year') return fill(L.year, { year })
+    if (payload.period === 'month') return fill(L.month, { month: `${monthNamesMg[month]} ${year}` })
+    return fill(L.day, { day: `${weekdayNamesMg[from.getUTCDay()]} ${day} ${monthNamesMg[month]} ${year}` })
+  }
   if (payload.period === 'year') {
-    return `Année ${from.getUTCFullYear()}`
+    return fill(L.year, { year })
   }
   if (payload.period === 'month') {
     const label = from.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric', timeZone: 'UTC' })
-    return `Mois de ${label}`
+    return fill(L.month, { month: label })
   }
   const label = from.toLocaleDateString('fr-FR', {
     weekday: 'long', day: '2-digit', month: 'long', year: 'numeric', timeZone: 'UTC',
   })
-  return `Journée du ${label}`
+  return fill(L.day, { day: label })
 }
 
-async function buildRegisterPdf(payload: RegisterPayload) {
+async function buildRegisterPdf(payload: RegisterPayload, lang: PdfLang = 'fr') {
+  const L = pdfText[lang]
   const JsPdf = await loadJsPdf()
   const { default: autoTable } = await import('jspdf-autotable')
   const doc = new JsPdf({ unit: 'mm', format: 'a4', orientation: 'landscape', compress: true })
@@ -650,41 +777,41 @@ async function buildRegisterPdf(payload: RegisterPayload) {
   doc.setTextColor(...GREEN)
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(16)
-  doc.text('REGISTRE DES PAIEMENTS', titleX, 18)
+  doc.text(L.registerTitle, titleX, 18)
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(9)
   doc.setTextColor(...MUTED)
-  doc.text("Commune Urbaine d'Antsirabe — Gestion de Bus CU/ABE", titleX, 24)
+  doc.text(L.registerSubtitle, titleX, 24)
   doc.setTextColor(...GREEN)
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(10.5)
-  doc.text(registerPeriodLabel(payload), titleX, 30)
+  doc.text(registerPeriodLabel(payload, lang), titleX, 30)
 
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(8.4)
   doc.setTextColor(...MUTED)
-  doc.text(`Édité le ${editedAt.toLocaleDateString('fr-FR')} à ${editedAt.toLocaleTimeString('fr-FR')}`, pageWidth - margin, 18, { align: 'right' })
-  doc.text(`Opérations : ${payload.summary.total}`, pageWidth - margin, 23, { align: 'right' })
-  doc.text(`Encaissé : ${Number(payload.summary.montantPaye).toLocaleString('fr-FR')} Ar`, pageWidth - margin, 28, { align: 'right' })
-  doc.text(`En attente : ${payload.summary.enAttente}`, pageWidth - margin, 33, { align: 'right' })
+  doc.text(fill(L.editedAt, { date: editedAt.toLocaleDateString('fr-FR'), time: editedAt.toLocaleTimeString('fr-FR') }), pageWidth - margin, 18, { align: 'right' })
+  doc.text(fill(L.operations, { count: payload.summary.total }), pageWidth - margin, 23, { align: 'right' })
+  doc.text(fill(L.collected, { amount: Number(payload.summary.montantPaye).toLocaleString('fr-FR') }), pageWidth - margin, 28, { align: 'right' })
+  doc.text(fill(L.pendingLabel, { count: payload.summary.enAttente }), pageWidth - margin, 33, { align: 'right' })
 
   doc.setDrawColor(...LINE)
   doc.line(margin, 36, pageWidth - margin, 36)
 
   autoTable(doc, {
     head: [[
-      'Date et heure', 'Référence', 'Type', 'Immatriculation', 'Propriétaire',
-      'Moyen', 'Montant (Ar)', 'Statut',
+      L.colDate, L.colReference, L.colType, L.colPlate, L.colOwner,
+      L.colMethod, L.colAmount, L.colStatus,
     ]],
     body: payload.rows.map((row) => [
       shortDateTime(row.createdAt),
       row.reference ?? '—',
-      row.type ?? '—',
+      pdfValue(lang, row.type),
       row.immatriculation ?? '—',
       row.proprietaireNom ?? '—',
-      row.moyen ?? '—',
+      pdfValue(lang, row.moyen),
       Number(row.montant ?? 0).toLocaleString('fr-FR'),
-      row.statut ?? '—',
+      pdfValue(lang, row.statut),
     ]),
     startY: 40,
     margin: { top: 14, right: margin, bottom: 18, left: margin },
@@ -699,7 +826,7 @@ async function buildRegisterPdf(payload: RegisterPayload) {
       7: { cellWidth: 24 },
     },
     foot: [[
-      '', '', '', '', 'TOTAL', '',
+      '', '', '', '', L.total, '',
       Number(payload.summary.montant).toLocaleString('fr-FR'), '',
     ]],
     footStyles: { fillColor: [235, 235, 235], textColor: [0, 0, 0], fontStyle: 'bold', halign: 'right' },
@@ -708,24 +835,24 @@ async function buildRegisterPdf(payload: RegisterPayload) {
       doc.setFontSize(7.4)
       doc.setTextColor(...MUTED)
       doc.text(
-        `Antsirabe · registre édité le ${editedAt.toLocaleDateString('fr-FR')} à ${editedAt.toLocaleTimeString('fr-FR')}`,
+        fill(L.registerFooter, { date: editedAt.toLocaleDateString('fr-FR'), time: editedAt.toLocaleTimeString('fr-FR') }),
         margin,
         pageHeight - 8,
       )
-      doc.text(`Page ${data.pageNumber}`, pageWidth - margin, pageHeight - 8, { align: 'right' })
+      doc.text(fill(L.page, { page: data.pageNumber }), pageWidth - margin, pageHeight - 8, { align: 'right' })
     },
   })
 
   return doc
 }
 
-export async function downloadRegisterPdf(payload: RegisterPayload): Promise<void> {
-  const doc = await buildRegisterPdf(payload)
+export async function downloadRegisterPdf(payload: RegisterPayload, lang: PdfLang = 'fr'): Promise<void> {
+  const doc = await buildRegisterPdf(payload, lang)
   doc.save(`Registre_paiements_${payload.period}_${payload.from.slice(0, 10)}.pdf`)
 }
 
-export async function printRegisterPdf(payload: RegisterPayload): Promise<void> {
-  const doc = await buildRegisterPdf(payload)
+export async function printRegisterPdf(payload: RegisterPayload, lang: PdfLang = 'fr'): Promise<void> {
+  const doc = await buildRegisterPdf(payload, lang)
   doc.autoPrint()
   const url = String(doc.output('bloburl'))
   const win = window.open(url, '_blank')

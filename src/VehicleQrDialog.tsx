@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import QRCode from 'qrcode'
-import { Alert, Modal } from './iz/components'
+import { Alert, Modal, useApp } from './iz/components'
 import { downloadBlob, stickerBlob, stickerFilename } from './qrSticker'
 import { downloadQrSheetPdf } from './documentPdf'
 
@@ -10,6 +10,7 @@ interface VehicleQrDialogProps {
 }
 
 export default function VehicleQrDialog({ immatriculation, onClose }: VehicleQrDialogProps) {
+  const { t, lang } = useApp()
   const [image, setImage] = useState('')
   const [error, setError] = useState('')
   const [downloading, setDownloading] = useState(false)
@@ -25,18 +26,18 @@ export default function VehicleQrDialog({ immatriculation, onClose }: VehicleQrD
         if (active) setImage(dataUrl)
       })
       .catch((reason: unknown) => {
-        if (active) setError(reason instanceof Error ? reason.message : 'Impossible de générer le QR code.')
+        if (active) setError(reason instanceof Error ? reason.message : t('qrDialog.generateFailed'))
       })
     return () => { active = false }
-  }, [immatriculation])
+  }, [immatriculation, t])
 
   async function download() {
     if (!image) return
     setDownloading(true)
     try {
-      downloadBlob(await stickerBlob(image, immatriculation), stickerFilename(immatriculation))
+      downloadBlob(await stickerBlob(image, immatriculation, lang), stickerFilename(immatriculation))
     } catch (reason: unknown) {
-      setError(reason instanceof Error ? reason.message : 'Téléchargement impossible.')
+      setError(reason instanceof Error ? reason.message : t('qrDialog.downloadFailed'))
     } finally {
       setDownloading(false)
     }
@@ -48,7 +49,7 @@ export default function VehicleQrDialog({ immatriculation, onClose }: VehicleQrD
     try {
       await downloadQrSheetPdf([{ registration: immatriculation, image }], `QR_${immatriculation.replace(/[^\w-]+/g, '_')}_A4.pdf`)
     } catch (reason: unknown) {
-      setError(reason instanceof Error ? reason.message : 'Téléchargement du PDF impossible.')
+      setError(reason instanceof Error ? reason.message : t('qrDialog.pdfFailed'))
     } finally {
       setDownloadingPdf(false)
     }
@@ -56,15 +57,15 @@ export default function VehicleQrDialog({ immatriculation, onClose }: VehicleQrD
 
   return (
     <Modal title={`QR code — ${immatriculation}`} onClose={onClose} footer={<>
-      <button className="iz-btn iz-btn-outline" onClick={onClose}>Fermer</button>
-      <button className="iz-btn iz-btn-outline" disabled={!image || Boolean(error) || downloading} onClick={() => void download()}>{downloading ? 'Téléchargement…' : 'Télécharger le PNG'}</button>
-      <button className="iz-btn iz-btn-primary" disabled={!image || Boolean(error) || downloadingPdf} onClick={() => void downloadPdf()}>{downloadingPdf ? 'Préparation…' : 'PDF A4 à imprimer'}</button>
+      <button className="iz-btn iz-btn-outline" onClick={onClose}>{t('common.close')}</button>
+      <button className="iz-btn iz-btn-outline" disabled={!image || Boolean(error) || downloading} onClick={() => void download()}>{downloading ? t('qrDialog.downloading') : t('qrDialog.downloadPng')}</button>
+      <button className="iz-btn iz-btn-primary" disabled={!image || Boolean(error) || downloadingPdf} onClick={() => void downloadPdf()}>{downloadingPdf ? t('qrDialog.preparing') : t('qrDialog.pdfA4')}</button>
     </>}>
       <div style={{ textAlign: 'center' }}>
-        {error ? <Alert type="error">{error}</Alert> : image ? <img width={240} height={240} src={image} alt={`QR code pour ${immatriculation}`} /> : <p>Génération du QR code…</p>}
+        {error ? <Alert type="error">{error}</Alert> : image ? <img width={240} height={240} src={image} alt={t('qrDialog.alt', { plate: immatriculation })} /> : <p>{t('qrDialog.generating')}</p>}
         <h3>{immatriculation}</h3>
-        <p>Scannez ce code pour consulter la fiche du bus. Les informations réservées nécessitent une connexion.</p>
-        {['localhost', '127.0.0.1', '[::1]'].includes(window.location.hostname) && <Alert>Ce code utilise une adresse locale. Ouvrez l’application depuis son adresse accessible aux téléphones avant de télécharger les étiquettes définitives.</Alert>}
+        <p>{t('qrDialog.help')}</p>
+        {['localhost', '127.0.0.1', '[::1]'].includes(window.location.hostname) && <Alert>{t('qrDialog.localWarning')}</Alert>}
       </div>
     </Modal>
   )

@@ -46,14 +46,14 @@ export function IzApp() {
       if (userLoading) return <Loading />
       return user
         ? <TrackPage />
-        : <AccessDenied message="Le suivi des signalements est réservé aux agents habilités. Connectez-vous avec votre compte." />
+        : <AccessDenied message={t('access.trackDenied')} />
     }
     if (path === '/carte') return <NetworkMap />
     if (path === '/cooperatives') {
       if (userLoading) return <Loading />
       return user
         ? <CooperativesPage />
-        : <AccessDenied message="Les coopératives sont réservées aux agents habilités. Connectez-vous avec votre compte." />
+        : <AccessDenied message={t('access.coopsDenied')} />
     }
     if (path === '/connexion') return <LoginPage />
 

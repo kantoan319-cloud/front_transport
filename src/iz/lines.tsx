@@ -2,6 +2,7 @@ import { useMemo, useState, type FormEvent } from 'react'
 import MapCanvas, { type MapLine, type MapPoint } from '../MapCanvas'
 import { Alert, Field, Loading, Modal, PageHead, useApp, useAsync } from './components'
 import { izApi, type IZRecord } from './api'
+import { translateError } from './i18n'
 import { readTrace, type TraceData, type TracePoint } from './network-map'
 
 type DrawMode = 'aller' | 'retour'
@@ -30,10 +31,10 @@ function asNumber(value: unknown): number | null {
   return Number.isFinite(number) ? number : null
 }
 
-function tracePoints(points: TracePoint[], sens: DrawMode): MapPoint[] {
+function tracePoints(points: TracePoint[], sens: DrawMode, label: string): MapPoint[] {
   return points.map((point, index) => ({
     key: `${sens}-${index}`,
-    label: `${sens === 'aller' ? 'Aller' : 'Retour'} ${index + 1}`,
+    label: `${label} ${index + 1}`,
     kind: 'trace',
     color: sens === 'aller' ? '#16a34a' : '#dc2626',
     latitude: point.latitude,
@@ -42,7 +43,7 @@ function tracePoints(points: TracePoint[], sens: DrawMode): MapPoint[] {
 }
 
 export function AdminLines() {
-  const { t, notify } = useApp()
+  const { t, lang, notify } = useApp()
   const linesState = useAsync(() => izApi.adminLines(), [])
   const coops = useAsync(() => izApi.adminCooperatives(), [])
   const [search, setSearch] = useState('')
@@ -116,14 +117,14 @@ export function AdminLines() {
       const line = lines.find((item) => String(item.id) === String(stop.lineId))
       return [{
         key: `arret-${stop.id}`,
-        label: String(stop.nom ?? 'Arrêt'),
+        label: String(stop.nom ?? t('nmap.stopFallback')),
         kind: 'arret' as const,
         color: String(line?.couleur ?? '#2563eb'),
         latitude,
         longitude,
       }]
     })
-  }, [allStopsState.data, lines, selectedId, selectedLine, showAllLines, showStops])
+  }, [allStopsState.data, lines, selectedId, selectedLine, showAllLines, showStops, t])
 
   const editorPoints = useMemo<MapPoint[]>(() => {
     if (!form) return []
@@ -137,7 +138,7 @@ export function AdminLines() {
           if (latitude === null || longitude === null) return []
           return [{
             key: `arret-${stop.id}`,
-            label: String(stop.nom ?? 'Arrêt'),
+            label: String(stop.nom ?? t('nmap.stopFallback')),
             kind: 'arret' as const,
             color: form.couleur,
             latitude,
@@ -145,8 +146,12 @@ export function AdminLines() {
           }]
         })
       : []
-    return [...lineStops, ...tracePoints(form.trace.aller, 'aller'), ...tracePoints(form.trace.retour, 'retour')]
-  }, [form, allStopsState.data])
+    return [
+      ...lineStops,
+      ...tracePoints(form.trace.aller, 'aller', t('nmap.outbound')),
+      ...tracePoints(form.trace.retour, 'retour', t('nmap.return')),
+    ]
+  }, [form, allStopsState.data, t])
 
   const editorLines = useMemo<MapLine[]>(() => {
     if (!form) return []
@@ -185,7 +190,7 @@ export function AdminLines() {
     event?.preventDefault()
     if (!form) return
     if (!form.nom.trim()) {
-      notify('Le nom de la ligne est obligatoire.', 'error')
+      notify(t('lines.nameRequired'), 'error')
       return
     }
     setBusy(true)
@@ -200,29 +205,29 @@ export function AdminLines() {
       }
       if (form.id) await izApi.updateLine(form.id, payload)
       else await izApi.createLine(payload)
-      notify(form.id ? 'Ligne mise à jour.' : 'Ligne créée.', 'success')
+      notify(form.id ? t('lines.updated') : t('lines.created'), 'success')
       setForm(null)
       setDrawMode(null)
       await linesState.reload()
       await allStopsState.reload()
     } catch (error) {
-      notify(error instanceof Error ? error.message : 'Enregistrement impossible.', 'error')
+      notify(translateError(lang, error, 'lines.saveFailed'), 'error')
     } finally {
       setBusy(false)
     }
   }
 
   async function deleteLine(line: IZRecord) {
-    if (!window.confirm(`Supprimer la ligne ${line.nom} ?`)) return
+    if (!window.confirm(t('lines.deleteConfirm', { name: String(line.nom) }))) return
     setBusy(true)
     try {
       await izApi.deleteLine(Number(line.id))
       if (selectedId === Number(line.id)) setSelectedId(null)
-      notify('Ligne supprimée.', 'success')
+      notify(t('lines.deleted'), 'success')
       await linesState.reload()
       await allStopsState.reload()
     } catch (error) {
-      notify(error instanceof Error ? error.message : 'Suppression impossible.', 'error')
+      notify(translateError(lang, error, 'lines.deleteFailed'), 'error')
     } finally {
       setBusy(false)
     }
@@ -264,13 +269,13 @@ export function AdminLines() {
   async function saveStop(event?: FormEvent) {
     event?.preventDefault()
     if (!selectedId) {
-      notify('Sélectionnez d’abord une ligne.', 'error')
+      notify(t('lines.selectLineFirst'), 'error')
       return
     }
     const latitude = asNumber(stopForm.latitude)
     const longitude = asNumber(stopForm.longitude)
     if (!stopForm.nom.trim() || latitude === null || longitude === null) {
-      notify('Indiquez le nom et des coordonnées valides.', 'error')
+      notify(t('lines.invalidStop'), 'error')
       return
     }
     setBusy(true)
@@ -284,27 +289,27 @@ export function AdminLines() {
       }
       if (editingStopId) await izApi.updateStop(editingStopId, payload)
       else await izApi.createStop(payload)
-      notify(editingStopId ? 'Arrêt mis à jour.' : 'Arrêt ajouté.', 'success')
+      notify(editingStopId ? t('lines.stopUpdated') : t('lines.stopAdded'), 'success')
       setStopForm(emptyStop())
       setEditingStopId(null)
       setStopPickMode(false)
       await Promise.all([stopsState.reload(), allStopsState.reload(), linesState.reload()])
     } catch (error) {
-      notify(error instanceof Error ? error.message : 'Enregistrement impossible.', 'error')
+      notify(translateError(lang, error, 'lines.saveFailed'), 'error')
     } finally {
       setBusy(false)
     }
   }
 
   async function deleteStop(stop: IZRecord) {
-    if (!window.confirm(`Supprimer l’arrêt ${stop.nom} ?`)) return
+    if (!window.confirm(t('lines.stopDeleteConfirm', { name: String(stop.nom) }))) return
     setBusy(true)
     try {
       await izApi.deleteStop(Number(stop.id))
-      notify('Arrêt supprimé.', 'success')
+      notify(t('lines.stopDeleted'), 'success')
       await Promise.all([stopsState.reload(), allStopsState.reload(), linesState.reload()])
     } catch (error) {
-      notify(error instanceof Error ? error.message : 'Suppression impossible.', 'error')
+      notify(translateError(lang, error, 'lines.deleteFailed'), 'error')
     } finally {
       setBusy(false)
     }
@@ -313,42 +318,42 @@ export function AdminLines() {
   return (
     <>
       <PageHead
-        title="Lignes de Transport"
-        subtitle="Gérez vos lignes, arrêts et tracés sur la carte."
+        title={t('lines.title')}
+        subtitle={t('lines.subtitle')}
         action={
           <button className="iz-btn iz-btn-primary iz-btn-sm" onClick={() => openEditor()}>
-            + Nouvelle ligne
+            {t('lines.new')}
           </button>
         }
       />
 
       <div className="iz-map-stats">
-        <div className="iz-map-stat"><span>Total lignes</span><strong>{lines.length}</strong></div>
-        <div className="iz-map-stat"><span>Coopératives</span><strong>{coopsList.length}</strong></div>
-        <div className="iz-map-stat"><span>Total arrêts</span><strong>{allStopsState.data?.length ?? 0}</strong></div>
+        <div className="iz-map-stat"><span>{t('lines.total')}</span><strong>{lines.length}</strong></div>
+        <div className="iz-map-stat"><span>{t('nav.coops')}</span><strong>{coopsList.length}</strong></div>
+        <div className="iz-map-stat"><span>{t('lines.totalStops')}</span><strong>{allStopsState.data?.length ?? 0}</strong></div>
       </div>
 
       <div className="iz-line-toolbar">
         <label className="iz-field">
-          <span className="iz-label">Rechercher</span>
-          <input className="iz-input" placeholder="Rechercher une ligne…" value={search} onChange={(event) => setSearch(event.target.value)} />
+          <span className="iz-label">{t('lines.search')}</span>
+          <input className="iz-input" placeholder={t('lines.searchPlaceholder')} value={search} onChange={(event) => setSearch(event.target.value)} />
         </label>
         <label className="iz-field">
-          <span className="iz-label">Toutes les coopératives</span>
+          <span className="iz-label">{t('search.allCoops')}</span>
           <select className="iz-select" value={coopFilter} onChange={(event) => setCoopFilter(event.target.value)}>
-            <option value="">Toutes les coopératives</option>
+            <option value="">{t('search.allCoops')}</option>
             {coopsList.map((coop) => <option key={coop.id} value={String(coop.code)}>{String(coop.nom)}</option>)}
           </select>
         </label>
         <label className="iz-field">
-          <span className="iz-label">Toutes les lignes</span>
+          <span className="iz-label">{t('search.allLines')}</span>
           <select className="iz-select" value={lineFilter} onChange={(event) => setLineFilter(event.target.value)}>
-            <option value="">Toutes les lignes</option>
+            <option value="">{t('search.allLines')}</option>
             {lines.map((line) => <option key={line.id} value={String(line.id)}>{String(line.nom)}</option>)}
           </select>
         </label>
-        <button className="iz-btn iz-btn-outline" onClick={() => { setSearch(''); setCoopFilter(''); setLineFilter('') }}>Réinitialiser</button>
-        <button className="iz-btn iz-btn-ghost" onClick={() => linesState.reload()}>↻ Actualiser</button>
+        <button className="iz-btn iz-btn-outline" onClick={() => { setSearch(''); setCoopFilter(''); setLineFilter('') }}>{t('lines.reset')}</button>
+        <button className="iz-btn iz-btn-ghost" onClick={() => linesState.reload()}>{t('lines.refresh')}</button>
       </div>
 
       {linesState.error && <Alert type="error">{linesState.error}</Alert>}
@@ -367,38 +372,38 @@ export function AdminLines() {
                 <span className="iz-chip">{String(line.cooperativeCode ?? '—')}</span>
               </div>
               <div className="iz-line-card-stats">
-                <span><b>{Number(line.arrets ?? 0)}</b> Arrêts</span>
-                <span><b>{Number(line.vehicules ?? 0)}</b> véhicules</span>
+                <span><b>{Number(line.arrets ?? 0)}</b> {t('map.stops')}</span>
+                <span><b>{Number(line.vehicules ?? 0)}</b> {t('coops.vehicles')}</span>
               </div>
               <div className="iz-line-card-actions">
-                <button className="iz-btn iz-btn-primary iz-btn-sm" onClick={() => { setSelectedId(Number(line.id)); setShowAllLines(false) }}>Voir la Carte</button>
-                <button className="iz-btn iz-btn-outline iz-btn-sm" onClick={() => openEditor(line)}>Modifier</button>
+                <button className="iz-btn iz-btn-primary iz-btn-sm" onClick={() => { setSelectedId(Number(line.id)); setShowAllLines(false) }}>{t('lines.viewMap')}</button>
+                <button className="iz-btn iz-btn-outline iz-btn-sm" onClick={() => openEditor(line)}>{t('lines.edit')}</button>
                 <button className="iz-btn iz-btn-outline iz-btn-sm" onClick={() => {
                   setSelectedId(Number(line.id))
                   requestAnimationFrame(() => document.getElementById('stops-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
-                }}>Arrêts</button>
-                <button className="iz-btn iz-btn-ghost iz-btn-sm" disabled={busy} onClick={() => void deleteLine(line)}>Supprimer</button>
+                }}>{t('map.stops')}</button>
+                <button className="iz-btn iz-btn-ghost iz-btn-sm" disabled={busy} onClick={() => void deleteLine(line)}>{t('lines.delete')}</button>
               </div>
             </div>
           ))}
-          {!filteredLines.length && <p className="iz-muted">Aucune ligne ne correspond aux filtres.</p>}
+          {!filteredLines.length && <p className="iz-muted">{t('lines.empty')}</p>}
         </div>
       )}
 
       <div className="iz-card" style={{ marginTop: 24 }}>
         <div className="iz-section-head">
           <div>
-            <h2 style={{ fontSize: '1.1rem' }}>Carte des Lignes et Arrêts</h2>
-            <p className="iz-small iz-muted">Visualisez les tracés et les arrêts associés.</p>
+            <h2 style={{ fontSize: '1.1rem' }}>{t('lines.mapTitle')}</h2>
+            <p className="iz-small iz-muted">{t('lines.mapSubtitle')}</p>
           </div>
           <div className="iz-flex iz-wrap">
-            <label className="iz-check-row"><input type="checkbox" checked={showAllLines} onChange={(event) => setShowAllLines(event.target.checked)} /><span>Lignes</span></label>
-            <label className="iz-check-row"><input type="checkbox" checked={showStops} onChange={(event) => setShowStops(event.target.checked)} /><span>Arrêts associés</span></label>
+            <label className="iz-check-row"><input type="checkbox" checked={showAllLines} onChange={(event) => setShowAllLines(event.target.checked)} /><span>{t('coops.lines')}</span></label>
+            <label className="iz-check-row"><input type="checkbox" checked={showStops} onChange={(event) => setShowStops(event.target.checked)} /><span>{t('lines.showStops')}</span></label>
             <div className="iz-basemap-toggle">
-              <button type="button" className={`iz-btn iz-btn-sm ${mapBasemap === 'plan' ? 'iz-btn-primary' : 'iz-btn-outline'}`} onClick={() => setMapBasemap('plan')}>Plan</button>
-              <button type="button" className={`iz-btn iz-btn-sm ${mapBasemap === 'satellite' ? 'iz-btn-primary' : 'iz-btn-outline'}`} onClick={() => setMapBasemap('satellite')}>Satellite</button>
+              <button type="button" className={`iz-btn iz-btn-sm ${mapBasemap === 'plan' ? 'iz-btn-primary' : 'iz-btn-outline'}`} onClick={() => setMapBasemap('plan')}>{t('lines.plan')}</button>
+              <button type="button" className={`iz-btn iz-btn-sm ${mapBasemap === 'satellite' ? 'iz-btn-primary' : 'iz-btn-outline'}`} onClick={() => setMapBasemap('satellite')}>{t('lines.satellite')}</button>
             </div>
-            <button className="iz-btn iz-btn-ghost iz-btn-sm" onClick={() => { setSelectedId(null); setShowAllLines(true); setShowStops(true); setMapBasemap('plan') }}>Réinitialiser</button>
+            <button className="iz-btn iz-btn-ghost iz-btn-sm" onClick={() => { setSelectedId(null); setShowAllLines(true); setShowStops(true); setMapBasemap('plan') }}>{t('lines.reset')}</button>
           </div>
         </div>
         <div className="iz-map-layout" style={{ marginTop: 12 }}>
@@ -419,16 +424,18 @@ export function AdminLines() {
               onSelect={() => undefined}
               onMove={(nextCenter, nextZoom) => { setMapCenter(nextCenter); setMapZoom(nextZoom) }}
               onMapClick={stopPickMode ? (point) => setStopForm((current) => ({ ...current, latitude: String(point.latitude.toFixed(6)), longitude: String(point.longitude.toFixed(6)) })) : undefined}
+              zoomLabels={{ group: t('map.zoomGroup'), zoomIn: t('map.zoomIn'), zoomOut: t('map.zoomOut') }}
+              mapLabel={t('map.canvasAria')}
             />
           </div>
           <aside>
-            <h3 className="iz-map-section-title">{selectedLine ? String(selectedLine.nom) : 'Toutes les lignes'}</h3>
+            <h3 className="iz-map-section-title">{selectedLine ? String(selectedLine.nom) : t('search.allLines')}</h3>
             <div className="iz-map-list">
               {(showAllLines || !selectedLine ? lines : [selectedLine]).map((line) => (
                 <button key={line.id} className={selectedId === Number(line.id) ? 'active' : ''} onClick={() => setSelectedId(Number(line.id))}>
                   <strong>{String(line.nom)}</strong>
                   <span className="iz-small iz-muted" style={{ display: 'block' }}>
-                    {String(line.code)} · {Number(line.arrets ?? 0)} arrêts
+                    {String(line.code)} · {t('lines.lineStops', { count: Number(line.arrets ?? 0) })}
                   </span>
                 </button>
               ))}
@@ -441,39 +448,39 @@ export function AdminLines() {
         <div className="iz-card" id="stops-panel" style={{ marginTop: 24 }}>
           <div className="iz-section-head">
             <div>
-              <h2 style={{ fontSize: '1.1rem' }}>Gestion des Arrêts — {selectedLine ? String(selectedLine.nom) : selectedId}</h2>
-              <p className="iz-small iz-muted">Cliquez sur « Placer sur la carte », puis sur la carte pour renseigner les coordonnées.</p>
+              <h2 style={{ fontSize: '1.1rem' }}>{t('lines.stopsTitle', { line: selectedLine ? String(selectedLine.nom) : String(selectedId) })}</h2>
+              <p className="iz-small iz-muted">{t('lines.stopsHelp')}</p>
             </div>
             <button className="iz-btn iz-btn-ghost iz-btn-sm" onClick={() => setSelectedId(null)}>{t('common.close')}</button>
           </div>
 
           {editingStopId && (
             <div className="iz-route-step active" style={{ marginTop: 12 }}>
-              Modification de l’arrêt « {stopForm.nom || '—'} » : corrigez le nom ou les coordonnées, puis enregistrez.
+              {t('lines.editingStop', { name: stopForm.nom || '—' })}
               <button type="button" className="iz-btn iz-btn-ghost iz-btn-sm" style={{ marginLeft: 8 }} onClick={() => { setEditingStopId(null); setStopForm(emptyStop()) }}>
-                Annuler la modification
+                {t('lines.cancelEdit')}
               </button>
             </div>
           )}
 
           <form id="stop-form" className="iz-form-grid" style={{ marginTop: 12 }} onSubmit={(event) => void saveStop(event)}>
-            <Field label="Nom de l’arrêt" full>
-              <input className="iz-input" required value={stopForm.nom} onChange={(event) => setStopForm({ ...stopForm, nom: event.target.value })} placeholder="Ex : Gare routière" />
+            <Field label={t('lines.stopName')} full>
+              <input className="iz-input" required value={stopForm.nom} onChange={(event) => setStopForm({ ...stopForm, nom: event.target.value })} placeholder={t('nmap.departurePlaceholder')} />
             </Field>
-            <Field label="Latitude">
+            <Field label={t('lines.latitude')}>
               <input className="iz-input" required type="number" step="any" value={stopForm.latitude} onChange={(event) => setStopForm({ ...stopForm, latitude: event.target.value })} />
             </Field>
-            <Field label="Longitude">
+            <Field label={t('lines.longitude')}>
               <input className="iz-input" required type="number" step="any" value={stopForm.longitude} onChange={(event) => setStopForm({ ...stopForm, longitude: event.target.value })} />
             </Field>
-            <Field label="Ordre">
+            <Field label={t('lines.order')}>
               <input className="iz-input" type="number" min="0" value={stopForm.ordre} onChange={(event) => setStopForm({ ...stopForm, ordre: event.target.value })} />
             </Field>
             <div className="iz-flex iz-wrap" style={{ alignItems: 'end' }}>
               <button type="button" className={`iz-btn ${stopPickMode ? 'iz-btn-primary' : 'iz-btn-outline'} iz-btn-sm`} onClick={toggleStopPickMode}>
-                ⌖ {stopPickMode ? 'Cliquez maintenant sur la carte' : 'Choisir sur la carte'}
+                ⌖ {stopPickMode ? t('lines.clickMapNow') : t('lines.pickOnMap')}
               </button>
-              <button type="submit" className="iz-btn iz-btn-primary iz-btn-sm" disabled={busy}>{editingStopId ? t('common.save') : '+ Ajouter l’arrêt'}</button>
+              <button type="submit" className="iz-btn iz-btn-primary iz-btn-sm" disabled={busy}>{editingStopId ? t('common.save') : t('lines.addStop')}</button>
               {editingStopId && <button type="button" className="iz-btn iz-btn-ghost iz-btn-sm" onClick={() => { setEditingStopId(null); setStopForm(emptyStop()) }}>{t('common.cancel')}</button>}
             </div>
           </form>
@@ -492,7 +499,7 @@ export function AdminLines() {
                   </div>
                 </div>
               ))}
-              {!stopsState.data?.length && <p className="iz-muted iz-small">Aucun arrêt pour cette ligne.</p>}
+              {!stopsState.data?.length && <p className="iz-muted iz-small">{t('lines.noStops')}</p>}
             </div>
           )}
         </div>
@@ -512,15 +519,15 @@ export function AdminLines() {
         >
           <form className="iz-form-grid" onSubmit={(event) => void saveLine(event)}>
             <Field label={t('search.line')} full>
-              <input className="iz-input" required value={form.nom} onChange={(event) => setForm({ ...form, nom: event.target.value })} placeholder="Ex : Ligne A - Centre-ville" />
+              <input className="iz-input" required value={form.nom} onChange={(event) => setForm({ ...form, nom: event.target.value })} placeholder={t('lines.lineNamePlaceholder')} />
             </Field>
             <Field label={t('search.cooperative')} full>
               <select className="iz-select" value={form.cooperativeId} onChange={(event) => setForm({ ...form, cooperativeId: event.target.value })}>
-                <option value="">Sélectionner une coopérative</option>
+                <option value="">{t('lines.chooseCoop')}</option>
                 {coopsList.map((coop) => <option key={coop.id} value={String(coop.id)}>{String(coop.nom)}</option>)}
               </select>
             </Field>
-            <Field label="Couleur de la ligne" full>
+            <Field label={t('lines.color')} full>
               <div className="iz-flex">
                 <input type="color" value={form.couleur} onChange={(event) => setForm({ ...form, couleur: event.target.value })} />
                 <input className="iz-input" value={form.couleur} onChange={(event) => setForm({ ...form, couleur: event.target.value })} />
@@ -528,12 +535,12 @@ export function AdminLines() {
             </Field>
 
             <div className="full">
-              <div className="iz-route-step active">Route tracée (Aller &amp; Retour) ({form.trace.aller.length + form.trace.retour.length}/2+ points)</div>
+              <div className="iz-route-step active">{t('lines.routeDrawn', { count: form.trace.aller.length + form.trace.retour.length })}</div>
               <div className="iz-flex" style={{ marginBottom: 8 }}>
-                <span className="iz-small iz-muted" style={{ marginRight: 8, alignSelf: 'center' }}>Fond de carte :</span>
+                <span className="iz-small iz-muted" style={{ marginRight: 8, alignSelf: 'center' }}>{t('lines.basemap')}</span>
                 <div className="iz-basemap-toggle">
-                  <button type="button" className={`iz-btn iz-btn-sm ${editorBasemap === 'plan' ? 'iz-btn-primary' : 'iz-btn-outline'}`} onClick={() => setEditorBasemap('plan')}>Plan</button>
-                  <button type="button" className={`iz-btn iz-btn-sm ${editorBasemap === 'satellite' ? 'iz-btn-primary' : 'iz-btn-outline'}`} onClick={() => setEditorBasemap('satellite')}>Satellite</button>
+                  <button type="button" className={`iz-btn iz-btn-sm ${editorBasemap === 'plan' ? 'iz-btn-primary' : 'iz-btn-outline'}`} onClick={() => setEditorBasemap('plan')}>{t('lines.plan')}</button>
+                  <button type="button" className={`iz-btn iz-btn-sm ${editorBasemap === 'satellite' ? 'iz-btn-primary' : 'iz-btn-outline'}`} onClick={() => setEditorBasemap('satellite')}>{t('lines.satellite')}</button>
                 </div>
               </div>
               <div className="iz-route-editor">
@@ -554,35 +561,37 @@ export function AdminLines() {
                     onSelect={() => undefined}
                     onMove={(nextCenter, nextZoom) => { setEditorCenter(nextCenter); setEditorZoom(nextZoom) }}
                     onMapClick={handleEditorClick}
+                    zoomLabels={{ group: t('map.zoomGroup'), zoomIn: t('map.zoomIn'), zoomOut: t('map.zoomOut') }}
+                    mapLabel={t('map.canvasAria')}
                   />
                 </div>
                 <div>
                   <div className={`iz-route-step${drawMode === 'aller' ? ' active' : ''}`}>
-                    Étape 1 · Tracer l’aller — {form.trace.aller.length} points
+                    {t('lines.step1', { count: form.trace.aller.length })}
                   </div>
                   <button type="button" className="iz-btn iz-btn-outline iz-btn-sm" onClick={() => setDrawMode(drawMode === 'aller' ? null : 'aller')}>
-                    {drawMode === 'aller' ? '✓ Terminer l’aller' : '✎ Tracer l’aller'}
+                    {drawMode === 'aller' ? t('lines.finishOutbound') : t('lines.drawOutbound')}
                   </button>
                   <div className={`iz-route-step${drawMode === 'retour' ? ' active' : ''}`} style={{ marginTop: 10 }}>
-                    Étape 2 · Tracer le retour — {form.trace.retour.length} points
+                    {t('lines.step2', { count: form.trace.retour.length })}
                   </div>
                   <button type="button" className="iz-btn iz-btn-outline iz-btn-sm" onClick={() => setDrawMode(drawMode === 'retour' ? null : 'retour')}>
-                    {drawMode === 'retour' ? '✓ Terminer le retour' : '✎ Tracer le retour'}
+                    {drawMode === 'retour' ? t('lines.finishReturn') : t('lines.drawReturn')}
                   </button>
                   <div className="iz-route-actions">
                     <button type="button" className="iz-btn iz-btn-ghost iz-btn-sm" disabled={!drawMode || !form.trace[drawMode].length} onClick={() => {
                       if (!drawMode) return
                       setForm({ ...form, trace: { ...form.trace, [drawMode]: form.trace[drawMode].slice(0, -1) } })
-                    }}>Retirer le dernier</button>
+                    }}>{t('lines.removeLast')}</button>
                     <button type="button" className="iz-btn iz-btn-ghost iz-btn-sm" disabled={!drawMode} onClick={() => {
                       if (!drawMode) return
                       setForm({ ...form, trace: { ...form.trace, [drawMode]: [] } })
-                    }}>Réinitialiser</button>
+                    }}>{t('lines.reset')}</button>
                   </div>
                   <p className="iz-small iz-muted" style={{ marginTop: 12 }}>
                     {drawMode
-                      ? `Cliquez sur la carte pour ajouter des points au tracé ${drawMode}.`
-                      : 'Cliquez directement sur la carte pour dessiner : le tracé de l’aller démarre automatiquement.'}
+                      ? t('lines.clickAddPoints', { direction: drawMode === 'aller' ? t('nmap.outbound') : t('nmap.return') })
+                      : t('lines.clickDrawStart')}
                   </p>
                 </div>
               </div>

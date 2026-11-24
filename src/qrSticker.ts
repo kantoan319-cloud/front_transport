@@ -1,23 +1,39 @@
 /** Étiquette QR téléchargeable : QR code + immatriculation + mention d'usage. */
 
-function loadImage(source: string): Promise<HTMLImageElement> {
+export type StickerLang = 'fr' | 'mg'
+
+const stickerText = {
+  fr: {
+    loadError: 'Le QR code ne peut pas être exporté.',
+    exportError: 'Export de l’image impossible.',
+    caption: 'Scannez pour consulter la fiche',
+  },
+  mg: {
+    loadError: 'Tsy afaka avoaka ny QR code.',
+    exportError: 'Tsy afaka avoaka ny sary.',
+    caption: 'Scantéo hijery ny fiche',
+  },
+} as const
+
+function loadImage(source: string, message: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const image = new Image()
     image.onload = () => resolve(image)
-    image.onerror = () => reject(new Error('Le QR code ne peut pas être exporté.'))
+    image.onerror = () => reject(new Error(message))
     image.src = source
   })
 }
 
-export async function stickerBlob(qrImage: string, registration: string): Promise<Blob> {
-  const image = await loadImage(qrImage)
+export async function stickerBlob(qrImage: string, registration: string, lang: StickerLang = 'fr'): Promise<Blob> {
+  const text = stickerText[lang]
+  const image = await loadImage(qrImage, text.loadError)
   const width = 260
   const height = 320
   const canvas = document.createElement('canvas')
   canvas.width = width
   canvas.height = height
   const context = canvas.getContext('2d')
-  if (!context) throw new Error('Export de l’image impossible.')
+  if (!context) throw new Error(text.exportError)
 
   context.fillStyle = '#ffffff'
   context.fillRect(0, 0, width, height)
@@ -35,12 +51,12 @@ export async function stickerBlob(qrImage: string, registration: string): Promis
   context.textAlign = 'center'
   context.font = '15px "Segoe UI", Arial, sans-serif'
   context.fillStyle = '#555555'
-  context.fillText('Scannez pour consulter la fiche', width / 2, 285)
+  context.fillText(text.caption, width / 2, 285)
 
   return await new Promise<Blob>((resolve, reject) => {
     canvas.toBlob((blob) => {
       if (blob) resolve(blob)
-      else reject(new Error('Export de l’image impossible.'))
+      else reject(new Error(text.exportError))
     }, 'image/png')
   })
 }

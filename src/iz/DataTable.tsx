@@ -125,7 +125,7 @@ export function DataTable<T>({
                   checked={scoped ? list.length > 0 && list.every(selection.isSelected) : selection.allSelected}
                   disabled={!pageRowsSelectable}
                   onChange={() => selection.toggleAll(list)}
-                  aria-label={scoped ? 'Tout sélectionner dans ce groupe' : 'Tout sélectionner sur la page'}
+                  aria-label={scoped ? t('common.selectAllGroup') : t('common.selectAll')}
                 />
               </th>
             )}
@@ -139,12 +139,12 @@ export function DataTable<T>({
             return (
               <tr key={key} className={selection?.isSelected(row) ? 'iz-row-selected' : undefined}>
                 {selection && (
-                  <td className="iz-select-cell" data-label="Sélection">
+                  <td className="iz-select-cell" data-label={t('table.selection')}>
                     <input
                       type="checkbox"
                       checked={selection.isSelected(row)}
                       onChange={() => selection.toggle(row)}
-                      aria-label={`Sélectionner ${rowLabel?.(row) ?? key}`}
+                      aria-label={t('common.selectRow', { name: rowLabel?.(row) ?? key })}
                     />
                   </td>
                 )}
@@ -168,8 +168,8 @@ export function DataTable<T>({
           <article key={key} className={`iz-mosaic-card ${selection?.isSelected(row) ? 'iz-row-selected' : ''}`}>
             {selection && (
               <label className="iz-mosaic-select">
-                <input type="checkbox" checked={selection.isSelected(row)} onChange={() => selection.toggle(row)} aria-label={`Sélectionner ${rowLabel?.(row) ?? key}`} />
-                Sélectionner
+                <input type="checkbox" checked={selection.isSelected(row)} onChange={() => selection.toggle(row)} aria-label={t('common.selectRow', { name: rowLabel?.(row) ?? key })} />
+                {t('common.select')}
               </label>
             )}
             <dl>
@@ -202,7 +202,7 @@ export function DataTable<T>({
         )}
         {sortable.length > 0 && (
           <div className="iz-flex iz-list-sort">
-            <select className="iz-select" value={sort} onChange={(event) => setSort(event.target.value)} aria-label="Trier par">
+            <select className="iz-select" value={sort} onChange={(event) => setSort(event.target.value)} aria-label={t('common.sortAria')}>
               <option value="">{t('common.sort')}</option>
               {sortable.map((column) => (
                 <option key={column.key ?? column.label} value={column.key ?? column.label}>{column.label}</option>
@@ -213,22 +213,22 @@ export function DataTable<T>({
               className="iz-btn iz-btn-outline iz-btn-sm"
               disabled={!sort}
               onClick={() => setAscending((value) => !value)}
-              aria-label={ascending ? 'Tri croissant' : 'Tri décroissant'}
-              title={ascending ? 'Croissant' : 'Décroissant'}
+              aria-label={ascending ? t('common.asc') : t('common.desc')}
+              title={ascending ? t('common.ascShort') : t('common.descShort')}
             >
               {ascending ? '↑' : '↓'}
             </button>
           </div>
         )}
-        <div className="iz-view-toggle" role="group" aria-label="Affichage">
-          <button type="button" className={`iz-btn iz-btn-sm ${view === 'list' ? 'iz-btn-primary' : 'iz-btn-outline'}`} onClick={() => setView('list')} aria-pressed={view === 'list'}>Liste</button>
-          <button type="button" className={`iz-btn iz-btn-sm ${view === 'grid' ? 'iz-btn-primary' : 'iz-btn-outline'}`} onClick={() => setView('grid')} aria-pressed={view === 'grid'}>Mosaïque</button>
-          {groupBy && <button type="button" className={`iz-btn iz-btn-sm ${view === 'group' ? 'iz-btn-primary' : 'iz-btn-outline'}`} onClick={() => setView('group')} aria-pressed={view === 'group'}>Par ligne</button>}
+        <div className="iz-view-toggle" role="group" aria-label={t('common.viewMode')}>
+          <button type="button" className={`iz-btn iz-btn-sm ${view === 'list' ? 'iz-btn-primary' : 'iz-btn-outline'}`} onClick={() => setView('list')} aria-pressed={view === 'list'}>{t('common.list')}</button>
+          <button type="button" className={`iz-btn iz-btn-sm ${view === 'grid' ? 'iz-btn-primary' : 'iz-btn-outline'}`} onClick={() => setView('grid')} aria-pressed={view === 'grid'}>{t('common.grid')}</button>
+          {groupBy && <button type="button" className={`iz-btn iz-btn-sm ${view === 'group' ? 'iz-btn-primary' : 'iz-btn-outline'}`} onClick={() => setView('group')} aria-pressed={view === 'group'}>{t('table.groupBy')}</button>}
         </div>
         {toolbar}
       </div>
 
-      {!filtered.length ? (empty ?? <div className="iz-list-empty">{query ? 'Aucun résultat pour cette recherche.' : t('common.noData')}</div>) : view === 'list' ? (
+      {!filtered.length ? (empty ?? <div className="iz-list-empty">{query ? t('common.noResult') : t('common.noData')}</div>) : view === 'list' ? (
         listTable(visible)
       ) : view === 'grid' ? (
         gridCards(visible)
@@ -246,15 +246,15 @@ export function DataTable<T>({
       {filtered.length > 0 && view !== 'group' && (
         <div className="iz-pagination">
           <span className="iz-small iz-muted">
-            {start + 1}–{Math.min(start + pageSize, filtered.length)} sur {filtered.length}
+            {t('common.rangeOf', { from: start + 1, to: Math.min(start + pageSize, filtered.length), total: filtered.length })}
             {selection?.label && ` · ${selection.label(visible.filter(selection.isSelected).length)}`}
           </span>
           <div className="iz-flex">
-            <button type="button" className="iz-btn iz-btn-outline iz-btn-sm" disabled={current <= 1} onClick={() => setPage(1)} aria-label="Première page">«</button>
-            <button type="button" className="iz-btn iz-btn-outline iz-btn-sm" disabled={current <= 1} onClick={() => setPage(current - 1)} aria-label="Page précédente">‹</button>
+            <button type="button" className="iz-btn iz-btn-outline iz-btn-sm" disabled={current <= 1} onClick={() => setPage(1)} aria-label={t('common.first')}>«</button>
+            <button type="button" className="iz-btn iz-btn-outline iz-btn-sm" disabled={current <= 1} onClick={() => setPage(current - 1)} aria-label={t('common.previous')}>‹</button>
             <span className="iz-small">{current} / {pages}</span>
-            <button type="button" className="iz-btn iz-btn-outline iz-btn-sm" disabled={current >= pages} onClick={() => setPage(current + 1)} aria-label="Page suivante">›</button>
-            <button type="button" className="iz-btn iz-btn-outline iz-btn-sm" disabled={current >= pages} onClick={() => setPage(pages)} aria-label="Dernière page">»</button>
+            <button type="button" className="iz-btn iz-btn-outline iz-btn-sm" disabled={current >= pages} onClick={() => setPage(current + 1)} aria-label={t('common.next')}>›</button>
+            <button type="button" className="iz-btn iz-btn-outline iz-btn-sm" disabled={current >= pages} onClick={() => setPage(pages)} aria-label={t('common.last')}>»</button>
           </div>
         </div>
       )}

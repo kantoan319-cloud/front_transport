@@ -8,7 +8,7 @@ import {
   useState,
 } from 'react'
 import type { FormEvent, InputHTMLAttributes, ReactNode } from 'react'
-import { translate } from './i18n'
+import { translate, translateError, translateValue } from './i18n'
 import type { Lang } from './i18n'
 import type { IZUser } from './api'
 import { izApi } from './api'
@@ -88,6 +88,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     localStorage.setItem('izotra-lang', lang)
     document.documentElement.lang = lang
+    document.title = translate(lang, 'app.title')
   }, [lang])
   useEffect(() => {
     const onHash = () => setRoute(currentRoute())
@@ -201,10 +202,10 @@ export function Header() {
     <header className="iz-header">
       <div className="iz-container-wide iz-header-inner">
         <button className="iz-brand iz-btn-ghost" style={{ padding: 0, border: 0 }} onClick={() => navigate('/')}>
-          <img className="iz-brand-logo" src="/brand/logo-bus.png" alt="Logo bus" />
+          <img className="iz-brand-logo" src="/brand/logo-bus.png" alt={t('auth.logoAlt')} />
           <span>
-            Gestion de Bus
-            <small>CU/ABE · Commune Urbaine d’Antsirabe</small>
+            {t('nav.brand')}
+            <small>{t('nav.brandSub')}</small>
           </span>
         </button>
         <nav className="iz-nav">
@@ -218,7 +219,7 @@ export function Header() {
                 navigate(link.path)
               }}
             >
-              {link.path === '/scan' ? 'Scanner un bus' : t(link.key)}
+              {t(link.key)}
             </a>
           ))}
         </nav>
@@ -236,8 +237,8 @@ export function Header() {
           </button>
           <button
             className="iz-icon-btn"
-            title="Taille du texte"
-            aria-label="Modifier la taille du texte"
+            title={t('nav.fontSize')}
+            aria-label={t('nav.fontAria')}
             onClick={() => setFontOpen(true)}
           >
             Aa
@@ -248,7 +249,7 @@ export function Header() {
                 {isAdmin ? t('nav.admin') : t('nav.control')}
               </button>
               <button className="iz-btn iz-btn-ghost iz-btn-sm" onClick={() => setPasswordOpen(true)}>
-                {user.role === 'superadmin' ? 'Mon compte' : 'Mot de passe'}
+                {user.role === 'superadmin' ? t('nav.account') : t('nav.password')}
               </button>
               <button
                 className="iz-btn iz-btn-ghost iz-btn-sm"
@@ -295,18 +296,18 @@ export function NotificationsBell() {
 }
 
 const FONT_SCALES = [
-  { value: 0.9, label: 'Petit', sample: 'Aa' },
-  { value: 1, label: 'Normal', sample: 'Aa' },
-  { value: 1.15, label: 'Grand', sample: 'Aa' },
-  { value: 1.3, label: 'Très grand', sample: 'Aa' },
+  { value: 0.9, key: 'font.small', sample: 'Aa' },
+  { value: 1, key: 'font.normal', sample: 'Aa' },
+  { value: 1.15, key: 'font.large', sample: 'Aa' },
+  { value: 1.3, key: 'font.xlarge', sample: 'Aa' },
 ]
 
 function FontSizeDialog({ onClose }: { onClose: () => void }) {
-  const { fontScale, setFontScale } = useApp()
+  const { t, fontScale, setFontScale } = useApp()
   return (
-    <Modal title="Taille du texte" onClose={onClose}>
+    <Modal title={t('font.title')} onClose={onClose}>
       <p className="iz-muted" style={{ marginBottom: 14 }}>
-        Choisissez la taille de police de l’application. Le réglage est conservé sur cet appareil.
+        {t('font.help')}
       </p>
       <div className="iz-font-options">
         {FONT_SCALES.map((option) => (
@@ -317,19 +318,19 @@ function FontSizeDialog({ onClose }: { onClose: () => void }) {
             onClick={() => setFontScale(option.value)}
           >
             <span style={{ fontSize: `${option.value}em` }}>{option.sample}</span>
-            <small>{option.label}</small>
+            <small>{t(option.key)}</small>
           </button>
         ))}
       </div>
       <div className="iz-flex" style={{ marginTop: 16, justifyContent: 'flex-end' }}>
-        <button className="iz-btn iz-btn-primary" onClick={onClose}>Terminé</button>
+        <button className="iz-btn iz-btn-primary" onClick={onClose}>{t('font.done')}</button>
       </div>
     </Modal>
   )
 }
 
 function PasswordDialog({ onClose }: { onClose: () => void }) {
-  const { notify, user, refreshUser } = useApp()
+  const { t, lang, notify, user, refreshUser } = useApp()
   const canChangeEmail = user?.role === 'superadmin'
   const [email, setEmail] = useState(user?.email ?? '')
   const [currentPassword, setCurrentPassword] = useState('')
@@ -344,21 +345,21 @@ function PasswordDialog({ onClose }: { onClose: () => void }) {
     const emailChanged = canChangeEmail && Boolean(user) && email.trim().toLowerCase() !== user.email.toLowerCase()
     const passwordFilled = Boolean(currentPassword || newPassword || confirmation)
     if (emailChanged && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
-      notify('Adresse e-mail invalide.', 'error')
+      notify(t('password.invalidEmail'), 'error')
       return
     }
     if (passwordFilled) {
       if (!currentPassword || !newPassword || !confirmation) {
-        notify('Complétez tous les champs du mot de passe pour le modifier.', 'error')
+        notify(t('password.fillAll'), 'error')
         return
       }
       if (newPassword !== confirmation) {
-        notify('La confirmation ne correspond pas au nouveau mot de passe.', 'error')
+        notify(t('password.mismatch'), 'error')
         return
       }
     }
     if (!emailChanged && !passwordFilled) {
-      notify('Aucune modification à enregistrer.', 'info')
+      notify(t('password.noChange'), 'info')
       return
     }
     setBusy(true)
@@ -369,13 +370,13 @@ function PasswordDialog({ onClose }: { onClose: () => void }) {
       }
       if (passwordFilled) {
         const result = await izApi.changePassword(currentPassword, newPassword)
-        notify(result.message, 'success')
+        notify(translate(lang, result.message), 'success')
       } else {
-        notify('Adresse e-mail mise à jour.', 'success')
+        notify(t('password.emailUpdated'), 'success')
       }
       onClose()
     } catch (error) {
-      notify(error instanceof Error ? error.message : 'Modification impossible.', 'error')
+      notify(translateError(lang, error, 'password.updateFailed'), 'error')
     } finally {
       setBusy(false)
     }
@@ -383,31 +384,31 @@ function PasswordDialog({ onClose }: { onClose: () => void }) {
 
   return (
     <Modal
-      title={canChangeEmail ? 'Mon compte' : 'Modifier mon mot de passe'}
+      title={canChangeEmail ? t('password.titleAccount') : t('password.titleChange')}
       onClose={() => { if (!busy) onClose() }}
       footer={<>
-        <button className="iz-btn iz-btn-outline" disabled={busy} onClick={onClose}>Annuler</button>
-        <button className="iz-btn iz-btn-primary" disabled={busy} onClick={() => formRef.current?.requestSubmit()}>{busy ? 'Enregistrement…' : 'Enregistrer'}</button>
+        <button className="iz-btn iz-btn-outline" disabled={busy} onClick={onClose}>{t('common.cancel')}</button>
+        <button className="iz-btn iz-btn-primary" disabled={busy} onClick={() => formRef.current?.requestSubmit()}>{busy ? t('common.saving') : t('common.save')}</button>
       </>}
     >
       <form ref={formRef} className="iz-form-grid" onSubmit={submit} aria-busy={busy}>
         {canChangeEmail && (
-          <Field label="Mon adresse e-mail" full>
+          <Field label={t('password.emailLabel')} full>
             <input className="iz-input" type="email" required maxLength={190} autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} />
           </Field>
         )}
-        <Field label={canChangeEmail ? 'Mot de passe actuel (facultatif)' : 'Mot de passe actuel'} full>
+        <Field label={canChangeEmail ? t('password.currentOptional') : t('password.current')} full>
           <PasswordInput required={!canChangeEmail} autoComplete="current-password" value={currentPassword} onChange={setCurrentPassword} />
         </Field>
-        <Field label={canChangeEmail ? 'Nouveau mot de passe (facultatif, 8 caractères minimum)' : 'Nouveau mot de passe (8 caractères minimum, lettres et chiffres)'} full>
+        <Field label={canChangeEmail ? t('password.newOptional') : t('password.new')} full>
           <PasswordInput required={!canChangeEmail} minLength={8} maxLength={100} autoComplete="new-password" value={newPassword} onChange={setNewPassword} />
         </Field>
-        <Field label="Confirmer le nouveau mot de passe" full>
+        <Field label={t('password.confirm')} full>
           <PasswordInput required={!canChangeEmail} minLength={8} maxLength={100} autoComplete="new-password" value={confirmation} onChange={setConfirmation} />
         </Field>
         {canChangeEmail && (
           <p className="iz-small iz-muted full" style={{ margin: 0 }}>
-            Laissez les champs du mot de passe vides pour modifier uniquement l’adresse e-mail.
+            {t('password.hint')}
           </p>
         )}
       </form>
@@ -481,37 +482,38 @@ export function Alert({ type = 'info', children }: { type?: 'success' | 'error' 
 }
 
 export function StatusBadge({ status }: { status?: string | null }) {
+  const { lang } = useApp()
   const value = status ?? '—'
   let className = 'iz-badge'
   if (/expiré|suspendu|fourrière|rejetée|non conforme|non encore valide|clôturée/i.test(value)) className += ' iz-badge-red'
   else if (/attente|nouveau|en cours|brouillon|à venir|non renseign/i.test(value)) className += ' iz-badge-amber'
   else if (/valide|conforme|normal|ouvert|payé|validé|acceptée|traitée/i.test(value)) className += ' iz-badge-green'
   else if (/enregistrée/i.test(value)) className += ' iz-badge-blue'
-  return <span className={className}><span className="iz-dot" />{value}</span>
+  return <span className={className}><span className="iz-dot" />{translateValue(lang, value)}</span>
 }
 
 export function ExportButton({ cible, label = 'Excel' }: { cible: string; label?: string }) {
-  const { notify } = useApp()
+  const { t, lang, notify } = useApp()
   const [busy, setBusy] = useState(false)
   return (
     <button
       type="button"
       className="iz-btn iz-btn-outline iz-btn-sm"
       disabled={busy}
-      title={`Télécharger ${cible} au format Excel`}
+      title={t('export.download', { cible })}
       onClick={async () => {
         setBusy(true)
         try {
           await izApi.exportXlsx(cible)
-          notify('Export Excel téléchargé.', 'success')
+          notify(t('export.done'), 'success')
         } catch (error) {
-          notify(error instanceof Error ? error.message : 'Export impossible.', 'error')
+          notify(translateError(lang, error, 'export.failed'), 'error')
         } finally {
           setBusy(false)
         }
       }}
     >
-      {busy ? 'Export…' : `⬇ ${label}`}
+      {busy ? t('export.busy') : `⬇ ${label}`}
     </button>
   )
 }
@@ -531,8 +533,9 @@ type PasswordInputProps = Omit<InputHTMLAttributes<HTMLInputElement>, 'type' | '
 
 /** Champ mot de passe avec bouton « voir le mot de passe ». */
 export function PasswordInput({ value, onChange, className, ...props }: PasswordInputProps) {
+  const { t } = useApp()
   const [visible, setVisible] = useState(false)
-  const label = visible ? 'Masquer le mot de passe' : 'Voir le mot de passe'
+  const label = visible ? t('password.hide') : t('password.show')
   return (
     <span className="iz-password">
       <input
@@ -608,13 +611,14 @@ export function Toast() {
 }
 
 export function Footer() {
+  const { t } = useApp()
   return (
     <footer className="iz-footer">
       <div className="iz-container iz-flex iz-wrap">
-        <img className="iz-footer-logo" src="/brand/logo-commune.png" alt="Armoiries de la commune urbaine d’Antsirabe" />
-        <strong>Gestion de Bus CU/ABE</strong>
+        <img className="iz-footer-logo" src="/brand/logo-commune.png" alt={t('footer.logoAlt')} />
+        <strong>{t('nav.brand')} CU/ABE</strong>
         <span className="iz-spacer" />
-        <span>© {new Date().getFullYear()} — Commune Urbaine d’Antsirabe</span>
+        <span>© {new Date().getFullYear()} — {t('footer.city')}</span>
       </div>
     </footer>
   )
@@ -625,6 +629,7 @@ export function Footer() {
 /* ------------------------------------------------------------------ */
 
 export function useAsync<T>(loader: () => Promise<T>, dependencies: unknown[] = []) {
+  const { lang } = useApp()
   const [data, setData] = useState<T | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -638,7 +643,7 @@ export function useAsync<T>(loader: () => Promise<T>, dependencies: unknown[] = 
       const result = await loader()
       if (request === sequence.current) setData(result)
     } catch (err) {
-      if (request === sequence.current) setError(err instanceof Error ? err.message : String(err))
+      if (request === sequence.current) setError(translateError(lang, err, 'common.error'))
     } finally {
       if (request === sequence.current) setLoading(false)
     }

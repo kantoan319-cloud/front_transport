@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { izApi } from './api'
 import type { IZRecord } from './api'
+import { translateError, translateValue } from './i18n'
 import { Empty, Loading, PageHead, StatusBadge, useApp, useAsync } from './components'
 
 const when = (value?: string | null) => (value ? String(value).slice(0, 16).replace('T', ' ') : '—')
@@ -17,7 +18,7 @@ const ICONES: Record<string, string> = {
 }
 
 export function NotificationsPage() {
-  const { t, navigate, notify, refreshUnread } = useApp()
+  const { t, lang, navigate, notify, refreshUnread } = useApp()
   const [filtre, setFiltre] = useState<'tout' | 'non-lu'>('tout')
   const { data, loading, reload } = useAsync(
     () => izApi.notifications(filtre, 150),
@@ -46,7 +47,7 @@ export function NotificationsPage() {
       await refreshUnread()
       notify(t('notif.markAllDone'), 'success')
     } catch (error) {
-      notify(error instanceof Error ? error.message : t('common.error'), 'error')
+      notify(translateError(lang, error, 'common.error'), 'error')
     }
   }
 
@@ -99,7 +100,7 @@ export function NotificationsPage() {
                 <span className="iz-notif-icone" aria-hidden="true">{ICONES[motif] ?? '🔔'}</span>
                 <span className="iz-notif-corps">
                   <span className="iz-notif-titre">
-                    {String(item.titre ?? '')}
+                    {translateValue(lang, item.titre)}
                     {!lu && <span className="iz-notif-dot" aria-label={t('notif.new')} />}
                   </span>
                   <span className="iz-notif-message">{String(item.message ?? '')}</span>

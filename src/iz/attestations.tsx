@@ -4,66 +4,66 @@ import type { IZRecord } from './api'
 import {
   Alert, Field, Loading, Modal, PageHead, StatusBadge, useApp, useAsync,
 } from './components'
+import { translateError, translateValue } from './i18n'
 import { DataTable } from './DataTable'
 import { attestationState } from './attestation-utils'
 
 type AttestationType = 'capacite' | 'receveur'
 
-const TYPE_LABEL: Record<AttestationType, string> = {
-  capacite: 'attestation de capacité',
-  receveur: 'attestation de receveur',
-}
+const typeKey = (type: AttestationType) => (type === 'capacite' ? 'att.cap' : 'att.rec')
 
 const dateOnly = (value: unknown) => {
   const match = /^(\d{4}-\d{2}-\d{2})/.exec(String(value ?? ''))
   return match ? match[1] : ''
 }
 
-const holder = (row: IZRecord) =>
-  [row.nom, row.prenoms].filter(Boolean).join(' ') || 'Titulaire non renseigné'
+const holder = (row: IZRecord, fallback = '') =>
+  [row.nom, row.prenoms].filter(Boolean).join(' ') || fallback
 
 const number = (row: IZRecord) =>
   String(row.numero_attestation || row.numero_attestation_receveur || '—')
 
-function detailFields(type: AttestationType, row: IZRecord): [string, unknown][] {
+type Translate = (key: string) => string
+
+function detailFields(type: AttestationType, row: IZRecord, t: Translate): [string, unknown][] {
   const common: [string, unknown][] = [
-    ['Numéro d’attestation', number(row)],
-    ['Nom', row.nom],
-    ['Prénoms', row.prenoms],
-    ['Naissance', dateOnly(row.date_naissance) || row.naissance_texte],
-    ['Lieu de naissance', row.lieu_naissance],
+    [t('att.fNumber'), number(row)],
+    [t('att.fLast'), row.nom],
+    [t('att.fFirst'), row.prenoms],
+    [t('att.fBirth'), dateOnly(row.date_naissance) || row.naissance_texte],
+    [t('att.fBirthPlace'), row.lieu_naissance],
   ]
   if (type === 'capacite') {
     return [
       ...common,
-      ['Permis', row.permis_numero],
-      ['Catégorie du permis', row.permis_categorie],
-      ['Permis délivré le', dateOnly(row.permis_delivre_le) || row.permis_delivre_texte],
-      ['Permis délivré à', row.permis_delivre_lieu],
-      ['Date d’examen', dateOnly(row.date_examen) || row.date_examen_texte],
-      ['N° du certificat', row.numero_certificat],
-      ['Valable jusqu’au', dateOnly(row.valable_jusquau) || row.valable_texte],
-      ['Statut', attestationState(row)],
-      ['Fichier source', row.fichier_source],
-      ['Remarque', row.remarque],
+      [t('att.fPermis'), row.permis_numero],
+      [t('att.fPermisCat'), row.permis_categorie],
+      [t('att.fPermisDate'), dateOnly(row.permis_delivre_le) || row.permis_delivre_texte],
+      [t('att.fPermisPlace'), row.permis_delivre_lieu],
+      [t('att.fExam'), dateOnly(row.date_examen) || row.date_examen_texte],
+      [t('att.fCert'), row.numero_certificat],
+      [t('att.fUntil'), dateOnly(row.valable_jusquau) || row.valable_texte],
+      [t('common.status'), attestationState(row)],
+      [t('att.fSource'), row.fichier_source],
+      [t('att.fRemark'), row.remarque],
     ]
   }
   return [
     ...common,
     ['CIN', row.cin],
-    ['CIN délivrée le', dateOnly(row.cin_delivree_le) || row.cin_texte],
-    ['CIN délivrée à', row.cin_delivree_lieu],
-    ['Date d’examen', dateOnly(row.date_examen) || row.date_examen_texte],
-    ['N° d’attestation de receveur', row.numero_attestation_receveur],
-    ['Valable jusqu’au', dateOnly(row.valable_jusquau) || row.valable_texte],
-    ['Statut', attestationState(row)],
-    ['Fichier source', row.fichier_source],
-    ['Remarque', row.remarque],
+    [t('att.fCinDate'), dateOnly(row.cin_delivree_le) || row.cin_texte],
+    [t('att.fCinPlace'), row.cin_delivree_lieu],
+    [t('att.fExam'), dateOnly(row.date_examen) || row.date_examen_texte],
+    [t('att.fRecNumber'), row.numero_attestation_receveur],
+    [t('att.fUntil'), dateOnly(row.valable_jusquau) || row.valable_texte],
+    [t('common.status'), attestationState(row)],
+    [t('att.fSource'), row.fichier_source],
+    [t('att.fRemark'), row.remarque],
   ]
 }
 
 export function AdminAttestations() {
-  const { notify, navigate } = useApp()
+  const { t, lang, notify, navigate } = useApp()
   const [type, setType] = useState<AttestationType>('capacite')
   const [unlinkedOnly, setUnlinkedOnly] = useState(false)
   const [showHistory, setShowHistory] = useState(false)
@@ -120,11 +120,11 @@ export function AdminAttestations() {
     setBusy(true)
     try {
       await izApi.linkAttestation(type, Number(target.id), vehicleId)
-      notify(vehicleId === null ? 'Attestation détachée du bus.' : 'Attestation liée au bus.', 'success')
+      notify(vehicleId === null ? t('att.detached') : t('att.linked'), 'success')
       setTarget(null)
       await reload()
     } catch (reason) {
-      notify(reason instanceof Error ? reason.message : 'Liaison impossible.', 'error')
+      notify(translateError(lang, reason, 'att.linkFailed'), 'error')
     } finally {
       setBusy(false)
     }
@@ -135,10 +135,10 @@ export function AdminAttestations() {
     setBusy(true)
     try {
       await izApi.linkAttestation(type, Number(row.id), null)
-      notify('Attestation détachée du bus.', 'success')
+      notify(t('att.detached'), 'success')
       await reload()
     } catch (reason) {
-      notify(reason instanceof Error ? reason.message : 'Liaison impossible.', 'error')
+      notify(translateError(lang, reason, 'att.linkFailed'), 'error')
     } finally {
       setBusy(false)
     }
@@ -154,8 +154,8 @@ export function AdminAttestations() {
   return (
     <>
       <PageHead
-        title="Capacité & receveur"
-        subtitle="Une seule fiche par titulaire (la plus récente, ou celle déjà liée à un bus). Consultez l’historique si nécessaire."
+        title={t('att.title')}
+        subtitle={t('att.subtitle')}
       />
 
       <div className="iz-card" style={{ marginBottom: 16 }}>
@@ -165,14 +165,14 @@ export function AdminAttestations() {
             className={`iz-btn ${type === 'capacite' ? 'iz-btn-primary' : 'iz-btn-outline'}`}
             onClick={() => switchType('capacite')}
           >
-            Attestations de capacité
+            {t('att.capPlural')}
           </button>
           <button
             type="button"
             className={`iz-btn ${type === 'receveur' ? 'iz-btn-primary' : 'iz-btn-outline'}`}
             onClick={() => switchType('receveur')}
           >
-            Attestations de receveur
+            {t('att.recPlural')}
           </button>
           <label className="iz-flex iz-small" style={{ gap: 6, alignItems: 'center' }}>
             <input
@@ -180,7 +180,7 @@ export function AdminAttestations() {
               checked={unlinkedOnly}
               onChange={(event) => setUnlinkedOnly(event.target.checked)}
             />
-            Seulement les non liées
+            {t('att.unlinkedOnly')}
           </label>
           <label className="iz-flex iz-small" style={{ gap: 6, alignItems: 'center' }}>
             <input
@@ -188,20 +188,22 @@ export function AdminAttestations() {
               checked={showHistory}
               onChange={(event) => setShowHistory(event.target.checked)}
             />
-            Inclure les anciennes versions
+            {t('att.includeHistory')}
           </label>
           <label className="iz-flex iz-small" style={{ gap: 6, alignItems: 'center' }}>
-            Statut
+            {t('common.status')}
             <select className="iz-select" value={status} onChange={(event) => setStatus(event.target.value)}>
-              <option value="">Tous</option>
-              <option value="Valable">Valable</option>
-              <option value="Expirée">Expirée</option>
-              <option value="Validité inconnue">Validité inconnue</option>
+              <option value="">{t('att.all')}</option>
+              <option value="Valable">{t('att.valid')}</option>
+              <option value="Expirée">{t('att.expired')}</option>
+              <option value="Validité inconnue">{t('att.unknownValidity')}</option>
             </select>
           </label>
           {data && (
             <span className="iz-small iz-muted">
-              {rows.length} sur {data.length} attestations{showHistory ? ' (historique)' : ' uniques'}
+              {showHistory
+                ? t('att.countHistory', { rows: rows.length, total: data.length })
+                : t('att.countUnique', { rows: rows.length, total: data.length })}
             </span>
           )}
         </div>
@@ -213,35 +215,35 @@ export function AdminAttestations() {
           key={type}
           rows={rows}
           rowKey={(row) => String(row.id)}
-          rowLabel={(row) => holder(row)}
+          rowLabel={(row) => holder(row, t('att.holderFallback'))}
           searchText={(row) => [
             row.nom, row.prenoms, row.numero_attestation, row.numero_attestation_receveur,
             row.cin, row.permis_numero, row.busImmatriculation, row.busLigne,
             row.fichier_source, row.remarque,
           ].join(' ')}
-          searchPlaceholder="Rechercher un nom, un numéro, un CIN ou un bus…"
+          searchPlaceholder={t('att.searchPlaceholder')}
           initialSort="validite"
-          empty={<p className="iz-list-empty">Aucune attestation ne correspond aux filtres.</p>}
+          empty={<p className="iz-list-empty">{t('att.empty')}</p>}
           columns={[
             {
-              key: 'titulaire', label: 'Titulaire',
+              key: 'titulaire', label: t('att.colHolder'),
               sortValue: (row) => holder(row),
               render: (row) => <div>
-                <strong>{holder(row)}</strong>
+                <strong>{holder(row, t('att.holderFallback'))}</strong>
                 <div className="iz-small iz-muted">
                   {type === 'capacite'
-                    ? `Permis ${row.permis_categorie || '—'} · ${row.permis_numero || '—'}`
-                    : `CIN ${row.cin || '—'}`}
+                    ? t('att.permisLine', { cat: row.permis_categorie || '—', num: row.permis_numero || '—' })
+                    : t('att.cinLine', { cin: row.cin || '—' })}
                 </div>
               </div>,
             },
             {
-              key: 'numero', label: 'N° attestation',
+              key: 'numero', label: t('att.colNumber'),
               sortValue: (row) => number(row),
               render: (row) => <span className="iz-mono iz-small">{number(row)}</span>,
             },
             {
-              key: 'validite', label: 'Validité',
+              key: 'validite', label: t('att.colValidity'),
               sortValue: (row) => dateOnly(row.valable_jusquau) || String(row.statut ?? ''),
               render: (row) => <div className="iz-small iz-nowrap">
                 <div>{dateOnly(row.valable_jusquau) || row.valable_texte || '—'}</div>
@@ -249,7 +251,7 @@ export function AdminAttestations() {
               </div>,
             },
             {
-              key: 'bus', label: 'Bus lié',
+              key: 'bus', label: t('att.colBus'),
               sortValue: (row) => String(row.busImmatriculation ?? ''),
               render: (row) => row.busImmatriculation
                 ? <button
@@ -259,13 +261,13 @@ export function AdminAttestations() {
                   >
                     {row.busImmatriculation}
                   </button>
-                : <span className="iz-small iz-muted">Non liée</span>,
+                : <span className="iz-small iz-muted">{t('att.notLinked')}</span>,
             },
           ]}
           actions={(row) => (
             <div className="iz-flex iz-wrap" style={{ gap: 6 }}>
               <button className="iz-btn iz-btn-primary iz-btn-sm" onClick={() => openLink(row)}>
-                {row.vehicle_id == null ? 'Lier à un bus' : 'Changer de bus'}
+                {row.vehicle_id == null ? t('att.linkBus') : t('att.changeBus')}
               </button>
               {row.vehicle_id != null && (
                 <button
@@ -273,11 +275,11 @@ export function AdminAttestations() {
                   disabled={busy}
                   onClick={() => void unlink(row)}
                 >
-                  Délier
+                  {t('att.unlink')}
                 </button>
               )}
               <button className="iz-btn iz-btn-ghost iz-btn-sm" onClick={() => setDetail(row)}>
-                Détails
+                {t('common.details')}
               </button>
             </div>
           )}
@@ -286,35 +288,35 @@ export function AdminAttestations() {
 
       {target && (
         <Modal
-          title={`${target.vehicle_id == null ? 'Lier' : 'Changer la liaison'} — ${TYPE_LABEL[type]}`}
+          title={`${target.vehicle_id == null ? t('att.linkTitle') : t('att.changeTitle')} — ${t(typeKey(type))}`}
           onClose={() => { if (!busy) setTarget(null) }}
           footer={
             <>
-              <button className="iz-btn iz-btn-outline" disabled={busy} onClick={() => setTarget(null)}>Annuler</button>
+              <button className="iz-btn iz-btn-outline" disabled={busy} onClick={() => setTarget(null)}>{t('common.cancel')}</button>
               <button
                 className="iz-btn iz-btn-primary"
                 disabled={busy || selectedBus == null}
                 onClick={() => void submitLink(selectedBus)}
               >
-                {busy ? 'Enregistrement…' : 'Enregistrer la liaison'}
+                {busy ? t('att.saving') : t('att.saveLink')}
               </button>
             </>
           }
         >
           <p className="iz-small iz-muted" style={{ marginTop: 0 }}>
-            {holder(target)} — {number(target)}
+            {holder(target, t('att.holderFallback'))} — {number(target)}
           </p>
           {target.busImmatriculation && (
             <p className="iz-small">
-              Bus actuellement lié : <strong>{target.busImmatriculation}</strong>
+              {t('att.currentBus')} <strong>{target.busImmatriculation}</strong>
             </p>
           )}
-          <Field label="Rechercher un bus" full>
+          <Field label={t('att.searchBus')} full>
             <input
               className="iz-input"
               value={busQuery}
               onChange={(event) => setBusQuery(event.target.value)}
-              placeholder="Immatriculation, ligne, propriétaire…"
+              placeholder={t('att.busPlaceholder')}
               autoFocus
             />
           </Field>
@@ -323,7 +325,7 @@ export function AdminAttestations() {
           {!vehicles.loading && (
             <div style={{ maxHeight: 300, overflow: 'auto', border: '1px solid #d8d8d8', borderRadius: 10, marginTop: 10 }}>
               {buses.length === 0 ? (
-                <p className="iz-small iz-muted" style={{ padding: 12, margin: 0 }}>Aucun bus ne correspond.</p>
+                <p className="iz-small iz-muted" style={{ padding: 12, margin: 0 }}>{t('att.noBusMatch')}</p>
               ) : buses.map((vehicle) => {
                 const active = Number(vehicle.id) === selectedBus
                 return (
@@ -340,10 +342,10 @@ export function AdminAttestations() {
                   >
                     <strong className="iz-mono">{vehicle.immatriculation}</strong>
                     <span className="iz-small iz-muted">
-                      {' '}· Ligne {vehicle.ligne || '—'} · {vehicle.cooperativeCode || '—'}
+                      {' '}· {t('search.line')} {vehicle.ligne || '—'} · {vehicle.cooperativeCode || '—'}
                       {vehicle.proprietaireNom ? ` · ${vehicle.proprietaireNom}` : ''}
                     </span>
-                    {active && <span className="iz-chip" style={{ marginLeft: 8 }}>Sélectionné</span>}
+                    {active && <span className="iz-chip" style={{ marginLeft: 8 }}>{t('att.selected')}</span>}
                   </button>
                 )
               })}
@@ -351,13 +353,16 @@ export function AdminAttestations() {
           )}
           {selectedVehicle && (
             <p className="iz-small" style={{ marginBottom: 0 }}>
-              Bus sélectionné : <strong>{selectedVehicle.immatriculation}</strong>
+              {t('att.selectedBus')} <strong>{selectedVehicle.immatriculation}</strong>
             </p>
           )}
           {replacement && (
             <Alert type="error">
-              {selectedVehicle?.immatriculation ?? 'Ce bus'} possède déjà une attestation de {TYPE_LABEL[type].replace('attestation de ', '')}
-              {' '}({holder(replacement)}). Enregistrer remplacera cette liaison.
+              {t('att.conflict', {
+                plate: selectedVehicle?.immatriculation ?? t('att.thisBus'),
+                kind: t(type === 'capacite' ? 'att.kindCap' : 'att.kindRec'),
+                holder: holder(replacement, t('att.holderFallback')),
+              })}
             </Alert>
           )}
           {target.vehicle_id != null && (
@@ -367,7 +372,7 @@ export function AdminAttestations() {
               disabled={busy}
               onClick={() => void submitLink(null)}
             >
-              Détacher du bus
+              {t('att.detach')}
             </button>
           )}
         </Modal>
@@ -375,20 +380,24 @@ export function AdminAttestations() {
 
       {detail && (
         <Modal
-          title={`${TYPE_LABEL[type]} — détails`}
+          title={t('att.detailsTitle', { type: t(typeKey(type)) })}
           onClose={() => setDetail(null)}
-          footer={<button className="iz-btn iz-btn-outline" onClick={() => setDetail(null)}>Fermer</button>}
+          footer={<button className="iz-btn iz-btn-outline" onClick={() => setDetail(null)}>{t('att.close')}</button>}
         >
           <div className="iz-detail-grid">
-            {detailFields(type, detail).map(([label, value]) => (
-              <div className="iz-detail-item" key={label}>
-                <span>{label}</span>
-                <strong>{value === true ? 'Oui' : value === false ? 'Non' : value == null || value === '' ? 'Non renseigné' : String(value)}</strong>
-              </div>
-            ))}
+            {detailFields(type, detail, t).map(([label, value]) => {
+              const text = value === true ? t('att.yes') : value === false ? t('att.no')
+                : value == null || value === '' ? t('att.notProvided') : translateValue(lang, String(value))
+              return (
+                <div className="iz-detail-item" key={label}>
+                  <span>{label}</span>
+                  <strong>{text}</strong>
+                </div>
+              )
+            })}
             <div className="iz-detail-item">
-              <span>Bus lié</span>
-              <strong>{detail.busImmatriculation || 'Non liée'}</strong>
+              <span>{t('att.colBus')}</span>
+              <strong>{detail.busImmatriculation || t('att.notLinked')}</strong>
             </div>
           </div>
         </Modal>

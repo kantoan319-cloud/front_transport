@@ -14,6 +14,7 @@ import { downloadQrSheetPdf, downloadReceiptA4, downloadRegisterPdf, printReceip
 import type { RegisterPayload } from '../documentPdf'
 import { photoDataUrl } from './photo'
 import { AgentProfileDialog, IdentityPhotoField } from './profiles'
+import { translateError, translateValue } from './i18n'
 
 const when = (value?: string | null) => (value ? String(value).slice(0, 16).replace('T', ' ') : '—')
 const dateOnly = (value?: string | null) => (value ? String(value).slice(0, 10) : '')
@@ -53,27 +54,27 @@ const sixMonthEnd = (start: string) => {
 export function AdminLayout({ children }: { children: ReactNode }) {
   const { t, navigate, user } = useApp()
   const historyLink = user?.role === 'superadmin'
-    ? { path: '/admin/activity', label: 'Historique des administrateurs', icon: '🕘' }
-    : { path: '/admin/activity', label: 'Historique des contrôleurs', icon: '🕘' }
+    ? { path: '/admin/activity', label: t('admin.historyAdmins'), icon: '🕘' }
+    : { path: '/admin/activity', label: t('admin.historyControllers'), icon: '🕘' }
   const links = [
     { path: '/admin', label: t('admin.dashboard'), icon: '📊' },
     { path: '/notifications', label: t('nav.notifications'), icon: '🔔', badge: true },
-    { path: '/admin/analytics', label: 'Données décisionnelles', icon: '📈' },
+    { path: '/admin/analytics', label: t('admin.analytics'), icon: '📈' },
     { path: '/admin/vehicles', label: t('admin.vehicles'), icon: '🚐' },
-    { path: '/controle/scan', label: 'Scanner / contrôler', icon: 'QR' },
-    { path: '/controle/fourriere', label: 'Fourrière', icon: 'P' },
-    { path: '/controle/signals', label: 'Signalements', icon: '!' },
+    { path: '/controle/scan', label: t('admin.scanControl'), icon: 'QR' },
+    { path: '/controle/fourriere', label: t('control.fourriere'), icon: 'P' },
+    { path: '/controle/signals', label: t('admin.signalements'), icon: '!' },
     { path: '/admin/cooperatives', label: t('nav.coops'), icon: '🤝' },
     { path: '/admin/owners', label: t('admin.owners'), icon: '👥' },
     { path: '/admin/lines', label: t('admin.lines'), icon: '🛣️' },
-    { path: '/admin/attestations', label: 'Capacité & receveur', icon: '📄' },
+    { path: '/admin/attestations', label: t('att.title'), icon: '📄' },
     { path: '/admin/licenses', label: t('admin.licences'), icon: '⚠️' },
     { path: '/admin/payments', label: t('admin.payments'), icon: '💳' },
-    { path: '/admin/payments/register', label: 'Registre des paiements', icon: '🧾' },
+    { path: '/admin/payments/register', label: t('admin.paymentRegister'), icon: '🧾' },
     { path: '/admin/requests', label: t('admin.requests'), icon: '📝' },
     { path: '/admin/users', label: t('admin.users'), icon: '🔐' },
-    { path: '/admin/profiles', label: 'Profils des contrôleurs', icon: '👤' },
-    { path: '/admin/manuel', label: 'Manuel d’utilisation', icon: '📘' },
+    { path: '/admin/profiles', label: t('admin.profiles'), icon: '👤' },
+    { path: '/admin/manuel', label: t('admin.manual'), icon: '📘' },
     historyLink,
   ]
   return (
@@ -97,7 +98,7 @@ export function AdminDashboard() {
           <div className="iz-grid iz-grid-4">
             <StatCard icon="🚐" value={data?.vehicles?.total ?? 0} label={t('admin.vehicles')} />
             <StatCard icon="✅" value={data?.vehicles?.valides ?? 0} label={t('search.valid')} />
-            <button type="button" className="iz-card iz-stat iz-card-hover iz-stat-link" onClick={() => navigate('/admin/licenses')} title="Voir les véhicules à licence expirée">
+            <button type="button" className="iz-card iz-stat iz-card-hover iz-stat-link" onClick={() => navigate('/admin/licenses')} title={t('admin.viewExpired')}>
               <div className="iz-stat-icon">⚠️</div>
               <div className="iz-stat-value">{data?.vehicles?.expires ?? 0}</div>
               <div className="iz-stat-label">{t('search.expired')} →</div>
@@ -168,7 +169,7 @@ interface CrudProps {
 }
 
 export function CrudPage(props: CrudProps) {
-  const { t, notify } = useApp()
+  const { t, lang, notify } = useApp()
   const { data, loading, error, reload } = useAsync(props.load, [])
   const [editing, setEditing] = useState<IZRecord | null>(null)
   const [deleting, setDeleting] = useState<IZRecord | null>(null)
@@ -208,7 +209,7 @@ export function CrudPage(props: CrudProps) {
         // Les champs facultatifs inchangés sont absents du PATCH : notamment
         // la date de début, dont le renvoi recalculerait une ancienne échéance.
         if (field.required && (value == null || String(value).trim() === '')) {
-          throw new Error(`${field.label} : ce champ est obligatoire.`)
+          throw new Error(t('admin.crudRequired', { label: field.label }))
         }
         if (isUpdate && !changed && (!field.required || props.patchOnlyChanges)) continue
         if (field.type === 'checkbox') value = Boolean(value)
@@ -224,18 +225,18 @@ export function CrudPage(props: CrudProps) {
         }
         if (field.type === 'number' || field.numeric) {
           value = Number(value)
-          if (!Number.isFinite(value)) throw new Error(`${field.label} : nombre invalide.`)
+          if (!Number.isFinite(value)) throw new Error(t('admin.crudInvalidNumber', { label: field.label }))
         }
         payload[field.key] = value
       }
       const data = props.toPayload ? props.toPayload(payload, form) : payload
       if (editing.id && props.update) await props.update(Number(editing.id), data)
       else await props.create(data)
-      notify(t('common.save'), 'success')
+      notify(t('admin.saved'), 'success')
       setEditing(null)
       await reload()
     } catch (error) {
-      notify(error instanceof Error ? error.message : t('common.error'), 'error')
+      notify(translateError(lang, error, 'common.error'), 'error')
     } finally {
       setBusy(false)
     }
@@ -246,11 +247,11 @@ export function CrudPage(props: CrudProps) {
     setBusy(true)
     try {
       await props.remove(Number(deleting.id))
-      notify(t('common.delete'), 'success')
+      notify(t('admin.deleted'), 'success')
       setDeleting(null)
       await reload()
     } catch (error) {
-      notify(error instanceof Error ? error.message : t('common.error'), 'error')
+      notify(translateError(lang, error, 'common.error'), 'error')
     } finally {
       setBusy(false)
     }
@@ -279,7 +280,7 @@ export function CrudPage(props: CrudProps) {
       return next
     }),
     allSelected: rows.length > 0 && rows.every((row) => selected.has(keyOf(row))),
-    label: (count) => `${count} sélectionné(s) sur cette page`,
+    label: (count) => t('common.selectedOnPage', { count }),
   } : undefined
 
   const runBatch = async () => {
@@ -290,7 +291,7 @@ export function CrudPage(props: CrudProps) {
       setSelected(new Set())
       await reload()
     } catch (error) {
-      notify(error instanceof Error ? error.message : t('common.error'), 'error')
+      notify(translateError(lang, error, 'common.error'), 'error')
     } finally {
       setBatchBusy(false)
     }
@@ -309,7 +310,7 @@ export function CrudPage(props: CrudProps) {
         }
       />
       {props.extra}
-      {error && <div className="iz-card" role="alert">{error} <button className="iz-btn iz-btn-outline iz-btn-sm" disabled={loading} onClick={() => void reload()}>Réessayer</button></div>}
+      {error && <div className="iz-card" role="alert">{error} <button className="iz-btn iz-btn-outline iz-btn-sm" disabled={loading} onClick={() => void reload()}>{t('common.retry')}</button></div>}
       {loading ? <Loading /> : (
         <DataTable
           rows={rows}
@@ -326,7 +327,7 @@ export function CrudPage(props: CrudProps) {
           empty={<Empty />}
           toolbar={props.batch && (
             <button className="iz-btn iz-btn-outline iz-btn-sm" disabled={!selectedRows.length || batchBusy} onClick={() => void runBatch()}>
-              {batchBusy ? 'Traitement…' : `${props.batch.label} (${selectedRows.length})`}
+              {batchBusy ? t('admin.treatment') : `${props.batch.label} (${selectedRows.length})`}
             </button>
           )}
           actions={(row) => (
@@ -344,7 +345,7 @@ export function CrudPage(props: CrudProps) {
           footer={
             <>
               <button className="iz-btn iz-btn-outline" disabled={busy} onClick={() => setEditing(null)}>{t('common.cancel')}</button>
-              <button className="iz-btn iz-btn-primary" disabled={busy} onClick={() => formRef.current?.requestSubmit()}>{busy ? 'Enregistrement…' : t('common.save')}</button>
+              <button className="iz-btn iz-btn-primary" disabled={busy} onClick={() => formRef.current?.requestSubmit()}>{busy ? t('common.saving') : t('common.save')}</button>
             </>
           }
         >
@@ -358,7 +359,7 @@ export function CrudPage(props: CrudProps) {
                   <select className="iz-select" disabled={busy} required={field.required} value={String(form[field.key] ?? '')} onChange={(e) => change(field.key, e.target.value)}>
                     <option value="">—</option>
                     {form[field.key] != null && form[field.key] !== '' && !field.options?.some((option) => option.value === String(form[field.key])) && (
-                      <option value={String(form[field.key])} disabled>{String(form[field.key])} (valeur actuelle)</option>
+                      <option value={String(form[field.key])} disabled>{String(form[field.key])} ({t('common.currentValue')})</option>
                     )}
                     {field.options?.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                   </select>
@@ -368,10 +369,10 @@ export function CrudPage(props: CrudProps) {
                   <div className="iz-photo-field">
                     {form[field.key]
                       ? <img className="iz-photo-preview" src={String(form[field.key])} alt={field.label} />
-                      : <div className="iz-photo-empty">Aucune photo</div>}
+                      : <div className="iz-photo-empty">{t('common.noPhoto')}</div>}
                     <div className="iz-flex iz-wrap" style={{ gap: 8 }}>
                       <label className="iz-btn iz-btn-outline iz-btn-sm">
-                        Choisir une photo
+                        {t('common.choosePhoto')}
                         <input
                           type="file"
                           accept="image/*"
@@ -383,11 +384,11 @@ export function CrudPage(props: CrudProps) {
                             if (!file) return
                             void photoDataUrl(file)
                               .then((value) => change(field.key, value))
-                              .catch((error) => notify(error instanceof Error ? error.message : 'Image illisible.', 'error'))
+                              .catch((error) => notify(translateError(lang, error, 'common.imageUnreadable'), 'error'))
                           }}
                         />
                       </label>
-                      {form[field.key] && <button type="button" className="iz-btn iz-btn-ghost iz-btn-sm" disabled={busy} onClick={() => change(field.key, '')}>Retirer</button>}
+                      {form[field.key] && <button type="button" className="iz-btn iz-btn-ghost iz-btn-sm" disabled={busy} onClick={() => change(field.key, '')}>{t('common.remove')}</button>}
                     </div>
                   </div>
                 ) : (
@@ -425,12 +426,12 @@ const mono = (value: unknown) => <span className="iz-mono iz-small">{value == nu
 /* ------------------------------------------------------------------ */
 
 export function AdminVehicles() {
-  const { t, navigate, notify } = useApp()
+  const { t, lang, navigate, notify } = useApp()
   const coops = useAsync(() => izApi.adminCooperatives(), [])
-  const coopOptions = (coops.data ?? []).map((coop) => ({ value: String(coop.id), label: coop.nom }))
+  const coopOptions = (coops.data ?? []).map((coop) => ({ value: String(coop.id), label: String(coop.nom ?? '') }))
   const busPath = (row: IZRecord) => '/bus?plaque=' + encodeURIComponent(row.immatriculation)
   const batch = {
-    label: 'Télécharger les QR sélectionnés',
+    label: t('admin.downloadQrBatch'),
     onRun: async (rows: IZRecord[]) => {
       const base = new URL(window.location.href)
       base.search = ''
@@ -442,23 +443,23 @@ export function AdminVehicles() {
         items.push({ registration: String(row.immatriculation), image })
       }
       await downloadQrSheetPdf(items, `QR_${items.length}_bus_A4.pdf`)
-      notify(`${items.length} QR code(s) téléchargés — 4 par page A4.`, 'success')
+      notify(t('admin.qrBatchDone', { count: items.length }), 'success')
     },
   }
   return (
     <CrudPage
       title={t('admin.vehicles')}
-      subtitle="Gestion des bus, licences de 6 mois et équipages. Cochez des bus pour télécharger leurs QR codes, ou ouvrez la fiche de chacun."
+      subtitle={t('admin.vehiclesSubtitle')}
       addLabel={t('admin.newVehicle')}
       extra={<div className="iz-flex iz-wrap" style={{ marginBottom: 14 }}>
-        <button className="iz-btn iz-btn-outline iz-btn-sm" onClick={() => navigate('/admin/licenses')}>⚠️ Véhicules à licence expirée</button>
+        <button className="iz-btn iz-btn-outline iz-btn-sm" onClick={() => navigate('/admin/licenses')}>{t('admin.expiredCta')}</button>
       </div>}
       searchText={(row) => [row.immatriculation, row.proprietaireNom, row.cooperativeCode, row.ligne, row.licenceNumero, row.conducteurNom, row.receveurNom].join(' ')}
-      searchPlaceholder="Immatriculation, propriétaire, coopérative, ligne…"
+      searchPlaceholder={t('admin.searchVehicles')}
       rowLabel={(row) => String(row.immatriculation ?? row.id)}
       initialSort="immatriculation"
-      groupBy={(row) => (String(row.ligne ?? '').trim() ? `Ligne ${String(row.ligne).trim()}` : 'Sans ligne')}
-      groupLabel={(group, list) => `${group} · ${list.length} bus`}
+      groupBy={(row) => (String(row.ligne ?? '').trim() ? t('search.lineGroup', { line: String(row.ligne).trim() }) : t('search.noLineGroup'))}
+      groupLabel={(group, list) => `${group} · ${t('search.busCount', { count: list.length })}`}
       exportCible="vehicules"
       batch={batch}
       load={() => izApi.adminVehicles({ limit: 500 })}
@@ -471,54 +472,54 @@ export function AdminVehicles() {
         // Changer le numéro est une émission de licence : sa date et un NIF sont
         // requis, même si la date n'a pas changé.
         if (payload.licenceNumero && !payload.licenceDebut) {
-          if (!values.licenceDebut) throw new Error('Indiquez le début de la nouvelle licence de 6 mois.')
-          if (String(values.licenceNif ?? '').trim().length < 3) throw new Error('Le NIF est obligatoire pour délivrer une licence.')
+          if (!values.licenceDebut) throw new Error(t('admin.licenceStartRequired'))
+          if (String(values.licenceNif ?? '').trim().length < 3) throw new Error(t('admin.nifRequired'))
           return { ...payload, licenceDebut: values.licenceDebut }
         }
         return payload
       }}
       formInfo={(row) => (
         <div className="iz-small iz-muted" style={{ marginBottom: 16 }}>
-          <p>La licence dure 6 mois : le serveur calcule sa fin à la veille du sixième anniversaire de la date de début. Tout nouveau numéro nécessite une date de début et un NIF. La date de fin n’est pas modifiable.</p>
-          <p>Pour retirer la période, effacez également le numéro de licence. Les licences arrivées à échéance sont reprises dans « Licences expirées ».</p>
-          {row.id && <p>Fin enregistrée : <strong>{dateOnly(row.licenceFin) || '—'}</strong>. Les modifications sans lien avec la licence conservent ses dates existantes.</p>}
-          {coops.error && <p role="alert">{coops.error} <button type="button" className="iz-btn iz-btn-outline iz-btn-sm" onClick={() => void coops.reload()}>Recharger les coopératives</button></p>}
+          <p>{t('admin.licenceHelp1')}</p>
+          <p>{t('admin.licenceHelp2')}</p>
+          {row.id && <p>{t('admin.licenceHelp3', { date: dateOnly(row.licenceFin) || '—' })}</p>}
+          {coops.error && <p role="alert">{coops.error} <button type="button" className="iz-btn iz-btn-outline iz-btn-sm" onClick={() => void coops.reload()}>{t('admin.reloadCoops')}</button></p>}
         </div>
       )}
       columns={[
-        { key: 'immatriculation', label: t('search.plate'), sortValue: (row) => String(row.immatriculation ?? ''), render: (row) => <><a href={`#${busPath(row)}`} onClick={(event) => { event.preventDefault(); navigate(busPath(row)) }}><strong className="iz-mono">{row.immatriculation}</strong></a><div className="iz-small iz-muted">{row.type}</div><button className="iz-btn iz-btn-primary iz-btn-sm" style={{ marginTop: 8 }} onClick={() => navigate(busPath(row) + '&qr=1')} aria-label={`Voir et télécharger le QR du bus ${row.immatriculation}`}>QR à télécharger</button></> },
-        { key: 'photoUrl', label: 'Photo du bus', render: (row) => row.photoUrl ? <img className="iz-thumb" src={String(row.photoUrl)} alt={`Bus ${row.immatriculation}`} /> : <span className="iz-small iz-muted">—</span> },
+        { key: 'immatriculation', label: t('search.plate'), sortValue: (row) => String(row.immatriculation ?? ''), render: (row) => <><a href={`#${busPath(row)}`} onClick={(event) => { event.preventDefault(); navigate(busPath(row)) }}><strong className="iz-mono">{row.immatriculation}</strong></a><div className="iz-small iz-muted">{translateValue(lang, row.type)}</div><button className="iz-btn iz-btn-primary iz-btn-sm" style={{ marginTop: 8 }} onClick={() => navigate(busPath(row) + '&qr=1')} aria-label={t('admin.viewQrAria', { plate: String(row.immatriculation ?? '') })}>{t('admin.downloadQr')}</button></> },
+        { key: 'photoUrl', label: t('bus.photoCaption'), render: (row) => row.photoUrl ? <img className="iz-thumb" src={String(row.photoUrl)} alt={t('bus.vehiclePhotoAlt', { plate: String(row.immatriculation ?? '') })} /> : <span className="iz-small iz-muted">—</span> },
         { key: 'proprietaireNom', label: t('search.owner'), sortValue: (row) => String(row.proprietaireNom ?? ''), render: (row) => text(row.proprietaireNom) },
         { key: 'cooperativeCode', label: t('search.cooperative'), sortValue: (row) => String(row.cooperativeCode ?? ''), render: (row) => <span className="iz-chip">{row.cooperativeCode ?? '—'}</span> },
         { key: 'ligne', label: t('search.line'), sortValue: (row) => String(row.ligne ?? ''), render: (row) => text(row.ligne) },
-        { key: 'licenceNumero', label: 'Licence / NIF / STAT', sortValue: (row) => String(row.licenceNumero ?? ''), render: (row) => <div className="iz-small"><div>Licence : {mono(row.licenceNumero)}</div><div>NIF : {mono(row.licenceNif)}</div><div>STAT : {mono(row.licenceStat)}</div></div> },
-        { key: 'licenceFin', label: 'Validité de la licence', sortValue: (row) => String(row.licenceFin ?? ''), render: (row) => <div className="iz-small iz-nowrap"><div>Début : {mono(dateOnly(row.licenceDebut))}</div><div>Fin : {mono(dateOnly(row.licenceFin))}</div><div style={{ marginTop: 4 }}><StatusBadge status={licenceState(row.licenceDebut, row.licenceFin)} /></div>{row.licenceValidite && <div>{row.licenceValidite}</div>}</div> },
-        { key: 'conducteurNom', label: 'Équipage', sortValue: (row) => String(row.conducteurNom ?? ''), render: (row) => <div className="iz-small"><div>Conducteur : {text(row.conducteurNom)}</div><div>Receveur : {text(row.receveurNom)}</div></div> },
+        { key: 'licenceNumero', label: t('admin.licenceNifStat'), sortValue: (row) => String(row.licenceNumero ?? ''), render: (row) => <div className="iz-small"><div>{t('admin.licenceLabel')} : {mono(row.licenceNumero)}</div><div>NIF : {mono(row.licenceNif)}</div><div>STAT : {mono(row.licenceStat)}</div></div> },
+        { key: 'licenceFin', label: t('admin.licenceValidity'), sortValue: (row) => String(row.licenceFin ?? ''), render: (row) => <div className="iz-small iz-nowrap"><div>{t('admin.start')} : {mono(dateOnly(row.licenceDebut))}</div><div>{t('admin.end')} : {mono(dateOnly(row.licenceFin))}</div><div style={{ marginTop: 4 }}><StatusBadge status={licenceState(row.licenceDebut, row.licenceFin)} /></div>{row.licenceValidite && <div>{translateValue(lang, row.licenceValidite)}</div>}</div> },
+        { key: 'conducteurNom', label: t('admin.crew'), sortValue: (row) => String(row.conducteurNom ?? ''), render: (row) => <div className="iz-small"><div>{t('admin.driver')} : {text(row.conducteurNom)}</div><div>{t('bus.receveur')} : {text(row.receveurNom)}</div></div> },
         { key: 'statut', label: t('common.status'), sortValue: (row) => String(row.statut ?? ''), render: (row) => <StatusBadge status={row.statut} /> },
       ]}
       fields={[
-        { key: 'immatriculation', label: 'Immatriculation', required: true, minLength: 4, maxLength: 40 },
-        { key: 'type', label: 'Type de véhicule', type: 'select', required: true, options: [
-          { value: 'Bus', label: 'Bus' },
+        { key: 'immatriculation', label: t('search.plate'), required: true, minLength: 4, maxLength: 40 },
+        { key: 'type', label: t('admin.vehicleType'), type: 'select', required: true, options: [
+          { value: 'Bus', label: t('bus.type') },
         ] },
-        { key: 'proprietaireNom', label: 'Nom du propriétaire', maxLength: 200, clearValue: null },
-        { key: 'cooperativeId', label: 'Coopérative', type: 'select', options: coopOptions, numeric: true, clearValue: null },
-        { key: 'ligne', label: 'Ligne', maxLength: 20, clearValue: '' },
-        { key: 'licenceNumero', label: 'Numéro de licence', maxLength: 80, clearValue: '' },
-        { key: 'licenceDebut', label: 'Début de la licence (6 mois)', type: 'date', clearValue: null },
-        { key: 'licenceNif', label: 'NIF de la licence', maxLength: 80, clearValue: '' },
-        { key: 'licenceStat', label: 'STAT de la licence', maxLength: 80, clearValue: '' },
-        { key: 'conducteurNom', label: 'Nom du conducteur', maxLength: 200, clearValue: '' },
-        { key: 'conducteurPermis', label: 'Numéro de permis du conducteur', maxLength: 80, clearValue: '' },
-        { key: 'conducteurTelephone', label: 'Téléphone du conducteur', maxLength: 40, clearValue: '' },
-        { key: 'receveurNom', label: 'Nom du receveur', maxLength: 200, clearValue: '' },
-        { key: 'receveurTelephone', label: 'Téléphone du receveur', maxLength: 40, clearValue: '' },
-        { key: 'statut', label: 'Statut', type: 'select', required: true, options: [
-          { value: 'Normal', label: 'Normal' }, { value: 'Suspendu', label: 'Suspendu' }, { value: 'En fourrière', label: 'En fourrière (sortie depuis la fiche)' },
+        { key: 'proprietaireNom', label: t('admin.ownerName'), maxLength: 200, clearValue: null },
+        { key: 'cooperativeId', label: t('bus.coop'), type: 'select', options: coopOptions, numeric: true, clearValue: null },
+        { key: 'ligne', label: t('bus.line'), maxLength: 20, clearValue: '' },
+        { key: 'licenceNumero', label: t('admin.licenceNumber'), maxLength: 80, clearValue: '' },
+        { key: 'licenceDebut', label: t('admin.licenceStart'), type: 'date', clearValue: null },
+        { key: 'licenceNif', label: t('admin.licenceNif'), maxLength: 80, clearValue: '' },
+        { key: 'licenceStat', label: t('admin.licenceStat'), maxLength: 80, clearValue: '' },
+        { key: 'conducteurNom', label: t('admin.driverName'), maxLength: 200, clearValue: '' },
+        { key: 'conducteurPermis', label: t('admin.driverPermit'), maxLength: 80, clearValue: '' },
+        { key: 'conducteurTelephone', label: t('admin.driverPhone'), maxLength: 40, clearValue: '' },
+        { key: 'receveurNom', label: t('admin.receveurName'), maxLength: 200, clearValue: '' },
+        { key: 'receveurTelephone', label: t('admin.receveurPhone'), maxLength: 40, clearValue: '' },
+        { key: 'statut', label: t('common.status'), type: 'select', required: true, options: [
+          { value: 'Normal', label: translateValue(lang, 'Normal') }, { value: 'Suspendu', label: translateValue(lang, 'Suspendu') }, { value: 'En fourrière', label: t('admin.statusStable') },
         ] },
         { key: 'latitude', label: 'Latitude', type: 'number', min: -90, max: 90, clearValue: null },
         { key: 'longitude', label: 'Longitude', type: 'number', min: -180, max: 180, clearValue: null },
-        { key: 'photoUrl', label: 'Photo du véhicule (visible par tous)', type: 'photo', full: true, clearValue: null },
+        { key: 'photoUrl', label: t('admin.vehiclePhotoPublic'), type: 'photo', full: true, clearValue: null },
       ]}
       toForm={(row) => ({ ...row, licenceDebut: dateOnly(row.licenceDebut) })}
     />
@@ -526,7 +527,7 @@ export function AdminVehicles() {
 }
 
 export function AdminLicences() {
-  const { t, notify } = useApp()
+  const { t, lang, notify } = useApp()
   const { data, loading, error, reload } = useAsync(() => izApi.expiredLicences(), [])
   const [target, setTarget] = useState<IZRecord | null>(null)
   const [form, setForm] = useState({ licenceNumero: '', licenceNif: '', licenceStat: '', licenceDebut: localToday() })
@@ -545,7 +546,7 @@ export function AdminLicences() {
     event?.preventDefault()
     if (!target || busy || !formRef.current?.reportValidity()) return
     if (form.licenceNif.trim().length < 3) {
-      notify('Le NIF est obligatoire pour délivrer une licence.', 'error')
+      notify(t('admin.nifRequired'), 'error')
       return
     }
     setBusy(true)
@@ -556,11 +557,11 @@ export function AdminLicences() {
         licenceStat: form.licenceStat.trim() || undefined,
         licenceDebut: form.licenceDebut,
       })
-      notify(`Licence délivrée jusqu’au ${result.licenceFin}.`, 'success')
+      notify(t('admin.licenceDelivered', { date: String(result.licenceFin ?? '') }), 'success')
       setTarget(null)
       await reload()
     } catch (cause) {
-      notify(cause instanceof Error ? cause.message : t('common.error'), 'error')
+      notify(translateError(lang, cause, 'common.error'), 'error')
     } finally {
       setBusy(false)
     }
@@ -569,56 +570,56 @@ export function AdminLicences() {
     <>
       <PageHead
         title={t('admin.licences')}
-        subtitle="Véhicules dont la licence de 6 mois est arrivée à échéance. Seuls l’administrateur et le super administrateur peuvent délivrer une nouvelle licence."
+        subtitle={t('admin.licencesSubtitle')}
         action={<ExportButton cible="licences-expirees" label="Excel" />}
       />
-      {error && <div className="iz-card" role="alert">{error} <button className="iz-btn iz-btn-outline iz-btn-sm" disabled={loading} onClick={() => void reload()}>Réessayer</button></div>}
+      {error && <div className="iz-card" role="alert">{error} <button className="iz-btn iz-btn-outline iz-btn-sm" disabled={loading} onClick={() => void reload()}>{t('common.retry')}</button></div>}
       {loading ? <Loading /> : (
         <DataTable
           rows={data ?? []}
           rowKey={(vehicle) => String(vehicle.id)}
           rowLabel={(vehicle) => String(vehicle.immatriculation ?? vehicle.id)}
           searchText={(vehicle) => [vehicle.immatriculation, vehicle.proprietaireNom, vehicle.cooperativeCode, vehicle.licenceNumero, vehicle.licenceNif].join(' ')}
-          searchPlaceholder="Immatriculation, propriétaire, coopérative, licence…"
+          searchPlaceholder={t('admin.searchLicences')}
           initialSort="licenceFin"
-          empty={<Empty message="Aucune licence expirée. Toutes les licences sont à jour." />}
+          empty={<Empty message={t('admin.noExpired')} />}
           columns={[
             { key: 'immatriculation', label: t('search.plate'), sortValue: (vehicle) => String(vehicle.immatriculation ?? ''), render: (vehicle) => <strong className="iz-mono">{vehicle.immatriculation}</strong> },
             { key: 'proprietaireNom', label: t('search.owner'), sortValue: (vehicle) => String(vehicle.proprietaireNom ?? ''), render: (vehicle) => text(vehicle.proprietaireNom) },
             { key: 'cooperativeCode', label: t('search.cooperative'), sortValue: (vehicle) => String(vehicle.cooperativeCode ?? ''), render: (vehicle) => <span className="iz-chip">{vehicle.cooperativeCode ?? '—'}</span> },
-            { key: 'licenceNumero', label: 'Licence / NIF', sortValue: (vehicle) => String(vehicle.licenceNumero ?? ''), render: (vehicle) => <div className="iz-small"><div>Licence : {mono(vehicle.licenceNumero)}</div><div>NIF : {mono(vehicle.licenceNif)}</div></div> },
-            { key: 'licenceFin', label: 'Échéance', sortValue: (vehicle) => String(vehicle.licenceFin ?? ''), render: (vehicle) => <div className="iz-small iz-nowrap"><div>Début : {mono(dateOnly(vehicle.licenceDebut))}</div><div>Fin : {mono(dateOnly(vehicle.licenceFin))}</div><div style={{ marginTop: 4 }}><StatusBadge status={licenceState(vehicle.licenceDebut, vehicle.licenceFin)} /></div></div> },
+            { key: 'licenceNumero', label: t('admin.licenceNifShort'), sortValue: (vehicle) => String(vehicle.licenceNumero ?? ''), render: (vehicle) => <div className="iz-small"><div>{t('admin.licenceLabel')} : {mono(vehicle.licenceNumero)}</div><div>NIF : {mono(vehicle.licenceNif)}</div></div> },
+            { key: 'licenceFin', label: t('admin.deadline'), sortValue: (vehicle) => String(vehicle.licenceFin ?? ''), render: (vehicle) => <div className="iz-small iz-nowrap"><div>{t('admin.start')} : {mono(dateOnly(vehicle.licenceDebut))}</div><div>{t('admin.end')} : {mono(dateOnly(vehicle.licenceFin))}</div><div style={{ marginTop: 4 }}><StatusBadge status={licenceState(vehicle.licenceDebut, vehicle.licenceFin)} /></div></div> },
           ]}
           actions={(vehicle) => (
-            <button className="iz-btn iz-btn-primary iz-btn-sm" onClick={() => open(vehicle)}>Délivrer une licence</button>
+            <button className="iz-btn iz-btn-primary iz-btn-sm" onClick={() => open(vehicle)}>{t('admin.deliverLicence')}</button>
           )}
         />
       )}
       {target && (
         <Modal
-          title={`Nouvelle licence — ${target.immatriculation}`}
+          title={t('admin.newLicenceTitle', { plate: String(target.immatriculation ?? '') })}
           onClose={() => { if (!busy) setTarget(null) }}
           footer={<>
             <button className="iz-btn iz-btn-outline" disabled={busy} onClick={() => setTarget(null)}>{t('common.cancel')}</button>
-            <button className="iz-btn iz-btn-primary" disabled={busy} onClick={() => formRef.current?.requestSubmit()}>{busy ? 'Délivrance…' : 'Délivrer la licence'}</button>
+            <button className="iz-btn iz-btn-primary" disabled={busy} onClick={() => formRef.current?.requestSubmit()}>{busy ? t('admin.delivering') : t('admin.deliverLicenceBtn')}</button>
           </>}
         >
-          <p className="iz-small iz-muted">La nouvelle licence court sur 6 mois à partir de la date de début. La fin est calculée automatiquement (inclusive).</p>
+          <p className="iz-small iz-muted">{t('admin.licenceFormHelp')}</p>
           <form ref={formRef} className="iz-form-grid" onSubmit={submit} aria-busy={busy}>
-            <Field label="Numéro de licence *">
+            <Field label={t('admin.licenceNumberRequired')}>
               <input className="iz-input" required minLength={2} maxLength={80} disabled={busy} value={form.licenceNumero} onChange={(event) => setForm({ ...form, licenceNumero: event.target.value })} />
             </Field>
-            <Field label="NIF * (3 caractères minimum)">
+            <Field label={t('admin.nifMin')}>
               <input className="iz-input" required minLength={3} maxLength={80} disabled={busy} value={form.licenceNif} onChange={(event) => setForm({ ...form, licenceNif: event.target.value })} />
             </Field>
             <Field label="STAT">
               <input className="iz-input" maxLength={80} disabled={busy} value={form.licenceStat} onChange={(event) => setForm({ ...form, licenceStat: event.target.value })} />
             </Field>
-            <Field label="Début de la licence *">
+            <Field label={t('admin.licenceStartRequiredField')}>
               <input className="iz-input" type="date" required disabled={busy} value={form.licenceDebut} onChange={(event) => setForm({ ...form, licenceDebut: event.target.value })} />
             </Field>
             <p className="iz-small iz-muted full" style={{ margin: 0 }}>
-              Fin calculée : <strong>{sixMonthEnd(form.licenceDebut) || '—'}</strong> · statut : <StatusBadge status={licenceState(form.licenceDebut, sixMonthEnd(form.licenceDebut))} />
+              {t('admin.computedEnd', { date: sixMonthEnd(form.licenceDebut) || '—' })} <StatusBadge status={licenceState(form.licenceDebut, sixMonthEnd(form.licenceDebut))} />
             </p>
           </form>
         </Modal>
@@ -628,7 +629,7 @@ export function AdminLicences() {
 }
 
 export function AdminCooperatives() {
-  const { t, notify, navigate } = useApp()
+  const { t, lang, notify, navigate } = useApp()
   const [detail, setDetail] = useState<IZRecord | null>(null)
   const [buses, setBuses] = useState<IZRecord[]>([])
   const [busesLoading, setBusesLoading] = useState(false)
@@ -642,7 +643,7 @@ export function AdminCooperatives() {
     try {
       setBuses(await izApi.adminVehicles({ cooperative: String(coop.code), limit: 500 }))
     } catch (error) {
-      notify(error instanceof Error ? error.message : t('common.error'), 'error')
+      notify(translateError(lang, error, 'common.error'), 'error')
     } finally {
       setBusesLoading(false)
     }
@@ -654,10 +655,10 @@ export function AdminCooperatives() {
     try {
       await izApi.deleteVehicle(Number(deletingBus.id))
       setBuses((current) => current.filter((bus) => String(bus.id) !== String(deletingBus.id)))
-      notify('Véhicule supprimé.', 'success')
+      notify(t('admin.vehicleDeleted'), 'success')
       setDeletingBus(null)
     } catch (error) {
-      notify(error instanceof Error ? error.message : t('common.error'), 'error')
+      notify(translateError(lang, error, 'common.error'), 'error')
     } finally {
       setBusBusy(false)
     }
@@ -667,7 +668,7 @@ export function AdminCooperatives() {
     <>
       <CrudPage
         title={t('nav.coops')}
-        subtitle="Créez, modifiez ou supprimez une ou plusieurs coopératives. Cliquez sur une coopérative pour afficher tous ses bus."
+        subtitle={t('admin.coopsSubtitle')}
         addLabel={t('admin.newCoop')}
         load={izApi.adminCooperatives}
         create={izApi.createCooperative}
@@ -677,36 +678,36 @@ export function AdminCooperatives() {
         initialSort="nom"
         exportCible="cooperatives"
         batch={{
-          label: 'Supprimer la sélection',
+          label: t('admin.deleteSelection'),
           onRun: async (rows) => {
-            if (!window.confirm(`Supprimer définitivement ${rows.length} coopérative(s) ?`)) {
-              throw new Error('Suppression annulée.')
+            if (!window.confirm(t('admin.deleteCoopsConfirm', { count: rows.length }))) {
+              throw new Error(t('admin.deleteCancelled'))
             }
             for (const row of rows) await izApi.deleteCooperative(Number(row.id))
-            notify(`${rows.length} coopérative(s) supprimée(s).`, 'success')
+            notify(t('admin.coopsDeleted', { count: rows.length }), 'success')
           },
         }}
         columns={[
           { key: 'nom', label: t('search.cooperative'), sortValue: (row) => String(row.nom ?? ''), render: (row) => <button type="button" className="iz-link-button" onClick={() => void openDetail(row)}><strong>{row.nom}</strong></button> },
-          { key: 'code', label: 'Code', sortValue: (row) => String(row.code ?? ''), render: (row) => <span className="iz-chip">{row.code}</span> },
+          { key: 'code', label: t('admin.code'), sortValue: (row) => String(row.code ?? ''), render: (row) => <span className="iz-chip">{row.code}</span> },
           { key: 'description', label: t('coops.lines'), sortValue: (row) => String(row.description ?? ''), render: (row) => text(row.description) },
-          { key: 'vehicules', label: t('admin.vehicles'), sortValue: (row) => Number(row.vehicules ?? 0), render: (row) => <button type="button" className="iz-badge iz-badge-blue iz-link-button" onClick={() => void openDetail(row)}>{row.vehicules} bus</button> },
+          { key: 'vehicules', label: t('admin.vehicles'), sortValue: (row) => Number(row.vehicules ?? 0), render: (row) => <button type="button" className="iz-badge iz-badge-blue iz-link-button" onClick={() => void openDetail(row)}>{t('search.busCount', { count: Number(row.vehicules ?? 0) })}</button> },
         ]}
         fields={[
-          { key: 'code', label: 'Code', required: true },
+          { key: 'code', label: t('admin.code'), required: true },
           { key: 'nom', label: t('search.cooperative'), required: true },
           { key: 'description', label: t('coops.lines'), full: true },
-          { key: 'ligneCodes', label: 'Codes lignes' },
-          { key: 'contact', label: 'Contact' },
+          { key: 'ligneCodes', label: t('admin.lineCodes') },
+          { key: 'contact', label: t('admin.contact') },
         ]}
       />
       {detail && (
-        <Modal wide title={`${detail.nom} — ${buses.length} bus`} onClose={() => setDetail(null)}>
+        <Modal wide title={t('admin.coopModalTitle', { name: String(detail.nom ?? ''), count: buses.length })} onClose={() => setDetail(null)}>
           <div className="iz-flex iz-wrap" style={{ justifyContent: 'space-between', marginBottom: 12 }}>
-            <p className="iz-small iz-muted" style={{ margin: 0 }}>Code {detail.code} · {detail.description ?? '—'}</p>
+            <p className="iz-small iz-muted" style={{ margin: 0 }}>{t('admin.code')} {detail.code} · {detail.description ?? '—'}</p>
             <button className="iz-btn iz-btn-outline iz-btn-sm" onClick={() => setDetail(null)}>{t('common.close')}</button>
           </div>
-          {busesLoading ? <Loading /> : buses.length === 0 ? <Empty message="Aucun bus rattaché à cette coopérative." /> : (
+          {busesLoading ? <Loading /> : buses.length === 0 ? <Empty message={t('coops.none')} /> : (
             <DataTable
               rows={buses}
               rowKey={(bus) => String(bus.id)}
@@ -718,12 +719,12 @@ export function AdminCooperatives() {
                 { key: 'immatriculation', label: t('search.plate'), sortValue: (bus) => String(bus.immatriculation ?? ''), render: (bus) => <strong className="iz-mono">{bus.immatriculation}</strong> },
                 { key: 'proprietaireNom', label: t('search.owner'), sortValue: (bus) => String(bus.proprietaireNom ?? ''), render: (bus) => text(bus.proprietaireNom) },
                 { key: 'ligne', label: t('search.line'), sortValue: (bus) => String(bus.ligne ?? ''), render: (bus) => text(bus.ligne) },
-                { key: 'licenceFin', label: 'Licence', sortValue: (bus) => String(bus.licenceFin ?? ''), render: (bus) => <div className="iz-small"><div>{mono(dateOnly(bus.licenceFin))}</div><div style={{ marginTop: 4 }}><StatusBadge status={licenceState(bus.licenceDebut, bus.licenceFin)} /></div></div> },
+                { key: 'licenceFin', label: t('admin.licenceLabel'), sortValue: (bus) => String(bus.licenceFin ?? ''), render: (bus) => <div className="iz-small"><div>{mono(dateOnly(bus.licenceFin))}</div><div style={{ marginTop: 4 }}><StatusBadge status={licenceState(bus.licenceDebut, bus.licenceFin)} /></div></div> },
                 { key: 'statut', label: t('common.status'), sortValue: (bus) => String(bus.statut ?? ''), render: (bus) => <StatusBadge status={bus.statut} /> },
               ]}
               actions={(bus) => (
                 <>
-                  <button className="iz-btn iz-btn-outline iz-btn-sm" onClick={() => navigate('/bus?plaque=' + encodeURIComponent(String(bus.immatriculation)))}>Fiche</button>{' '}
+                  <button className="iz-btn iz-btn-outline iz-btn-sm" onClick={() => navigate('/bus?plaque=' + encodeURIComponent(String(bus.immatriculation)))}>{t('admin.fiche')}</button>{' '}
                   <button className="iz-btn iz-btn-danger iz-btn-sm" disabled={busBusy} onClick={() => setDeletingBus(bus)}>{t('common.delete')}</button>
                 </>
               )}
@@ -733,7 +734,7 @@ export function AdminCooperatives() {
       )}
       {deletingBus && (
         <ConfirmDialog
-          message={`Supprimer définitivement le bus ${deletingBus.immatriculation} ?`}
+          message={t('admin.deleteBusConfirm', { plate: String(deletingBus.immatriculation ?? '') })}
           onCancel={() => { if (!busBusy) setDeletingBus(null) }}
           onConfirm={() => void removeBus()}
         />
@@ -749,7 +750,7 @@ export function AdminOwners() {
   return (
     <CrudPage
       title={t('admin.owners')}
-      subtitle="Fiches des propriétaires : nom, téléphone, CIN, adresse, coopérative et photo. La photo du propriétaire n’est visible que par les agents habilités."
+      subtitle={t('admin.ownersSubtitle')}
       load={izApi.owners}
       create={izApi.createOwner}
       update={izApi.updateOwner}
@@ -759,20 +760,20 @@ export function AdminOwners() {
       initialSort="nom"
       exportCible="proprietaires"
       columns={[
-        { key: 'photoUrl', label: 'Photo', render: (row) => row.photoUrl ? <img className="iz-thumb" src={String(row.photoUrl)} alt={`Propriétaire ${row.nom}`} /> : <span className="iz-small iz-muted">—</span> },
+        { key: 'photoUrl', label: t('admin.photo'), render: (row) => row.photoUrl ? <img className="iz-thumb" src={String(row.photoUrl)} alt={t('admin.ownerPhotoAlt', { name: String(row.nom ?? '') })} /> : <span className="iz-small iz-muted">—</span> },
         { key: 'nom', label: t('search.owner'), sortValue: (row) => String(row.nom ?? ''), render: (row) => <strong>{row.nom}</strong> },
-        { key: 'telephone', label: 'Téléphone', sortValue: (row) => String(row.telephone ?? ''), render: (row) => text(row.telephone) },
-        { key: 'cin', label: 'CIN', sortValue: (row) => String(row.cin ?? ''), render: (row) => text(row.cin) },
-        { key: 'adresse', label: 'Adresse', sortValue: (row) => String(row.adresse ?? ''), render: (row) => text(row.adresse) },
+        { key: 'telephone', label: t('admin.phone'), sortValue: (row) => String(row.telephone ?? ''), render: (row) => text(row.telephone) },
+        { key: 'cin', label: t('admin.cin'), sortValue: (row) => String(row.cin ?? ''), render: (row) => text(row.cin) },
+        { key: 'adresse', label: t('admin.address'), sortValue: (row) => String(row.adresse ?? ''), render: (row) => text(row.adresse) },
         { key: 'cooperativeCode', label: t('search.cooperative'), sortValue: (row) => String(row.cooperativeCode ?? ''), render: (row) => text(row.cooperativeCode) },
       ]}
       fields={[
         { key: 'nom', label: t('search.owner'), required: true, maxLength: 200 },
-        { key: 'telephone', label: 'Téléphone', maxLength: 40, clearValue: null },
-        { key: 'cin', label: 'Numéro de CIN', maxLength: 40, clearValue: null },
-        { key: 'adresse', label: 'Adresse', maxLength: 200, full: true, clearValue: null },
+        { key: 'telephone', label: t('admin.phone'), maxLength: 40, clearValue: null },
+        { key: 'cin', label: t('admin.cinNumber'), maxLength: 40, clearValue: null },
+        { key: 'adresse', label: t('admin.address'), maxLength: 200, full: true, clearValue: null },
         { key: 'cooperativeId', label: t('search.cooperative'), type: 'select', options: coopOptions, numeric: true, clearValue: null },
-        { key: 'photoUrl', label: 'Photo du propriétaire (agents habilités)', type: 'photo', full: true, clearValue: null },
+        { key: 'photoUrl', label: t('admin.ownerPhoto'), type: 'photo', full: true, clearValue: null },
       ]}
     />
   )
@@ -788,6 +789,7 @@ export function AdminLines() {
     <>
       <CrudPage
         title={t('admin.lines')}
+        subtitle={t('admin.linesSubtitle')}
         addLabel={t('admin.newLine')}
         load={izApi.adminLines}
         create={izApi.createLine}
@@ -797,9 +799,9 @@ export function AdminLines() {
         initialSort="code"
         exportCible="lignes"
         columns={[
-          { key: 'code', label: 'Code', sortValue: (row) => String(row.code ?? ''), render: (row) => <span className="iz-chip">{row.code}</span> },
+          { key: 'code', label: t('admin.code'), sortValue: (row) => String(row.code ?? ''), render: (row) => <span className="iz-chip">{row.code}</span> },
           { key: 'nom', label: t('search.line'), sortValue: (row) => String(row.nom ?? ''), render: (row) => <strong>{row.nom}</strong> },
-          { key: 'couleur', label: 'Couleur', sortValue: (row) => String(row.couleur ?? ''), render: (row) => (
+          { key: 'couleur', label: t('admin.color'), sortValue: (row) => String(row.couleur ?? ''), render: (row) => (
             <span className="iz-flex" style={{ gap: 6, alignItems: 'center' }}>
               <span className="iz-color-dot" style={{ background: String(row.couleur ?? '#2563eb') }} />
               <span className="iz-mono iz-small">{row.couleur ?? '—'}</span>
@@ -813,17 +815,17 @@ export function AdminLines() {
           ) },
         ]}
         fields={[
-          { key: 'code', label: 'Code', required: true },
+          { key: 'code', label: t('admin.code'), required: true },
           { key: 'nom', label: t('search.line'), required: true },
           { key: 'cooperativeId', label: t('search.cooperative'), type: 'select', options: coopOptions },
-          { key: 'couleur', label: 'Couleur' },
-          { key: 'active', label: 'Actif', type: 'checkbox' },
+          { key: 'couleur', label: t('admin.color') },
+          { key: 'active', label: t('admin.active'), type: 'checkbox' },
         ]}
       />
       {lineId && (
         <div className="iz-card" style={{ marginTop: 24 }}>
           <div className="iz-section-head">
-            <h2 style={{ fontSize: '1.1rem' }}>{t('map.stops')} — {lineId}</h2>
+            <h2 style={{ fontSize: '1.1rem' }}>{t('admin.stopsOfLine', { id: lineId })}</h2>
             <button className="iz-btn iz-btn-ghost iz-btn-sm" onClick={() => setLineId(null)}>{t('common.close')}</button>
           </div>
           {stops.loading ? <Loading /> : (
@@ -858,7 +860,7 @@ export function AdminLines() {
 }
 
 export function AdminPayments() {
-  const { t, notify, user, navigate } = useApp()
+  const { t, lang, notify, user, navigate } = useApp()
   const isSuper = user?.role === 'superadmin'
   const { data, loading, reload } = useAsync(() => izApi.payments(), [])
   const vehicles = useAsync(() => izApi.adminVehicles({ limit: 500 }), [])
@@ -874,11 +876,11 @@ export function AdminPayments() {
         montant: Number(form.montant),
         vehicleId: form.vehicleId ? Number(form.vehicleId) : undefined,
       })
-      notify(t('common.save'), 'success')
+      notify(t('admin.saved'), 'success')
       setOpen(false)
       await reload()
     } catch (error) {
-      notify(error instanceof Error ? error.message : t('common.error'), 'error')
+      notify(translateError(lang, error, 'common.error'), 'error')
     }
   }
   const setStatut = async (id: number, statut: string) => {
@@ -889,11 +891,11 @@ export function AdminPayments() {
     if (!deleting) return
     try {
       await izApi.deletePayment(Number(deleting.id))
-      notify('Paiement supprimé.', 'success')
+      notify(t('admin.paymentDeletedOk'), 'success')
       setDeleting(null)
       await reload()
     } catch (error) {
-      notify(error instanceof Error ? error.message : t('common.error'), 'error')
+      notify(translateError(lang, error, 'common.error'), 'error')
     }
   }
   const receiptOf = (payment: IZRecord) => ({
@@ -916,7 +918,7 @@ export function AdminPayments() {
         title={t('admin.payments')}
         action={(
           <div className="iz-flex iz-wrap">
-            <button className="iz-btn iz-btn-outline iz-btn-sm" onClick={() => navigate('/admin/payments/register')}>🧾 Registre</button>
+            <button className="iz-btn iz-btn-outline iz-btn-sm" onClick={() => navigate('/admin/payments/register')}>{t('admin.registerBtn')}</button>
             <ExportButton cible="paiements" label="Excel" />
             <button className="iz-btn iz-btn-primary" onClick={() => setOpen(true)}>+ {t('admin.newPayment')}</button>
           </div>
@@ -931,21 +933,21 @@ export function AdminPayments() {
           empty={<Empty />}
           columns={[
             { key: 'reference', label: t('admin.reference'), sortValue: (payment) => String(payment.reference ?? ''), render: (payment) => <span className="iz-mono iz-small">{payment.reference}</span> },
-            { key: 'type', label: 'Type', sortValue: (payment) => String(payment.type ?? ''), render: (payment) => <>{payment.type}</> },
+            { key: 'type', label: t('admin.type'), sortValue: (payment) => String(payment.type ?? ''), render: (payment) => <>{translateValue(lang, payment.type)}</> },
             { key: 'immatriculation', label: t('search.plate'), sortValue: (payment) => String(payment.immatriculation ?? ''), render: (payment) => <span className="iz-mono">{payment.immatriculation ?? '—'}</span> },
             { key: 'proprietaireNom', label: t('search.owner'), sortValue: (payment) => String(payment.proprietaireNom ?? ''), render: (payment) => <>{payment.proprietaireNom ?? '—'}</> },
             { key: 'montant', label: t('admin.amount'), sortValue: (payment) => Number(payment.montant ?? 0), render: (payment) => <>{Number(payment.montant).toLocaleString('fr-FR')} Ar</> },
-            { key: 'moyen', label: t('admin.moyen'), sortValue: (payment) => String(payment.moyen ?? ''), render: (payment) => <>{payment.moyen}</> },
+            { key: 'moyen', label: t('admin.moyen'), sortValue: (payment) => String(payment.moyen ?? ''), render: (payment) => <>{translateValue(lang, payment.moyen)}</> },
             { key: 'statut', label: t('common.status'), sortValue: (payment) => String(payment.statut ?? ''), render: (payment) => <StatusBadge status={payment.statut} /> },
             { key: 'createdAt', label: t('common.date'), sortValue: (payment) => String(payment.createdAt ?? ''), render: (payment) => <span className="iz-small">{when(payment.createdAt)}</span> },
           ]}
           actions={(payment) => (
             <>
               <button className="iz-btn iz-btn-primary iz-btn-sm" onClick={() => void setStatut(Number(payment.id), 'Payé')}>{t('admin.approve')}</button>{' '}
-              <button className="iz-btn iz-btn-outline iz-btn-sm" title="Télécharger le reçu PDF noir et blanc" onClick={() => void downloadReceiptA4(receiptOf(payment))}>Reçu PDF</button>{' '}
-              <button className="iz-btn iz-btn-outline iz-btn-sm" title="Imprimer le reçu" onClick={() => void printReceipt(receiptOf(payment))}>Imprimer</button>
+              <button className="iz-btn iz-btn-outline iz-btn-sm" title={t('admin.receiptPdfTitle')} onClick={() => void downloadReceiptA4(receiptOf(payment), undefined, lang)}>{t('admin.receiptPdf')}</button>{' '}
+              <button className="iz-btn iz-btn-outline iz-btn-sm" title={t('admin.printReceiptTitle')} onClick={() => void printReceipt(receiptOf(payment), lang)}>{t('admin.printReceipt')}</button>
               {isSuper && (
-                <> <button className="iz-btn iz-btn-danger iz-btn-sm" onClick={() => setDeleting(payment)}>Supprimer</button></>
+                <> <button className="iz-btn iz-btn-danger iz-btn-sm" onClick={() => setDeleting(payment)}>{t('common.delete')}</button></>
               )}
             </>
           )}
@@ -956,35 +958,38 @@ export function AdminPayments() {
           <button className="iz-btn iz-btn-primary" onClick={() => void submit()}>{t('common.save')}</button>
         }>
           <form className="iz-form-grid" onSubmit={submit}>
-            <Field label="Type">
+            <Field label={t('admin.paymentType')}>
               <select className="iz-select" value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })}>
-                {['Adhésion', 'Affectation', 'Vignette', 'Amende', 'Autre'].map((value) => <option key={value}>{value}</option>)}
+                {['Adhésion', 'Affectation', 'Vignette', 'Amende', 'Autre'].map((value) => <option key={value} value={value}>{translateValue(lang, value)}</option>)}
               </select>
             </Field>
             <Field label={t('admin.amount')}>
               <input className="iz-input" type="number" value={form.montant} onChange={(e) => setForm({ ...form, montant: e.target.value })} />
             </Field>
-            <Field label="Bus concerné (immatriculation et propriétaire)" full>
+            <Field label={t('admin.paymentVehicle')} full>
               <select className="iz-select" value={form.vehicleId} onChange={(e) => setForm({ ...form, vehicleId: e.target.value })}>
-                <option value="">— Aucun bus —</option>
+                <option value="">{t('admin.noVehicle')}</option>
                 {(vehicles.data ?? []).map((bus) => (
                   <option key={bus.id} value={bus.id}>
-                    {bus.immatriculation} — {bus.proprietaireNom ?? 'Propriétaire non renseigné'}
+                    {bus.immatriculation} — {bus.proprietaireNom ?? t('admin.ownerNotProvided')}
                   </option>
                 ))}
               </select>
               {selectedVehicle && (
                 <span className="iz-small iz-muted" style={{ marginTop: 4 }}>
-                  Immatriculation : {selectedVehicle.immatriculation} · Propriétaire : {selectedVehicle.proprietaireNom ?? '—'}
+                  {t('admin.vehicleSummary', {
+                    plate: String(selectedVehicle.immatriculation ?? '—'),
+                    owner: String(selectedVehicle.proprietaireNom ?? '—'),
+                  })}
                 </span>
               )}
             </Field>
             <Field label={t('admin.moyen')}>
               <select className="iz-select" value={form.moyen} onChange={(e) => setForm({ ...form, moyen: e.target.value })}>
-                {['Orange Money', 'MTN MoMo', 'Airtel Money', 'Espèces', 'Autre'].map((value) => <option key={value}>{value}</option>)}
+                {['Orange Money', 'MTN MoMo', 'Airtel Money', 'Espèces', 'Autre'].map((value) => <option key={value} value={value}>{translateValue(lang, value)}</option>)}
               </select>
             </Field>
-            <Field label="Téléphone">
+            <Field label={t('admin.paymentPhone')}>
               <input className="iz-input" value={form.telephone ?? ''} onChange={(e) => setForm({ ...form, telephone: e.target.value })} />
             </Field>
             <Field label={t('admin.reference')} full>
@@ -995,7 +1000,7 @@ export function AdminPayments() {
       )}
       {deleting && (
         <ConfirmDialog
-          message={`Supprimer définitivement le paiement ${deleting.reference} ? Cette action est irréversible.`}
+          message={t('admin.deletePaymentConfirm', { ref: String(deleting.reference ?? '') })}
           onCancel={() => setDeleting(null)}
           onConfirm={() => void remove()}
         />
@@ -1005,7 +1010,7 @@ export function AdminPayments() {
 }
 
 export function AdminPaymentsRegister() {
-  const { t, notify, user, navigate } = useApp()
+  const { t, lang, notify, user, navigate } = useApp()
   const isSuper = user?.role === 'superadmin'
   const [period, setPeriod] = useState<'day' | 'month' | 'year'>('day')
   const [date, setDate] = useState(localToday())
@@ -1040,10 +1045,10 @@ export function AdminPaymentsRegister() {
   const exportPdf = async (mode: 'pdf' | 'print') => {
     setBusy(mode)
     try {
-      if (mode === 'pdf') await downloadRegisterPdf(payload())
-      else await printRegisterPdf(payload())
+      if (mode === 'pdf') await downloadRegisterPdf(payload(), lang)
+      else await printRegisterPdf(payload(), lang)
     } catch (error) {
-      notify(error instanceof Error ? error.message : 'Génération impossible.', 'error')
+      notify(translateError(lang, error, 'admin.generationFailed'), 'error')
     } finally {
       setBusy(null)
     }
@@ -1052,50 +1057,50 @@ export function AdminPaymentsRegister() {
     if (!deleting) return
     try {
       await izApi.deletePayment(Number(deleting.id))
-      notify('Paiement supprimé.', 'success')
+      notify(t('admin.paymentDeletedOk'), 'success')
       setDeleting(null)
       await reload()
     } catch (error) {
-      notify(error instanceof Error ? error.message : t('common.error'), 'error')
+      notify(translateError(lang, error, 'common.error'), 'error')
     }
   }
   return (
     <>
       <PageHead
-        title="Registre des paiements"
-        subtitle="Vue journalière, mensuelle et annuelle — réservée aux administrateurs et au super administrateur."
+        title={t('admin.registerTitle')}
+        subtitle={t('admin.registerSubtitle')}
         action={(
           <div className="iz-flex iz-wrap">
-            <button className="iz-btn iz-btn-ghost iz-btn-sm" onClick={() => navigate('/admin/payments')}>← Paiements</button>
-            <button className="iz-btn iz-btn-outline iz-btn-sm" disabled={busy !== null} onClick={() => void exportPdf('pdf')}>{busy === 'pdf' ? 'Génération…' : '⬇ Générer le PDF'}</button>
-            <button className="iz-btn iz-btn-primary iz-btn-sm" disabled={busy !== null} onClick={() => void exportPdf('print')}>{busy === 'print' ? 'Préparation…' : 'Imprimer le registre'}</button>
+            <button className="iz-btn iz-btn-ghost iz-btn-sm" onClick={() => navigate('/admin/payments')}>{t('admin.backPayments')}</button>
+            <button className="iz-btn iz-btn-outline iz-btn-sm" disabled={busy !== null} onClick={() => void exportPdf('pdf')}>{busy === 'pdf' ? t('admin.generating') : t('admin.generatePdf')}</button>
+            <button className="iz-btn iz-btn-primary iz-btn-sm" disabled={busy !== null} onClick={() => void exportPdf('print')}>{busy === 'print' ? t('admin.preparing') : t('admin.printRegister')}</button>
           </div>
         )}
       />
       <div className="iz-flex iz-wrap" style={{ gap: 8, marginBottom: 14 }}>
         {([
-          ['day', 'Journalier'],
-          ['month', 'Mensuel'],
-          ['year', 'Annuel'],
+          ['day', 'admin.daily'],
+          ['month', 'admin.monthly'],
+          ['year', 'admin.yearly'],
         ] as const).map(([value, label]) => (
           <button
             key={value}
             className={`iz-btn iz-btn-sm ${period === value ? 'iz-btn-primary' : 'iz-btn-outline'}`}
             onClick={() => setPeriod(value)}
           >
-            {label}
+            {t(label)}
           </button>
         ))}
         <label className="iz-flex iz-small iz-muted" style={{ gap: 6, marginLeft: 8 }}>
-          Date
+          {t('admin.dateLabel')}
           <input className="iz-input" type="date" value={date} onChange={(event) => setDate(event.target.value || localToday())} />
         </label>
       </div>
       <div className="iz-grid iz-grid-4">
-        <StatCard value={summary.total} label="Opérations" />
-        <StatCard value={`${Number(summary.montantPaye).toLocaleString('fr-FR')} Ar`} label="Encaissé" />
-        <StatCard value={summary.payes} label="Paiements payés" />
-        <StatCard value={summary.enAttente} label="En attente" />
+        <StatCard value={summary.total} label={t('admin.operations')} />
+        <StatCard value={`${Number(summary.montantPaye).toLocaleString('fr-FR')} Ar`} label={t('admin.collected')} />
+        <StatCard value={summary.payes} label={t('admin.paidPayments')} />
+        <StatCard value={summary.enAttente} label={t('admin.pending')} />
       </div>
       <div style={{ marginTop: 16 }}>
         {loading ? <Loading /> : (
@@ -1104,26 +1109,26 @@ export function AdminPaymentsRegister() {
             rowKey={(payment) => String(payment.id)}
             searchText={(payment) => [payment.reference, payment.type, payment.immatriculation, payment.proprietaireNom, payment.moyen, payment.statut].join(' ')}
             initialSort="createdAt"
-            empty={<Empty message="Aucun paiement pour cette période." />}
+            empty={<Empty message={t('admin.noPaymentsPeriod')} />}
             columns={[
-              { key: 'createdAt', label: 'Date et heure', sortValue: (payment) => String(payment.createdAt ?? ''), render: (payment) => <span className="iz-small iz-nowrap">{when(payment.createdAt)}</span> },
+              { key: 'createdAt', label: t('admin.dateTime'), sortValue: (payment) => String(payment.createdAt ?? ''), render: (payment) => <span className="iz-small iz-nowrap">{when(payment.createdAt)}</span> },
               { key: 'reference', label: t('admin.reference'), sortValue: (payment) => String(payment.reference ?? ''), render: (payment) => <span className="iz-mono iz-small">{payment.reference}</span> },
-              { key: 'type', label: 'Type', sortValue: (payment) => String(payment.type ?? ''), render: (payment) => <>{payment.type}</> },
+              { key: 'type', label: t('admin.type'), sortValue: (payment) => String(payment.type ?? ''), render: (payment) => <>{translateValue(lang, payment.type)}</> },
               { key: 'immatriculation', label: t('search.plate'), sortValue: (payment) => String(payment.immatriculation ?? ''), render: (payment) => <span className="iz-mono">{payment.immatriculation ?? '—'}</span> },
               { key: 'proprietaireNom', label: t('search.owner'), sortValue: (payment) => String(payment.proprietaireNom ?? ''), render: (payment) => <>{payment.proprietaireNom ?? '—'}</> },
-              { key: 'moyen', label: t('admin.moyen'), sortValue: (payment) => String(payment.moyen ?? ''), render: (payment) => <>{payment.moyen}</> },
+              { key: 'moyen', label: t('admin.moyen'), sortValue: (payment) => String(payment.moyen ?? ''), render: (payment) => <>{translateValue(lang, payment.moyen)}</> },
               { key: 'montant', label: t('admin.amount'), sortValue: (payment) => Number(payment.montant ?? 0), render: (payment) => <>{Number(payment.montant).toLocaleString('fr-FR')} Ar</> },
               { key: 'statut', label: t('common.status'), sortValue: (payment) => String(payment.statut ?? ''), render: (payment) => <StatusBadge status={payment.statut} /> },
             ]}
             actions={isSuper ? (payment) => (
-              <button className="iz-btn iz-btn-danger iz-btn-sm" onClick={() => setDeleting(payment)}>Supprimer</button>
+              <button className="iz-btn iz-btn-danger iz-btn-sm" onClick={() => setDeleting(payment)}>{t('common.delete')}</button>
             ) : undefined}
           />
         )}
       </div>
       {deleting && (
         <ConfirmDialog
-          message={`Supprimer définitivement le paiement ${deleting.reference} ? Cette action est irréversible.`}
+          message={t('admin.deletePaymentConfirm', { ref: String(deleting.reference ?? '') })}
           onCancel={() => setDeleting(null)}
           onConfirm={() => void remove()}
         />
@@ -1139,12 +1144,12 @@ export function AdminPaymentsRegister() {
 const ar = (value: unknown) => `${Number(value ?? 0).toLocaleString('fr-FR')} Ar`
 
 function ReportTable({
-  title, headers, rows, empty = 'Aucune donnée.',
+  title, headers, rows, empty,
 }: {
   title: string
   headers: string[]
   rows: (string | number)[][]
-  empty?: string
+  empty: string
 }) {
   return (
     <section className="iz-card iz-report-section">
@@ -1170,7 +1175,7 @@ function ReportTable({
 }
 
 export function AdminAnalytics() {
-  const { notify } = useApp()
+  const { t, lang, notify } = useApp()
   const { data, loading, reload } = useAsync(() => izApi.adminAnalytics(), [])
   const licences = data?.licences ?? {}
   const expired: IZRecord[] = data?.expired ?? []
@@ -1188,42 +1193,43 @@ export function AdminAnalytics() {
     try {
       window.print()
     } catch {
-      notify('Impression impossible sur ce navigateur.', 'error')
+      notify(t('analytics.printFailed'), 'error')
     }
   }
+  const licenceHeaders = [t('search.plate'), t('search.owner'), t('search.cooperative'), t('analytics.number'), t('analytics.licenceEnd')]
   return (
     <>
       <PageHead
-        title="📊 Données décisionnelles"
-        subtitle="Statistiques, suivi des licences et des paiements pour les décideurs."
+        title={`📊 ${t('admin.analytics')}`}
+        subtitle={t('admin.analyticsSubtitle')}
         action={(
           <div className="iz-flex iz-wrap iz-no-print">
-            <button className="iz-btn iz-btn-outline iz-btn-sm" onClick={() => void reload()}>↻ Actualiser</button>
-            <button className="iz-btn iz-btn-primary iz-btn-sm" onClick={print}>🖨 Imprimer</button>
+            <button className="iz-btn iz-btn-outline iz-btn-sm" onClick={() => void reload()}>{t('admin.refresh')}</button>
+            <button className="iz-btn iz-btn-primary iz-btn-sm" onClick={print}>{t('admin.print')}</button>
           </div>
         )}
       />
       {loading ? <Loading /> : (
         <div className="iz-printable">
           <div className="iz-print-head">
-            <img src="/brand/logo-commune.png" alt="Commune Urbaine d’Antsirabe" />
+            <img src="/brand/logo-commune.png" alt={t('analytics.communeAlt')} />
             <div>
-              <strong>Commune Urbaine d’Antsirabe</strong>
-              <span>Gestion de Bus CU/ABE — Données décisionnelles</span>
-              <span>Édité le {generated}</span>
+              <strong>{t('analytics.communeAlt')}</strong>
+              <span>{t('analytics.reportTitle')}</span>
+              <span>{t('analytics.generatedOn', { date: generated })}</span>
             </div>
           </div>
 
           <div className="iz-grid iz-grid-4">
-            <StatCard icon="🚐" value={licences.total ?? 0} label="Bus enregistrés" />
-            <StatCard icon="✅" value={licences.valides ?? 0} label="Licences valides" />
-            <StatCard icon="⏳" value={licences.expirent ?? 0} label="Expirent sous 30 jours" />
-            <StatCard icon="⚠️" value={licences.expirees ?? 0} label="Licences expirées" />
+            <StatCard icon="🚐" value={licences.total ?? 0} label={t('admin.registeredBuses')} />
+            <StatCard icon="✅" value={licences.valides ?? 0} label={t('admin.validLicences')} />
+            <StatCard icon="⏳" value={licences.expirent ?? 0} label={t('admin.expiringSoon')} />
+            <StatCard icon="⚠️" value={licences.expirees ?? 0} label={t('admin.expiredLicences')} />
           </div>
 
           <ReportTable
-            title={`Licences expirées (${expired.length})`}
-            headers={['Immatriculation', 'Propriétaire', 'Coopérative', 'Numéro', 'Fin de licence']}
+            title={t('analytics.expiredTitle', { count: expired.length })}
+            headers={licenceHeaders}
             rows={expired.map((row) => [
               String(row.immatriculation ?? '—'),
               String(row.proprietaireNom ?? '—'),
@@ -1231,11 +1237,11 @@ export function AdminAnalytics() {
               String(row.licenceNumero ?? '—'),
               dateOnly(row.licenceFin) || '—',
             ])}
-            empty="Aucune licence expirée."
+            empty={t('analytics.noExpired')}
           />
           <ReportTable
-            title={`Licences expirant sous 30 jours (${expiring.length})`}
-            headers={['Immatriculation', 'Propriétaire', 'Coopérative', 'Numéro', 'Fin de licence']}
+            title={t('analytics.expiringTitle', { count: expiring.length })}
+            headers={licenceHeaders}
             rows={expiring.map((row) => [
               String(row.immatriculation ?? '—'),
               String(row.proprietaireNom ?? '—'),
@@ -1243,64 +1249,64 @@ export function AdminAnalytics() {
               String(row.licenceNumero ?? '—'),
               dateOnly(row.licenceFin) || '—',
             ])}
-            empty="Aucune échéance proche."
+            empty={t('analytics.noExpiring')}
           />
 
           <ReportTable
-            title="Paiements — 12 derniers mois"
-            headers={['Mois', 'Opérations', 'Montant total', 'Montant encaissé']}
+            title={t('admin.payments12')}
+            headers={[t('analytics.month'), t('admin.operations'), t('analytics.totalAmount'), t('analytics.collectedAmount')]}
             rows={paymentsByMonth.map((row) => [
               String(row.mois),
               Number(row.total ?? 0),
               ar(row.montant),
               ar(row.montantPaye),
             ])}
-            empty="Aucun paiement enregistré."
+            empty={t('analytics.noPayments')}
           />
           <ReportTable
-            title="Paiements par type"
-            headers={['Type', 'Opérations', 'Montant total']}
-            rows={paymentsByType.map((row) => [String(row.type), Number(row.total ?? 0), ar(row.montant)])}
-            empty="Aucun paiement enregistré."
+            title={t('admin.paymentsByType')}
+            headers={[t('admin.type'), t('admin.operations'), t('analytics.totalAmount')]}
+            rows={paymentsByType.map((row) => [translateValue(lang, row.type), Number(row.total ?? 0), ar(row.montant)])}
+            empty={t('analytics.noPayments')}
           />
 
           <ReportTable
-            title="Contrôles — scans (6 derniers mois)"
-            headers={['Mois', 'Scans']}
+            title={t('admin.scans6')}
+            headers={[t('analytics.month'), t('analytics.scans')]}
             rows={scansByMonth.map((row) => [String(row.mois), Number(row.total ?? 0)])}
-            empty="Aucun scan enregistré."
+            empty={t('analytics.noScans')}
           />
           <ReportTable
-            title="Infractions par statut"
-            headers={['Statut', 'Nombre', 'Montant']}
-            rows={infractionsByStatut.map((row) => [String(row.statut), Number(row.total ?? 0), ar(row.montant)])}
-            empty="Aucune infraction enregistrée."
+            title={t('admin.infractionsByStatus')}
+            headers={[t('common.status'), t('analytics.count'), t('admin.amount')]}
+            rows={infractionsByStatut.map((row) => [translateValue(lang, row.statut), Number(row.total ?? 0), ar(row.montant)])}
+            empty={t('analytics.noInfractions')}
           />
           <ReportTable
-            title="Infractions par type"
-            headers={['Type', 'Nombre', 'Montant']}
-            rows={infractionsByType.map((row) => [String(row.type), Number(row.total ?? 0), ar(row.montant)])}
-            empty="Aucune infraction enregistrée."
-          />
-
-          <ReportTable
-            title="Signalements par statut"
-            headers={['Statut', 'Nombre']}
-            rows={signalsByStatut.map((row) => [String(row.statut), Number(row.total ?? 0)])}
-            empty="Aucun signalement enregistré."
-          />
-          <ReportTable
-            title="Signalements par catégorie"
-            headers={['Catégorie', 'Nombre']}
-            rows={signalsByCategorie.map((row) => [String(row.categorie), Number(row.total ?? 0)])}
-            empty="Aucun signalement enregistré."
+            title={t('admin.infractionsByType')}
+            headers={[t('admin.type'), t('analytics.count'), t('admin.amount')]}
+            rows={infractionsByType.map((row) => [translateValue(lang, row.type), Number(row.total ?? 0), ar(row.montant)])}
+            empty={t('analytics.noInfractions')}
           />
 
           <ReportTable
-            title="Coopératives — parc de bus"
-            headers={['Code', 'Coopérative', 'Bus']}
+            title={t('admin.signalsByStatus')}
+            headers={[t('common.status'), t('analytics.count')]}
+            rows={signalsByStatut.map((row) => [translateValue(lang, row.statut), Number(row.total ?? 0)])}
+            empty={t('analytics.noSignals')}
+          />
+          <ReportTable
+            title={t('admin.signalsByCategory')}
+            headers={[t('analytics.category'), t('analytics.count')]}
+            rows={signalsByCategorie.map((row) => [translateValue(lang, row.categorie), Number(row.total ?? 0)])}
+            empty={t('analytics.noSignals')}
+          />
+
+          <ReportTable
+            title={t('admin.coopsFleet')}
+            headers={[t('admin.code'), t('search.cooperative'), t('admin.vehicles')]}
             rows={topCooperatives.map((row) => [String(row.code ?? '—'), String(row.nom ?? '—'), Number(row.vehicules ?? 0)])}
-            empty="Aucune coopérative."
+            empty={t('analytics.noCoops')}
           />
         </div>
       )}
@@ -1309,7 +1315,7 @@ export function AdminAnalytics() {
 }
 
 export function AdminRequests() {
-  const { t, notify, user } = useApp()
+  const { t, lang, notify, user } = useApp()
   const isSuper = user?.role === 'superadmin'
   const { data, loading, reload } = useAsync(() => izApi.licenceRequests(), [])
   const [open, setOpen] = useState(false)
@@ -1322,7 +1328,7 @@ export function AdminRequests() {
       setOpen(false)
       await reload()
     } catch (error) {
-      notify(error instanceof Error ? error.message : t('common.error'), 'error')
+      notify(translateError(lang, error, 'common.error'), 'error')
     }
   }
   const decide = async (id: number, statut: string) => {
@@ -1333,11 +1339,11 @@ export function AdminRequests() {
     if (!deleting) return
     try {
       await izApi.deleteLicenceRequest(Number(deleting.id))
-      notify('Demande supprimée.', 'success')
+      notify(t('admin.requestDeleted'), 'success')
       setDeleting(null)
       await reload()
     } catch (error) {
-      notify(error instanceof Error ? error.message : t('common.error'), 'error')
+      notify(translateError(lang, error, 'common.error'), 'error')
     }
   }
   return (
@@ -1362,7 +1368,7 @@ export function AdminRequests() {
               <button className="iz-btn iz-btn-primary iz-btn-sm" onClick={() => decide(Number(request.id), 'Acceptée')}>{t('admin.approve')}</button>{' '}
               <button className="iz-btn iz-btn-danger iz-btn-sm" onClick={() => decide(Number(request.id), 'Rejetée')}>{t('admin.reject')}</button>
               {isSuper && (
-                <> <button className="iz-btn iz-btn-danger iz-btn-sm" onClick={() => setDeleting(request)}>Supprimer</button></>
+                <> <button className="iz-btn iz-btn-danger iz-btn-sm" onClick={() => setDeleting(request)}>{t('common.delete')}</button></>
               )}
             </>
           )}
@@ -1370,7 +1376,7 @@ export function AdminRequests() {
       )}
       {deleting && (
         <ConfirmDialog
-          message={`Supprimer définitivement la demande ${deleting.immatriculation ?? ''} ?`}
+          message={t('admin.deleteRequest', { plate: String(deleting.immatriculation ?? '') })}
           onCancel={() => setDeleting(null)}
           onConfirm={() => void remove()}
         />
@@ -1390,7 +1396,7 @@ export function AdminRequests() {
 }
 
 export function AdminUsers() {
-  const { t, notify, user: currentUser } = useApp()
+  const { t, lang, notify, user: currentUser } = useApp()
   const users = useAsync(() => izApi.adminUsers(), [])
   const [creating, setCreating] = useState(false)
   const [deleting, setDeleting] = useState<IZRecord | null>(null)
@@ -1415,10 +1421,10 @@ export function AdminUsers() {
   const atLimit = (role: IZAccountRole) => role === 'admin' ? admins >= 5 : role === 'controleur' ? controllers >= 100 : role === 'superadmin' && superadmins >= 1
   const isOwn = (account: IZRecord) => !currentUser || String(account.id) === String(currentUser.id)
   const canDelete = (account: IZRecord) => !isOwn(account) && (isSuper ? account.role !== 'superadmin' || superadmins > 1 : account.role === 'controleur')
-  const roleLabel = (role: unknown) => role === 'superadmin' ? 'Super administrateur' : role === 'admin' ? 'Administrateur' : 'Contrôleur'
+  const roleLabel = (role: unknown) => role === 'superadmin' ? t('admin.superadminOption') : role === 'admin' ? t('admin.adminOption') : t('admin.controllerOption')
   const disabled = busy || users.loading || Boolean(users.error) || !currentUser
   const reportError = (cause: unknown) => {
-    const message = cause instanceof Error ? cause.message : t('common.error')
+    const message = translateError(lang, cause, 'common.error')
     setError(message)
     notify(message, 'error')
   }
@@ -1428,11 +1434,11 @@ export function AdminUsers() {
     if (disabled || !formRef.current?.reportValidity()) return
     setError('')
     if (!form.nom.trim()) {
-      setError('Le nom est obligatoire.')
+      setError(t('admin.nameRequired'))
       return
     }
     if (atLimit(form.role)) {
-      setError('Limite atteinte : 5 administrateurs et 100 contrôleurs au maximum.')
+      setError(t('admin.limitReached'))
       return
     }
     setBusy(true)
@@ -1450,7 +1456,7 @@ export function AdminUsers() {
       })
       setForm({ nom: '', prenom: '', email: '', motDePasse: '', telephone: '', role: 'controleur', cin: '', fonction: '', matricule: '', photoIdentite: null })
       setCreating(false)
-      notify('Compte créé.', 'success')
+      notify(t('admin.accountCreated'), 'success')
       await users.reload()
     } catch (cause) {
       reportError(cause)
@@ -1463,18 +1469,18 @@ export function AdminUsers() {
     if (disabled || isOwn(account) || role === account.role) return
     if (role !== 'admin' && role !== 'controleur' && role !== 'superadmin') return
     if (!isSuper && role !== 'controleur') {
-      setError("Seul le super administrateur peut attribuer un rôle d'administrateur.")
+      setError(t('admin.superOnlyRole'))
       return
     }
     setError('')
     if (atLimit(role)) {
-      setError('Limite atteinte : 5 administrateurs et 100 contrôleurs au maximum.')
+      setError(t('admin.limitReached'))
       return
     }
     setBusy(true)
     try {
       await izApi.updateUserRole(Number(account.id), role)
-      notify('Rôle mis à jour.', 'success')
+      notify(t('admin.roleUpdated'), 'success')
       await users.reload()
     } catch (cause) {
       reportError(cause)
@@ -1490,7 +1496,7 @@ export function AdminUsers() {
     try {
       await izApi.deleteUser(Number(deleting.id))
       setDeleting(null)
-      notify('Compte supprimé.', 'success')
+      notify(t('admin.accountDeleted'), 'success')
       await users.reload()
     } catch (cause) {
       reportError(cause)
@@ -1529,7 +1535,7 @@ export function AdminUsers() {
       if (editForm.motDePasse) payload.motDePasse = String(editForm.motDePasse)
       if (photoTouched) payload.photoIdentite = editForm.photoIdentite || null
       await izApi.updateUserDetails(Number(editingAccount.id), payload)
-      notify('Compte mis à jour.', 'success')
+      notify(t('admin.accountUpdated'), 'success')
       setEditingAccount(null)
       await users.reload()
     } catch (cause) {
@@ -1543,14 +1549,14 @@ export function AdminUsers() {
     event?.preventDefault()
     if (!resetTarget) return
     if (resetPassword !== resetConfirm) {
-      setError('La confirmation ne correspond pas au nouveau mot de passe.')
+      setError(t('admin.confirmMismatch'))
       return
     }
     setError('')
     setBusy(true)
     try {
       await izApi.resolvePasswordResetRequest(Number(resetTarget.id), { action: 'approve', password: resetPassword })
-      notify('Mot de passe réinitialisé.', 'success')
+      notify(t('admin.passwordResetDone'), 'success')
       setResetTarget(null)
       setResetPassword('')
       setResetConfirm('')
@@ -1567,7 +1573,7 @@ export function AdminUsers() {
     setBusy(true)
     try {
       await izApi.resolvePasswordResetRequest(Number(request.id), { action: 'reject' })
-      notify('Demande refusée.', 'success')
+      notify(t('admin.requestRejected'), 'success')
       await resetRequests.reload()
     } catch (cause) {
       reportError(cause)
@@ -1580,38 +1586,36 @@ export function AdminUsers() {
 
   return (
     <>
-      <PageHead title={t('admin.users')} subtitle="Comptes de connexion : super administrateur, administrateurs et contrôleurs."
+      <PageHead title={t('admin.users')} subtitle={t('admin.usersSubtitle')}
         action={<div className="iz-flex iz-wrap">
           <ExportButton cible="utilisateurs" label="Excel" />
           <button className="iz-btn iz-btn-primary" disabled={disabled} onClick={() => {
             setError('')
             setForm({ nom: '', prenom: '', email: '', motDePasse: '', telephone: '', role: 'controleur', cin: '', fonction: '', matricule: '', photoIdentite: null })
             setCreating(true)
-          }}>+ Créer un compte</button>
+          }}>{t('admin.createAccount')}</button>
         </div>}
       />
       <p className="iz-small iz-muted" style={{ marginBottom: 16 }}>
-        {admins} / 5 administrateurs · {controllers} / 100 contrôleurs · {superadmins} super administrateur.
-        {isSuper
-          ? ' En tant que super administrateur, vous pouvez tout gérer, y compris les autres administrateurs.'
-          : ' Un administrateur peut modifier les contrôleurs et supprimer uniquement des contrôleurs.'}
+        {t('admin.usersCount', { admins, controllers, superadmins })}
+        {isSuper ? ` ${t('admin.superRights')}` : ` ${t('admin.adminRights')}`}
       </p>
       <div className="iz-card" style={{ marginBottom: 18 }}>
         <div className="iz-section-head">
-          <h3 style={{ fontSize: '1rem' }}>Demandes de mot de passe oublié</h3>
+          <h3 style={{ fontSize: '1rem' }}>{t('admin.resetsTitle')}</h3>
           <ExportButton cible="demandes-reinitialisation" label="Excel" />
         </div>
-        {resetRequests.error && <p role="alert" className="iz-small">{resetRequests.error} <button className="iz-btn iz-btn-outline iz-btn-sm" onClick={() => void resetRequests.reload()}>Réessayer</button></p>}
-        {resetRequests.loading ? <p className="iz-small iz-muted">Chargement…</p>
-          : pendingResets.length === 0 ? <p className="iz-small iz-muted" style={{ margin: 0 }}>Aucune demande en attente. Seul le super administrateur peut valider une demande et définir le nouveau mot de passe.</p>
+        {resetRequests.error && <p role="alert" className="iz-small">{resetRequests.error} <button className="iz-btn iz-btn-outline iz-btn-sm" onClick={() => void resetRequests.reload()}>{t('common.retry')}</button></p>}
+        {resetRequests.loading ? <p className="iz-small iz-muted">{t('common.loading')}</p>
+          : pendingResets.length === 0 ? <p className="iz-small iz-muted" style={{ margin: 0 }}>{t('admin.noResets')}</p>
             : (
               <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
                 {pendingResets.map((request) => (
                   <li key={request.id} className="iz-flex iz-wrap" style={{ justifyContent: 'space-between', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: '1px solid var(--iz-border, #e5e7eb)' }}>
                     <span className="iz-small"><strong>{request.email}</strong> · {when(request.date)}</span>
                     <span className="iz-flex iz-wrap">
-                      <button className="iz-btn iz-btn-primary iz-btn-sm" disabled={busy} onClick={() => { setError(''); setResetTarget(request); setResetPassword(''); setResetConfirm('') }}>Définir un mot de passe</button>
-                      <button className="iz-btn iz-btn-danger iz-btn-sm" disabled={busy} onClick={() => void rejectReset(request)}>Refuser</button>
+                      <button className="iz-btn iz-btn-primary iz-btn-sm" disabled={busy} onClick={() => { setError(''); setResetTarget(request); setResetPassword(''); setResetConfirm('') }}>{t('admin.setPassword')}</button>
+                      <button className="iz-btn iz-btn-danger iz-btn-sm" disabled={busy} onClick={() => void rejectReset(request)}>{t('admin.refuse')}</button>
                     </span>
                   </li>
                 ))}
@@ -1619,8 +1623,8 @@ export function AdminUsers() {
             )}
       </div>
       {error && !creating && !deleting && <p role="alert">{error}</p>}
-      {users.error && <div className="iz-card" role="alert">{users.error} <button className="iz-btn iz-btn-outline iz-btn-sm" disabled={busy || users.loading} onClick={() => void users.reload()}>Réessayer</button></div>}
-      {busy && <p className="iz-small" role="status">Opération en cours…</p>}
+      {users.error && <div className="iz-card" role="alert">{users.error} <button className="iz-btn iz-btn-outline iz-btn-sm" disabled={busy || users.loading} onClick={() => void users.reload()}>{t('common.retry')}</button></div>}
+      {busy && <p className="iz-small" role="status">{t('common.busy')}</p>}
       {users.loading ? <Loading /> : (
         <DataTable
           rows={accounts}
@@ -1631,23 +1635,23 @@ export function AdminUsers() {
           busy={busy}
           empty={<Empty />}
           columns={[
-            { key: 'nom', label: 'Nom', sortValue: (account) => String(account.nom ?? ''), render: (account) => <><strong>{account.nom} {account.prenom}</strong>{isOwn(account) && currentUser && <span className="iz-small iz-muted"> (Vous)</span>}</> },
-            { key: 'email', label: 'E-mail', sortValue: (account) => String(account.email ?? ''), render: (account) => <>{account.email}</> },
-            { key: 'role', label: 'Rôle du compte', sortValue: (account) => String(account.role ?? ''), render: (account) => (
-              <select className="iz-select" aria-label={`Rôle de ${account.nom} ${account.prenom ?? ''}`} value={account.role}
+            { key: 'nom', label: t('admin.name'), sortValue: (account) => String(account.nom ?? ''), render: (account) => <><strong>{account.nom} {account.prenom}</strong>{isOwn(account) && currentUser && <span className="iz-small iz-muted"> {t('admin.you')}</span>}</> },
+            { key: 'email', label: t('admin.email'), sortValue: (account) => String(account.email ?? ''), render: (account) => <>{account.email}</> },
+            { key: 'role', label: t('admin.role'), sortValue: (account) => String(account.role ?? ''), render: (account) => (
+              <select className="iz-select" aria-label={t('admin.roleAria', { name: `${account.nom} ${account.prenom ?? ''}` })} value={account.role}
                 disabled={disabled || isOwn(account) || (!isSuper && account.role !== 'controleur')} onChange={(event) => void changeRole(account, event.target.value)}>
-                <option value="superadmin" disabled={!isSuper || (account.role !== 'superadmin' && superadmins >= 1)}>Super administrateur</option>
-                <option value="admin" disabled={!isSuper || (account.role !== 'admin' && admins >= 5)}>Administrateur</option>
-                <option value="controleur" disabled={account.role !== 'controleur' && controllers >= 100}>Contrôleur</option>
+                <option value="superadmin" disabled={!isSuper || (account.role !== 'superadmin' && superadmins >= 1)}>{t('admin.superadminOption')}</option>
+                <option value="admin" disabled={!isSuper || (account.role !== 'admin' && admins >= 5)}>{t('admin.adminOption')}</option>
+                <option value="controleur" disabled={account.role !== 'controleur' && controllers >= 100}>{t('admin.controllerOption')}</option>
               </select>
             ) },
             ...(isAdmin ? [
-              { key: 'cin', label: 'CIN', sortValue: (account: IZRecord) => String(account.cin ?? ''), render: (account: IZRecord) => <span className="iz-small iz-mono">{account.cin ?? '—'}</span> },
-              { key: 'fonction', label: 'Fonction', sortValue: (account: IZRecord) => String(account.fonction ?? ''), render: (account: IZRecord) => <span className="iz-small">{account.fonction ?? '—'}</span> },
-              { key: 'matricule', label: 'Matricule', sortValue: (account: IZRecord) => String(account.matricule ?? ''), render: (account: IZRecord) => <span className="iz-small iz-mono">{account.matricule ?? '—'}</span> },
-              { key: 'profilComplet', label: 'Profil', sortValue: (account: IZRecord) => (account.profilComplet ? 1 : 0), render: (account: IZRecord) => account.role === 'controleur' ? (
+              { key: 'cin', label: t('admin.cin'), sortValue: (account: IZRecord) => String(account.cin ?? ''), render: (account: IZRecord) => <span className="iz-small iz-mono">{account.cin ?? '—'}</span> },
+              { key: 'fonction', label: t('control.fonction'), sortValue: (account: IZRecord) => String(account.fonction ?? ''), render: (account: IZRecord) => <span className="iz-small">{account.fonction ?? '—'}</span> },
+              { key: 'matricule', label: t('control.matricule'), sortValue: (account: IZRecord) => String(account.matricule ?? ''), render: (account: IZRecord) => <span className="iz-small iz-mono">{account.matricule ?? '—'}</span> },
+              { key: 'profilComplet', label: t('admin.profile'), sortValue: (account: IZRecord) => (account.profilComplet ? 1 : 0), render: (account: IZRecord) => account.role === 'controleur' ? (
                 <span className={`iz-badge ${account.profilComplet ? 'iz-badge-green' : 'iz-badge-amber'}`}>
-                  {account.profilComplet ? 'Complet' : 'À compléter'}
+                  {account.profilComplet ? t('admin.complete') : t('admin.toComplete')}
                 </span>
               ) : <span className="iz-small iz-muted">—</span> },
             ] : []),
@@ -1655,9 +1659,9 @@ export function AdminUsers() {
           actions={(account) => (
             <>
               {account.role === 'controleur' && (
-                <><button className="iz-btn iz-btn-ghost iz-btn-sm" onClick={() => setViewingAgent(Number(account.id))}>Profil</button>{' '}</>
+                <><button className="iz-btn iz-btn-ghost iz-btn-sm" onClick={() => setViewingAgent(Number(account.id))}>{t('admin.profile')}</button>{' '}</>
               )}
-              <button className="iz-btn iz-btn-outline iz-btn-sm" disabled={busy} onClick={() => openEdit(account)}>Modifier</button>{' '}
+              <button className="iz-btn iz-btn-outline iz-btn-sm" disabled={busy} onClick={() => openEdit(account)}>{t('common.edit')}</button>{' '}
               {canDelete(account) && (
                 <button className="iz-btn iz-btn-danger iz-btn-sm" disabled={disabled} onClick={() => { setError(''); setDeleting(account) }}>{t('common.delete')}</button>
               )}
@@ -1666,74 +1670,74 @@ export function AdminUsers() {
         />
       )}
       {creating && (
-        <Modal title="Créer un compte" onClose={() => { if (!busy) setCreating(false) }} footer={<>
+        <Modal title={t('admin.createAccountTitle')} onClose={() => { if (!busy) setCreating(false) }} footer={<>
           <button className="iz-btn iz-btn-outline" disabled={busy} onClick={() => setCreating(false)}>{t('common.cancel')}</button>
-          <button className="iz-btn iz-btn-primary" disabled={disabled || atLimit(form.role)} onClick={() => formRef.current?.requestSubmit()}>{busy ? 'Création…' : 'Créer le compte'}</button>
+          <button className="iz-btn iz-btn-primary" disabled={disabled || atLimit(form.role)} onClick={() => formRef.current?.requestSubmit()}>{busy ? t('admin.creating') : t('admin.createAccountBtn')}</button>
         </>}>
           {error && <p role="alert">{error}</p>}
           <form ref={formRef} className="iz-form-grid" onSubmit={create} aria-busy={busy}>
-            <Field label="Nom *"><input className="iz-input" required maxLength={100} autoComplete="family-name" disabled={busy} value={form.nom} onChange={(event) => setForm({ ...form, nom: event.target.value })} /></Field>
-            <Field label="Prénom"><input className="iz-input" maxLength={100} autoComplete="given-name" disabled={busy} value={form.prenom ?? ''} onChange={(event) => setForm({ ...form, prenom: event.target.value })} /></Field>
-            <Field label="E-mail *"><input className="iz-input" type="email" required maxLength={190} autoComplete="off" disabled={busy} value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} /></Field>
-            <Field label="Téléphone"><input className="iz-input" type="tel" maxLength={30} autoComplete="off" disabled={busy} value={form.telephone ?? ''} onChange={(event) => setForm({ ...form, telephone: event.target.value })} /></Field>
-            <Field label="Numéro de CIN"><input className="iz-input" maxLength={40} disabled={busy} value={form.cin ?? ''} onChange={(event) => setForm({ ...form, cin: event.target.value })} /></Field>
-            <Field label="Fonction"><input className="iz-input" maxLength={120} disabled={busy} value={form.fonction ?? ''} onChange={(event) => setForm({ ...form, fonction: event.target.value })} /></Field>
-            <Field label="Numéro matricule"><input className="iz-input" maxLength={60} disabled={busy} value={form.matricule ?? ''} onChange={(event) => setForm({ ...form, matricule: event.target.value })} /></Field>
-            <Field label="Photo d’identité" full>
+            <Field label={t('admin.lastNameRequired')}><input className="iz-input" required maxLength={100} autoComplete="family-name" disabled={busy} value={form.nom} onChange={(event) => setForm({ ...form, nom: event.target.value })} /></Field>
+            <Field label={t('admin.firstName')}><input className="iz-input" maxLength={100} autoComplete="given-name" disabled={busy} value={form.prenom ?? ''} onChange={(event) => setForm({ ...form, prenom: event.target.value })} /></Field>
+            <Field label={t('admin.emailRequired')}><input className="iz-input" type="email" required maxLength={190} autoComplete="off" disabled={busy} value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} /></Field>
+            <Field label={t('admin.phone')}><input className="iz-input" type="tel" maxLength={30} autoComplete="off" disabled={busy} value={form.telephone ?? ''} onChange={(event) => setForm({ ...form, telephone: event.target.value })} /></Field>
+            <Field label={t('admin.cinNumber')}><input className="iz-input" maxLength={40} disabled={busy} value={form.cin ?? ''} onChange={(event) => setForm({ ...form, cin: event.target.value })} /></Field>
+            <Field label={t('control.fonction')}><input className="iz-input" maxLength={120} disabled={busy} value={form.fonction ?? ''} onChange={(event) => setForm({ ...form, fonction: event.target.value })} /></Field>
+            <Field label={t('control.matricule')}><input className="iz-input" maxLength={60} disabled={busy} value={form.matricule ?? ''} onChange={(event) => setForm({ ...form, matricule: event.target.value })} /></Field>
+            <Field label={t('admin.identityPhotoLabel')} full>
               <IdentityPhotoField value={form.photoIdentite ?? null} onChange={(photo) => setForm({ ...form, photoIdentite: photo })} disabled={busy} />
             </Field>
-            <Field label="Mot de passe * (8 à 100 caractères, lettres et chiffres)" full>
+            <Field label={t('admin.passwordRequired')} full>
               <PasswordInput required minLength={8} maxLength={100} autoComplete="new-password" disabled={busy} value={form.motDePasse} onChange={(value) => setForm({ ...form, motDePasse: value })} />
             </Field>
-            <Field label="Rôle *"><select className="iz-select" required disabled={busy} value={form.role} onChange={(event) => {
+            <Field label={t('admin.roleRequired')}><select className="iz-select" required disabled={busy} value={form.role} onChange={(event) => {
               const role = event.target.value
               if (role === 'admin' || role === 'controleur' || role === 'superadmin') setForm({ ...form, role })
             }}>
-              <option value="controleur" disabled={controllers >= 100}>Contrôleur</option>
-              {isSuper && <option value="admin" disabled={admins >= 5}>Administrateur</option>}
-              {isSuper && <option value="superadmin" disabled={superadmins >= 1}>Super administrateur</option>}
+              <option value="controleur" disabled={controllers >= 100}>{t('admin.controllerOption')}</option>
+              {isSuper && <option value="admin" disabled={admins >= 5}>{t('admin.adminOption')}</option>}
+              {isSuper && <option value="superadmin" disabled={superadmins >= 1}>{t('admin.superadminOption')}</option>}
             </select></Field>
           </form>
         </Modal>
       )}
       {deleting && (
-        <Modal title="Supprimer le compte" onClose={() => { if (!busy) setDeleting(null) }} footer={<>
+        <Modal title={t('admin.deleteAccountTitle')} onClose={() => { if (!busy) setDeleting(null) }} footer={<>
           <button className="iz-btn iz-btn-outline" disabled={busy} onClick={() => setDeleting(null)}>{t('common.cancel')}</button>
-          <button className="iz-btn iz-btn-danger" disabled={disabled} onClick={() => void remove()}>{busy ? 'Suppression…' : t('common.delete')}</button>
+          <button className="iz-btn iz-btn-danger" disabled={disabled} onClick={() => void remove()}>{busy ? t('admin.deleting') : t('common.delete')}</button>
         </>}>
-          <p>Supprimer définitivement le compte de {deleting.nom} {deleting.prenom} ({deleting.email}) — {roleLabel(deleting.role)} ?</p>
+          <p>{t('admin.deleteAccountConfirm', { name: `${deleting.nom ?? ''} ${deleting.prenom ?? ''}`.trim(), email: String(deleting.email ?? ''), role: roleLabel(deleting.role) })}</p>
           {error && <p role="alert">{error}</p>}
         </Modal>
       )}
       {editingAccount && (
-        <Modal title={`Modifier le compte — ${editingAccount.email}`} onClose={() => { if (!busy) setEditingAccount(null) }} footer={<>
+        <Modal title={t('admin.editAccountTitle', { email: String(editingAccount.email ?? '') })} onClose={() => { if (!busy) setEditingAccount(null) }} footer={<>
           <button className="iz-btn iz-btn-outline" disabled={busy} onClick={() => setEditingAccount(null)}>{t('common.cancel')}</button>
-          <button className="iz-btn iz-btn-primary" disabled={busy} onClick={() => void saveEdit()}>{busy ? 'Enregistrement…' : t('common.save')}</button>
+          <button className="iz-btn iz-btn-primary" disabled={busy} onClick={() => void saveEdit()}>{busy ? t('common.saving') : t('common.save')}</button>
         </>}>
           {error && <p role="alert">{error}</p>}
           <form className="iz-form-grid" onSubmit={saveEdit} aria-busy={busy}>
-            <Field label="Nom *">
+            <Field label={t('admin.lastNameRequired')}>
               <input className="iz-input" required maxLength={100} disabled={busy} value={String(editForm.nom ?? '')} onChange={(event) => setEditForm({ ...editForm, nom: event.target.value })} />
             </Field>
-            <Field label="Prénom">
+            <Field label={t('admin.firstName')}>
               <input className="iz-input" maxLength={100} disabled={busy} value={String(editForm.prenom ?? '')} onChange={(event) => setEditForm({ ...editForm, prenom: event.target.value })} />
             </Field>
-            <Field label="E-mail *">
+            <Field label={t('admin.emailRequired')}>
               <input className="iz-input" type="email" required maxLength={190} disabled={busy} value={String(editForm.email ?? '')} onChange={(event) => setEditForm({ ...editForm, email: event.target.value })} />
             </Field>
-            <Field label="Téléphone">
+            <Field label={t('admin.phone')}>
               <input className="iz-input" type="tel" maxLength={30} disabled={busy} value={String(editForm.telephone ?? '')} onChange={(event) => setEditForm({ ...editForm, telephone: event.target.value })} />
             </Field>
-            <Field label="Numéro de CIN">
+            <Field label={t('admin.cinNumber')}>
               <input className="iz-input" maxLength={40} disabled={busy} value={String(editForm.cin ?? '')} onChange={(event) => setEditForm({ ...editForm, cin: event.target.value })} />
             </Field>
-            <Field label="Fonction">
+            <Field label={t('control.fonction')}>
               <input className="iz-input" maxLength={120} disabled={busy} value={String(editForm.fonction ?? '')} onChange={(event) => setEditForm({ ...editForm, fonction: event.target.value })} />
             </Field>
-            <Field label="Numéro matricule">
+            <Field label={t('control.matricule')}>
               <input className="iz-input" maxLength={60} disabled={busy} value={String(editForm.matricule ?? '')} onChange={(event) => setEditForm({ ...editForm, matricule: event.target.value })} />
             </Field>
-            <Field label="Photo d’identité" full>
+            <Field label={t('admin.identityPhotoLabel')} full>
               <IdentityPhotoField
                 value={String(editForm.photoIdentite ?? '') || null}
                 existing={Boolean(editingAccount.photoDisponible) && !photoTouched}
@@ -1741,24 +1745,24 @@ export function AdminUsers() {
                 onChange={(photo) => { setPhotoTouched(true); setEditForm({ ...editForm, photoIdentite: photo }) }}
               />
             </Field>
-            <Field label="Nouveau mot de passe (facultatif, 8 caractères minimum)" full>
+            <Field label={t('admin.newPasswordOptional')} full>
               <PasswordInput minLength={8} maxLength={100} autoComplete="new-password" disabled={busy} value={String(editForm.motDePasse ?? '')} onChange={(value) => setEditForm({ ...editForm, motDePasse: value })} />
             </Field>
           </form>
         </Modal>
       )}
       {resetTarget && (
-        <Modal title={`Nouveau mot de passe — ${resetTarget.email}`} onClose={() => { if (!busy) setResetTarget(null) }} footer={<>
+        <Modal title={t('admin.resetPasswordTitle', { email: String(resetTarget.email ?? '') })} onClose={() => { if (!busy) setResetTarget(null) }} footer={<>
           <button className="iz-btn iz-btn-outline" disabled={busy} onClick={() => setResetTarget(null)}>{t('common.cancel')}</button>
-          <button className="iz-btn iz-btn-primary" disabled={busy} onClick={() => void approveReset()}>{busy ? 'Enregistrement…' : 'Valider la demande'}</button>
+          <button className="iz-btn iz-btn-primary" disabled={busy} onClick={() => void approveReset()}>{busy ? t('common.saving') : t('admin.validateRequest')}</button>
         </>}>
           {error && <p role="alert">{error}</p>}
-          <p className="iz-small iz-muted">Définissez un nouveau mot de passe pour ce compte. Communiquez-le ensuite à son titulaire.</p>
+          <p className="iz-small iz-muted">{t('admin.resetHelp')}</p>
           <form className="iz-form-grid" onSubmit={approveReset} aria-busy={busy}>
-            <Field label="Nouveau mot de passe * (8 caractères minimum, lettres et chiffres)" full>
+            <Field label={t('admin.newPasswordRequired')} full>
               <PasswordInput required minLength={8} maxLength={100} autoComplete="new-password" disabled={busy} value={resetPassword} onChange={setResetPassword} />
             </Field>
-            <Field label="Confirmer le mot de passe *" full>
+            <Field label={t('admin.confirmPassword')} full>
               <PasswordInput required minLength={8} maxLength={100} autoComplete="new-password" disabled={busy} value={resetConfirm} onChange={setResetConfirm} />
             </Field>
           </form>
@@ -1776,7 +1780,7 @@ export function AdminActivity() {
   const { data, loading } = useAsync(() => izApi.history(scope, 500), [scope])
   const rows = data?.rows ?? []
   const roleLabel = (role?: string | null) =>
-    role === 'superadmin' ? 'Super administrateur' : role === 'admin' ? 'Administrateur' : 'Contrôleur'
+    role === 'superadmin' ? t('admin.superadminOption') : role === 'admin' ? t('admin.adminOption') : t('admin.controllerOption')
   const details = (entry: IZRecord) => {
     const value = entry.details
     if (!value || (typeof value === 'object' && Object.keys(value).length === 0)) return '—'
@@ -1788,25 +1792,23 @@ export function AdminActivity() {
   return (
     <>
       <PageHead
-        title={isSuper ? 'Historique des administrateurs' : 'Historique des contrôleurs'}
-        subtitle={isSuper
-          ? 'Toutes les actions enregistrées par les administrateurs et les super administrateurs.'
-          : 'Toutes les actions enregistrées par les contrôleurs.'}
+        title={isSuper ? t('admin.activityAdminsTitle') : t('admin.activityControllersTitle')}
+        subtitle={isSuper ? t('admin.activityAdminsSubtitle') : t('admin.activityControllersSubtitle')}
         action={<ExportButton cible="activite" label="Excel" />}
       />
       {isSuper && (
         <div className="iz-flex iz-wrap" style={{ gap: 8, marginBottom: 14 }}>
           {([
-            ['admins', 'Administrateurs'],
-            ['controleurs', 'Contrôleurs'],
-            ['all', 'Tout'],
+            ['admins', 'admin.scopeAdmins'],
+            ['controleurs', 'admin.scopeControllers'],
+            ['all', 'admin.scopeAll'],
           ] as const).map(([value, label]) => (
             <button
               key={value}
               className={`iz-btn iz-btn-sm ${scope === value ? 'iz-btn-primary' : 'iz-btn-outline'}`}
               onClick={() => setScope(value)}
             >
-              {label}
+              {t(label)}
             </button>
           ))}
         </div>
@@ -1817,11 +1819,11 @@ export function AdminActivity() {
           rowKey={(entry) => String(entry.id)}
           searchText={(entry) => [entry.auteur, entry.auteurPrenom, entry.email, entry.action, entry.entite, entry.entiteId].join(' ')}
           initialSort="createdAt"
-          empty={<Empty message="Aucune action enregistrée pour le moment." />}
+          empty={<Empty message={t('admin.noActivity')} />}
           columns={[
             { key: 'createdAt', label: t('common.date'), sortValue: (entry) => String(entry.createdAt ?? ''), render: (entry) => <span className="iz-small iz-nowrap">{when(entry.createdAt)}</span> },
             {
-              key: 'auteur', label: 'Utilisateur',
+              key: 'auteur', label: t('admin.user'),
               sortValue: (entry) => `${entry.auteur ?? ''} ${entry.auteurPrenom ?? ''}`,
               render: (entry) => (
                 <span>
@@ -1830,9 +1832,9 @@ export function AdminActivity() {
                 </span>
               ),
             },
-            { key: 'role', label: 'Rôle', sortValue: (entry) => String(entry.role ?? ''), render: (entry) => <>{roleLabel(entry.role)}</> },
-            { key: 'action', label: 'Action', sortValue: (entry) => `${entry.action} ${entry.entite}`, render: (entry) => <>{entry.action} — {entry.entite}</> },
-            { key: 'entiteId', label: 'Référence', sortValue: (entry) => String(entry.entiteId ?? ''), render: (entry) => <span className="iz-small iz-mono">{entry.entiteId ?? '—'}</span> },
+            { key: 'role', label: t('admin.roleShort'), sortValue: (entry) => String(entry.role ?? ''), render: (entry) => <>{roleLabel(entry.role)}</> },
+            { key: 'action', label: t('admin.action'), sortValue: (entry) => `${entry.action} ${entry.entite}`, render: (entry) => <>{entry.action} — {entry.entite}</> },
+            { key: 'entiteId', label: t('admin.reference'), sortValue: (entry) => String(entry.entiteId ?? ''), render: (entry) => <span className="iz-small iz-mono">{entry.entiteId ?? '—'}</span> },
             { key: 'details', label: t('common.details'), sortValue: (entry) => details(entry), render: (entry) => <span className="iz-small">{details(entry)}</span> },
           ]}
         />
