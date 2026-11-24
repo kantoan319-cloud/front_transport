@@ -31,6 +31,8 @@ interface AppContextValue {
   notify: (message: string, type?: 'success' | 'error' | 'info') => void
   route: string
   navigate: (route: string) => void
+  unreadNotifications: number
+  refreshUnread: () => Promise<void>
 }
 
 const AppContext = createContext<AppContextValue | null>(null)
@@ -72,6 +74,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [userLoading, setUserLoading] = useState(true)
   const [toast, setToast] = useState<Toast>(null)
   const [route, setRoute] = useState(currentRoute)
+  const [unreadNotifications, setUnreadNotifications] = useState(0)
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme
@@ -123,6 +126,23 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setUser(null)
     }
   }, [])
+  const refreshUnread = useCallback(async () => {
+    try {
+      const result = await izApi.notifications('non-lu', 1)
+      setUnreadNotifications(Number(result.nonLues ?? 0))
+    } catch {
+      /* compteur best-effort */
+    }
+  }, [])
+  useEffect(() => {
+    if (!user) {
+      setUnreadNotifications(0)
+      return
+    }
+    void refreshUnread()
+    const timer = window.setInterval(() => { void refreshUnread() }, 60_000)
+    return () => window.clearInterval(timer)
+  }, [user, refreshUnread])
   const navigate = useCallback((path: string) => {
     window.location.hash = path.startsWith('/') ? path : `/${path}`
     setRoute(path.startsWith('/') ? path : `/${path}`)
@@ -132,11 +152,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const value = useMemo<AppContextValue>(
     () => ({
       lang, setLang, theme, toggleTheme, fontScale, setFontScale, t, user, userLoading,
-      setUser, refreshUser, toast, notify, route, navigate,
+      setUser, refreshUser, toast, notify, route, navigate, unreadNotifications, refreshUnread,
     }),
     [
       lang, setLang, theme, toggleTheme, fontScale, setFontScale, t, user, userLoading,
-      refreshUser, toast, notify, route, navigate,
+      refreshUser, toast, notify, route, navigate, unreadNotifications, refreshUnread,
     ],
   )
 
@@ -203,6 +223,7 @@ export function Header() {
           ))}
         </nav>
         <div className="iz-header-actions">
+          {user && <NotificationsBell />}
           <button
             className="iz-icon-btn"
             title={t('nav.language')}
@@ -251,6 +272,25 @@ export function Header() {
     {passwordOpen && <PasswordDialog onClose={() => setPasswordOpen(false)} />}
     {fontOpen && <FontSizeDialog onClose={() => setFontOpen(false)} />}
     </>
+  )
+}
+
+/** Cloche avec compteur des notifications non lues. */
+export function NotificationsBell() {
+  const { t, navigate, unreadNotifications } = useApp()
+  return (
+    <button
+      type="button"
+      className="iz-icon-btn iz-bell"
+      title={t('nav.notifications')}
+      aria-label={t('nav.notifications')}
+      onClick={() => navigate('/notifications')}
+    >
+      <span aria-hidden="true">🔔</span>
+      {unreadNotifications > 0 && (
+        <span className="iz-bell-badge">{unreadNotifications > 99 ? '99+' : unreadNotifications}</span>
+      )}
+    </button>
   )
 }
 

@@ -280,6 +280,40 @@ html[data-theme='dark'] .iz-badge-blue { color: #93b8ff; }
 .iz-page-head h1 { font-size: 1.65rem; font-weight: 800; }
 .iz-page-head p { color: rgb(var(--tx-gray-600)); margin-top: 4px; }
 
+/* ---------- Notifications ---------- */
+.iz-bell { position: relative; }
+.iz-bell-badge {
+  position: absolute; top: -5px; right: -5px; min-width: 18px; height: 18px; padding: 0 4px;
+  display: grid; place-items: center; border-radius: 999px;
+  background: rgb(var(--tx-rouge)); color: #fff; font-size: .62rem; font-weight: 800;
+  border: 2px solid rgb(var(--surface));
+}
+.iz-side-badge {
+  margin-left: auto; min-width: 20px; padding: 1px 6px; border-radius: 999px;
+  background: rgb(var(--tx-rouge)); color: #fff; font-size: .66rem; font-weight: 800;
+  text-align: center;
+}
+.iz-notif-list { display: flex; flex-direction: column; gap: 10px; }
+.iz-notif-item {
+  display: flex; align-items: flex-start; gap: 12px; width: 100%; text-align: left;
+  padding: 14px 16px; border-radius: 14px; background: rgb(var(--surface));
+  border: 1px solid rgb(var(--bd-gray-200)); box-shadow: var(--shadow-sm);
+  font: inherit; color: inherit; cursor: pointer;
+  transition: border-color .15s, box-shadow .15s, background .15s;
+}
+.iz-notif-item:hover { border-color: rgb(var(--tx-vert)); box-shadow: var(--shadow); }
+.iz-notif-item.unread { background: rgb(var(--tx-vert) / .05); border-left: 4px solid rgb(var(--tx-vert)); }
+.iz-notif-icone {
+  width: 38px; height: 38px; flex-shrink: 0; display: grid; place-items: center;
+  border-radius: 11px; background: rgb(var(--bg-gray-100)); font-size: 1.1rem;
+}
+.iz-notif-corps { display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1; }
+.iz-notif-titre { display: flex; align-items: center; gap: 8px; font-weight: 700; color: rgb(var(--tx-black)); }
+.iz-notif-dot { width: 8px; height: 8px; border-radius: 50%; background: rgb(var(--tx-rouge)); flex-shrink: 0; }
+.iz-notif-message { color: rgb(var(--tx-gray-600)); font-size: .88rem; overflow-wrap: anywhere; }
+.iz-notif-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 4px; font-size: .76rem; color: rgb(var(--tx-gray-500)); }
+.iz-notif-go { color: rgb(var(--tx-vert)); font-weight: 800; align-self: center; }
+
 /* ---------- Modal, alert, toast ---------- */
 .iz-overlay {
   position: fixed; inset: 0; z-index: 100; background: rgb(2 6 23 / .55);

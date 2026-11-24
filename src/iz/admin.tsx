@@ -57,6 +57,7 @@ export function AdminLayout({ children }: { children: ReactNode }) {
     : { path: '/admin/activity', label: 'Historique des contrôleurs', icon: '🕘' }
   const links = [
     { path: '/admin', label: t('admin.dashboard'), icon: '📊' },
+    { path: '/notifications', label: t('nav.notifications'), icon: '🔔', badge: true },
     { path: '/admin/analytics', label: 'Données décisionnelles', icon: '📈' },
     { path: '/admin/vehicles', label: t('admin.vehicles'), icon: '🚐' },
     { path: '/controle/scan', label: 'Scanner / contrôler', icon: 'QR' },

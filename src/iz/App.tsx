@@ -17,6 +17,7 @@ import {
 import { AdminAttestations } from './attestations'
 import { AdminLines } from './lines'
 import { ManualPage } from './manual'
+import { NotificationsPage } from './notifications'
 import { AdminControllerProfiles, ControllerProfilePage } from './profiles'
 
 function AccessDenied({ message }: { message: string }) {
@@ -55,6 +56,17 @@ export function IzApp() {
         : <AccessDenied message="Les coopératives sont réservées aux agents habilités. Connectez-vous avec votre compte." />
     }
     if (path === '/connexion') return <LoginPage />
+
+    if (path === '/notifications') {
+      if (userLoading) return <Loading />
+      if (!user) return <LoginPage />
+      if (user.role !== 'admin' && user.role !== 'superadmin' && user.role !== 'controleur') {
+        return <AccessDenied message={t('common.error')} />
+      }
+      return user.role === 'controleur'
+        ? <ControlLayout><NotificationsPage /></ControlLayout>
+        : <AdminLayout><NotificationsPage /></AdminLayout>
+    }
 
     if (path.startsWith('/controle')) {
       if (userLoading) return <Loading />

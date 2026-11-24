@@ -254,6 +254,16 @@ export const izApi = {
   history: (scope: 'admins' | 'controleurs' | 'all', limit = 300) =>
     request<{ scope: string; rows: IZRecord[] }>(`/iz/admin/history${queryString({ scope, limit })}`),
 
+  // ---------- Notifications ----------
+  notifications: (statut: 'tout' | 'non-lu' = 'tout', limit = 100) =>
+    request<{ items: IZRecord[]; nonLues: number }>(
+      `/iz/notifications${queryString({ statut, limit })}`,
+    ),
+  readNotification: (id: number) =>
+    request<{ id: number; nonLues: number }>(`/iz/notifications/${id}/read`, { method: 'PATCH' }),
+  readAllNotifications: () =>
+    request<{ nonLues: number }>('/iz/notifications/read-all', { method: 'PATCH' }),
+
   exportXlsx: async (cible: string) => {
     const response = await fetch(`${BASE}/iz/admin/export/${encodeURIComponent(cible)}`, {
       credentials: 'include',

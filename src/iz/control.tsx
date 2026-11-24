@@ -18,6 +18,7 @@ export function ControlLayout({ children }: { children: ReactNode }) {
   const { t, navigate } = useApp()
   const links = [
     { path: '/controle', label: t('control.dashboard'), icon: '📊' },
+    { path: '/notifications', label: t('nav.notifications'), icon: '🔔', badge: true },
     { path: '/controle/scan', label: t('control.scanTitle'), icon: '🔍' },
     { path: '/controle/scans', label: t('control.scans'), icon: '📋' },
     { path: '/controle/infractions', label: t('control.infractions'), icon: '⚠️' },

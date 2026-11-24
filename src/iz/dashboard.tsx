@@ -6,6 +6,7 @@ export interface DashLink {
   path: string
   label: string
   icon?: string
+  badge?: boolean
 }
 
 function sansAccents(valeur: string) {
@@ -15,7 +16,7 @@ function sansAccents(valeur: string) {
 export function DashboardShell({
   title, links, children,
 }: { title: string; links: DashLink[]; children: ReactNode }) {
-  const { route, navigate } = useApp()
+  const { route, navigate, unreadNotifications } = useApp()
   const [recherche, setRecherche] = useState('')
   const terme = sansAccents(recherche.trim())
   const visibles = terme
@@ -42,6 +43,9 @@ export function DashboardShell({
           >
             {link.icon && <span>{link.icon}</span>}
             {link.label}
+            {link.badge && unreadNotifications > 0 && (
+              <span className="iz-side-badge">{unreadNotifications > 99 ? '99+' : unreadNotifications}</span>
+            )}
           </a>
         ))}
         {!visibles.length && (
