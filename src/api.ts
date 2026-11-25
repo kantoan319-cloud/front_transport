@@ -355,6 +355,8 @@ const API_BASE = '/api'
  */
 export function photoUrl(path?: string | null): string {
   if (!path) return ''
+  // Les nouvelles photos vivent chez ImageKit : URL complete deja utilisable.
+  if (/^https?:\/\//i.test(path)) return path
   const parts = path.replace(/^\/+/, '').split('/')
   const folder = parts.shift() ?? ''
   if (!parts.length || !['PhotoCycloPousses', 'PhotoConducteurs', 'PhotosProprietaires'].includes(folder)) return ''
