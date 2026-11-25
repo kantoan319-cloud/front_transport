@@ -100,6 +100,7 @@ const valueMg: Record<string, string> = {
   Adhésion: 'Fidirana',
   Affectation: 'Fanendrena',
   Vignette: 'Vignette',
+  Patente: 'Hetra-tambatra',
   Amende: 'Lamandy',
   Autre: 'Hafa',
   'Espèces': 'Vola eny an-tànana',

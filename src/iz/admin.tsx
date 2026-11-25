@@ -960,7 +960,7 @@ export function AdminPayments() {
           <form className="iz-form-grid" onSubmit={submit}>
             <Field label={t('admin.paymentType')}>
               <select className="iz-select" value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })}>
-                {['Adhésion', 'Affectation', 'Vignette', 'Amende', 'Autre'].map((value) => <option key={value} value={value}>{translateValue(lang, value)}</option>)}
+                {['Adhésion', 'Affectation', 'Vignette', 'Patente', 'Amende', 'Autre'].map((value) => <option key={value} value={value}>{value === 'Patente' ? t('admin.patenteOption') : translateValue(lang, value)}</option>)}
               </select>
             </Field>
             <Field label={t('admin.amount')}>
