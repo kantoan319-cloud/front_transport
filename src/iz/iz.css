@@ -437,6 +437,14 @@ html[data-theme='dark'] .iz-badge-orange { color: #fbbf24; }
 .iz-detail-item { padding: 12px 14px; background: rgb(var(--bg-gray-50)); border-radius: 10px; }
 .iz-detail-item span { display: block; font-size: .7rem; text-transform: uppercase; letter-spacing: .06em; color: rgb(var(--tx-gray-500)); font-weight: 700; }
 .iz-detail-item strong { font-size: .95rem; }
+/* Le badge de statut garde sa pilule compacte : la règle générique ci-dessus
+   transformerait ses spans internes en blocs pleine largeur. */
+.iz-detail-item .iz-badge { display: inline-flex; font-size: .73rem; text-transform: none; letter-spacing: normal; width: fit-content; margin-top: 6px; }
+.iz-detail-item .iz-badge .iz-dot { display: inline-block; }
+.iz-detail-item .iz-badge.iz-badge-red { color: rgb(var(--tx-rouge)); }
+.iz-detail-item .iz-badge.iz-badge-green { color: rgb(21 128 61); }
+.iz-detail-item .iz-badge.iz-badge-amber { color: rgb(180 83 9); }
+.iz-detail-item .iz-badge.iz-badge-blue { color: rgb(37 99 235); }
 
 .iz-footer { border-top: 1px solid rgb(var(--bd-gray-200)); padding: 26px 0; color: rgb(var(--tx-gray-500)); font-size: .8rem; }
 

@@ -212,6 +212,14 @@ export const izApi = {
     request<{ capacite: IZRecord | null; receveur: IZRecord | null }>(
       `/iz/admin/attestations/vehicle/${encodeURIComponent(plate)}`,
     ),
+  vehicleAttestationsPublic: (plate: string) =>
+    request<{ capacite: IZRecord | null; receveur: IZRecord | null }>(
+      `/iz/public/vehicles/${encodeURIComponent(plate)}/attestations`,
+    ),
+  vehicleAttestationsStaff: (plate: string) =>
+    request<{ capacite: IZRecord | null; receveur: IZRecord | null }>(
+      `/iz/control/vehicles/${encodeURIComponent(plate)}/attestations`,
+    ),
 
   adminLines: () => request<IZRecord[]>('/iz/admin/lines'),
   createLine: (data: IZRecord) => send<IZRecord>('/iz/admin/lines', 'POST', data),

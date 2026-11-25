@@ -11,7 +11,7 @@ const localToday = () => {
 }
 
 export function attestationState(row: IZRecord): string {
-  const end = dateOnly(row.valable_jusquau)
+  const end = dateOnly(row.valable_jusquau ?? row.valableJusquau)
   if (!end) return String(row.statut || 'Validité inconnue')
   return end < localToday() ? 'Expirée' : 'Valable'
 }

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ChangeEvent, FormEvent } from 'react'
 import VehicleQrDialog from '../VehicleQrDialog'
+import { photoUrl } from '../api'
 import { izApi } from './api'
 import type { IZRecord } from './api'
 import { translateError, translateValue } from './i18n'
@@ -257,17 +258,57 @@ export function BusInformation({ vehicle, staff = false, canEditPhoto = false, o
   </>
 }
 
+/** Détails d'une attestation liée (capacité = conducteur, receveur). */
+function CrewAttestation({ type, row }: { type: 'capacite' | 'receveur'; row: IZRecord }) {
+  const { t } = useApp()
+  const name = [row.nom, row.prenoms].filter(Boolean).join(' ')
+  const number = type === 'capacite'
+    ? row.numeroAttestation
+    : (row.numeroAttestationReceveur ?? row.numeroAttestation)
+  // Le CIN n'est renvoyé que pour les agents ; absent du scan public.
+  const cin = type === 'capacite' ? row.conducteurCin : (row.cin ?? row.cinTexte)
+  const photo = type === 'capacite' && typeof row.conducteurPhoto === 'string' ? photoUrl(row.conducteurPhoto) : ''
+  const validity = String(row.valableJusquau ?? '').slice(0, 10) || row.valableTexte || '—'
+  const lines: [string, string][] = []
+  const push = (label: string, value: unknown) => {
+    if (value === null || value === undefined || String(value).trim() === '') return
+    lines.push([label, String(value)])
+  }
+  if (type === 'capacite') {
+    push(t('bus.driverPermit'), row.permisNumero)
+    push(t('bus.permitCategory'), row.permisCategorie)
+  }
+  push(t('bus.examDate'), row.dateExamen)
+  push(t('bus.attestationNumber'), number || t('bus.noNumber'))
+  push(t('bus.cin'), cin)
+  return (
+    <div className="iz-detail-item">
+      <span>{t(type === 'capacite' ? 'bus.capacity' : 'bus.receveur')} — {name || t('common.notProvided')}</span>
+      <StatusBadge status={attestationState(row)} />
+      {photo && <img src={photo} alt={t('bus.crewPhotoAlt', { name })} style={{ width: 96, height: 96, objectFit: 'cover', borderRadius: 10, marginTop: 8 }} />}
+      <div className="iz-small iz-muted" style={{ marginTop: 8, display: 'grid', gap: 2 }}>
+        {lines.map(([label, value]) => <div key={label}>{label} : {value}</div>)}
+        <div>{t('bus.validUntil', { date: validity })}</div>
+      </div>
+    </div>
+  )
+}
+
 export function BusPage({ plate }: { plate: string }) {
   const { t, lang, user, route, navigate, notify } = useApp()
   const staff = (user?.role === 'admin' || user?.role === 'superadmin') || user?.role === 'controleur'
   const isAdmin = user?.role === 'admin' || user?.role === 'superadmin'
   const profilBloque = user?.role === 'controleur' && !user.profilComplet
   const { data, loading, error, reload, setData } = useAsync(() => staff ? izApi.controlVehicle(plate) : izApi.vehicle(plate), [plate, staff])
+  // Équipage et attestations : visibles par tous au scan ; le CIN des
+  // personnes reste réservé aux agents (l'appel public ne le renvoie pas).
   const attestations = useAsync(
-    () => isAdmin && data?.immatriculation
-      ? izApi.vehicleAttestations(String(data.immatriculation))
+    () => data?.immatriculation
+      ? (staff
+        ? izApi.vehicleAttestationsStaff(String(data.immatriculation))
+        : izApi.vehicleAttestationsPublic(String(data.immatriculation)))
       : Promise.resolve(null),
-    [isAdmin, data?.immatriculation],
+    [staff, data?.immatriculation],
   )
   const [qr, setQr] = useState(new URLSearchParams(route.split('?')[1]).get('qr') === '1')
   // Consultation sans compte (scan du QR) : la position du visiteur est
@@ -325,33 +366,15 @@ export function BusPage({ plate }: { plate: string }) {
           {!staff && <button className="iz-btn iz-btn-outline" onClick={() => navigate(`/connexion?${new URLSearchParams({ retour: `/bus?${new URLSearchParams({ plaque: plate })}` })}`)}>{t('bus.loginAgent')}</button>}
         </div>
       </div>
-      {isAdmin && attestations.data && (attestations.data.capacite || attestations.data.receveur) && (
+      {attestations.data && (attestations.data.capacite || attestations.data.receveur) && (
         <div className="iz-card" style={{ marginTop: 16 }}>
           <div className="iz-section-head">
             <h3>{t('bus.attestationsTitle')}</h3>
-            <button className="iz-btn iz-btn-outline iz-btn-sm" onClick={() => navigate('/admin/attestations')}>{t('bus.manage')}</button>
+            {isAdmin && <button className="iz-btn iz-btn-outline iz-btn-sm" onClick={() => navigate('/admin/attestations')}>{t('bus.manage')}</button>}
           </div>
           <div className="iz-detail-grid">
-            {attestations.data.capacite && (
-              <div className="iz-detail-item">
-                <span>{t('bus.capacity')} — {attestations.data.capacite.nom} {attestations.data.capacite.prenoms}</span>
-                <strong>{attestations.data.capacite.numero_attestation || t('bus.noNumber')}</strong>
-                <StatusBadge status={attestationState(attestations.data.capacite)} />
-                <div className="iz-small iz-muted">
-                  {t('bus.validUntil', { date: String(attestations.data.capacite.valable_jusquau ?? '').slice(0, 10) || attestations.data.capacite.valable_texte || '—' })}
-                </div>
-              </div>
-            )}
-            {attestations.data.receveur && (
-              <div className="iz-detail-item">
-                <span>{t('bus.receveur')} — {attestations.data.receveur.nom} {attestations.data.receveur.prenoms}</span>
-                <strong>{attestations.data.receveur.numero_attestation_receveur || attestations.data.receveur.numero_attestation || t('bus.noNumber')}</strong>
-                <StatusBadge status={attestationState(attestations.data.receveur)} />
-                <div className="iz-small iz-muted">
-                  {t('bus.validUntil', { date: String(attestations.data.receveur.valable_jusquau ?? '').slice(0, 10) || attestations.data.receveur.valable_texte || '—' })}
-                </div>
-              </div>
-            )}
+            {attestations.data.capacite && <CrewAttestation type="capacite" row={attestations.data.capacite} />}
+            {attestations.data.receveur && <CrewAttestation type="receveur" row={attestations.data.receveur} />}
           </div>
         </div>
       )}
