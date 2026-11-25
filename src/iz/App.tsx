@@ -16,6 +16,7 @@ import {
 } from './admin'
 import { AdminAttestations } from './attestations'
 import { AdminDocuments } from './documents'
+import { AdminBackup } from './backup'
 import { AdminLines } from './lines'
 import { ManualPage } from './manual'
 import { NotificationsPage } from './notifications'
@@ -101,6 +102,7 @@ export function IzApp() {
       else if (path === '/admin/lines') content = <AdminLines />
       else if (path === '/admin/attestations') content = <AdminAttestations />
       else if (path === '/admin/documents') content = <AdminDocuments />
+      else if (path === '/admin/backup') content = <AdminBackup />
       else if (path === '/admin/licenses') content = <AdminLicences />
       else if (path === '/admin/payments') content = <AdminPayments />
       else if (path === '/admin/payments/register') content = <AdminPaymentsRegister />

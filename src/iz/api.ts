@@ -117,6 +117,39 @@ const body = (data: unknown) => JSON.stringify(data)
 const send = <T>(path: string, method: string, data: unknown) =>
   request<T>(path, { method, body: body(data) })
 
+/**
+ * Un ZIP complet se construit en plusieurs dizaines de secondes : le delai
+ * des requetes JSON (60 s) serait trop court.
+ */
+async function telechargerBlob(path: string): Promise<{ blob: Blob; nomFichier: string }> {
+  let response: Response
+  try {
+    response = await fetch(`${BASE}${path}`, {
+      credentials: 'include',
+      signal: AbortSignal.timeout(300_000),
+    })
+  } catch (error) {
+    if (error instanceof DOMException && (error.name === 'TimeoutError' || error.name === 'AbortError')) {
+      throw new IZApiError('La sauvegarde met trop de temps. Réessayez.', 0)
+    }
+    throw new IZApiError('Impossible de contacter le serveur.', 0)
+  }
+  if (!response.ok) {
+    let message = `Erreur ${response.status}`
+    try {
+      const data = (await response.json()) as { message?: string }
+      message = data.message || message
+    } catch {
+      /* réponse non JSON */
+    }
+    throw new IZApiError(message, response.status)
+  }
+  const entete = response.headers.get('Content-Disposition') ?? ''
+  const trouve = /filename\*=UTF-8''([^;]+)/i.exec(entete)
+  const nomFichier = trouve ? decodeURIComponent(trouve[1]) : 'sauvegarde-izotra.zip'
+  return { blob: await response.blob(), nomFichier }
+}
+
 export const izApi = {
   // ---------- Authentification ----------
   me: () => request<{ user: IZUser }>('/auth/me').then((result) => result.user),
@@ -236,6 +269,13 @@ export const izApi = {
     if (!response.ok) throw new IZApiError('Téléchargement impossible.', response.status)
     return response.blob()
   },
+
+  // ---------- Sauvegarde ----------
+  adminBackups: () => request<IZRecord[]>('/iz/admin/backup/liste'),
+  createAdminBackup: () => send<IZRecord>('/iz/admin/backup', 'POST', {}),
+  deleteAdminBackup: (id: number) => request<void>(`/iz/admin/backup/${id}`, { method: 'DELETE' }),
+  downloadAdminBackup: () => telechargerBlob('/iz/admin/backup'),
+  downloadStoredBackup: (id: number) => telechargerBlob(`/iz/admin/backup/${id}/fichier`),
 
   adminLines: () => request<IZRecord[]>('/iz/admin/lines'),
   createLine: (data: IZRecord) => send<IZRecord>('/iz/admin/lines', 'POST', data),

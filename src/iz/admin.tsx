@@ -75,6 +75,7 @@ export function AdminLayout({ children }: { children: ReactNode }) {
     { path: '/admin/requests', label: t('admin.requests'), icon: '📝' },
     { path: '/admin/users', label: t('admin.users'), icon: '🔐' },
     { path: '/admin/profiles', label: t('admin.profiles'), icon: '👤' },
+    { path: '/admin/backup', label: t('backup.menu'), icon: '💾' },
     { path: '/admin/manuel', label: t('admin.manual'), icon: '📘' },
     historyLink,
   ]
