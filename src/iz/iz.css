@@ -556,6 +556,10 @@ html[data-theme='dark'] .iz-chart-bar { background: linear-gradient(180deg, #6ee
 .iz-doc-card-lg .iz-doc-thumb { height: 190px; }
 .iz-doc-name { font-size: .82rem; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .iz-doc-card .iz-doc-actions { margin-top: auto; }
+.iz-doc-vehicle-icon { width: 56px; height: 56px; border-radius: 8px; background: rgba(127, 127, 127, .12); display: flex; align-items: center; justify-content: center; font-size: 1.5rem; flex: none; }
+.iz-doc-vehicle-icon-lg { width: 100%; height: 120px; font-size: 3rem; }
+.iz-doc-card .iz-doc-vehicle-icon { width: 100%; height: 90px; }
+.iz-doc-card-lg .iz-doc-vehicle-icon { height: 160px; }
 @media (max-width: 720px) {
   .iz-doc-row .iz-doc-actions { margin-left: 0; width: 100%; }
 }

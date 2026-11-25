@@ -222,7 +222,8 @@ export const izApi = {
     ),
   vehicleDocuments: (plate: string) =>
     request<IZRecord[]>(`/iz/control/vehicles/${encodeURIComponent(plate)}/documents`),
-  adminDocuments: (q = '') => request<IZRecord[]>(`/iz/admin/documents${queryString({ q })}`),
+  adminDocumentVehicles: (q = '') =>
+    request<IZRecord[]>(`/iz/admin/documents/vehicles${queryString({ q })}`),
   documentFileUrl: (id: number) => `${BASE}/iz/control/documents/${id}/fichier`,
   createVehicleDocument: (plate: string, data: IZRecord) =>
     send<IZRecord>(`/iz/admin/vehicles/${encodeURIComponent(plate)}/documents`, 'POST', data),
