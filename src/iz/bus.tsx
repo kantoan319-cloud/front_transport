@@ -294,6 +294,162 @@ function CrewAttestation({ type, row }: { type: 'capacite' | 'receveur'; row: IZ
   )
 }
 
+const DOCUMENT_TYPES = ['Licence', 'Patente', 'Carte grise', 'Assurance', 'Visite technique', 'Autre']
+const DOCUMENT_MIME = /^(application\/pdf|image\/(jpeg|png|webp))$/
+const DOCUMENT_MAX_BYTES = 5 * 1024 * 1024
+
+/** Documents scannés d'un bus (licence, patente, assurance…) avec échéance. */
+function BusDocuments({ plate, canManage }: { plate: string; canManage: boolean }) {
+  const { t, lang, notify } = useApp()
+  const { data, loading, error, reload } = useAsync(() => izApi.vehicleDocuments(plate), [plate])
+  const documents: IZRecord[] = data ?? []
+  const [type, setType] = useState(DOCUMENT_TYPES[0])
+  const [expireLe, setExpireLe] = useState('')
+  const [fichier, setFichier] = useState<{ data: string; nomFichier: string } | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [deleting, setDeleting] = useState<IZRecord | null>(null)
+
+  const pick = (event: ChangeEvent<HTMLInputElement>) => {
+    const input = event.target
+    const file = input.files?.[0]
+    input.value = ''
+    if (!file) return
+    if (!DOCUMENT_MIME.test(file.type)) { notify(t('bus.docBadFormat'), 'error'); return }
+    if (file.size > DOCUMENT_MAX_BYTES) { notify(t('bus.docTooBig'), 'error'); return }
+    const reader = new FileReader()
+    reader.onload = () => setFichier({ data: String(reader.result ?? ''), nomFichier: file.name })
+    reader.onerror = () => notify(t('bus.docBadFormat'), 'error')
+    reader.readAsDataURL(file)
+  }
+
+  const add = async () => {
+    if (!fichier || busy) return
+    setBusy(true)
+    try {
+      await izApi.createVehicleDocument(plate, { type, expireLe, nomFichier: fichier.nomFichier, data: fichier.data })
+      setFichier(null)
+      setExpireLe('')
+      await reload()
+      notify(t('bus.docAdded'), 'success')
+    } catch (reason) { notify(translateError(lang, reason, 'bus.docFailed'), 'error') }
+    finally { setBusy(false) }
+  }
+
+  const download = async (doc: IZRecord) => {
+    try {
+      const blob = await izApi.vehicleDocumentFile(Number(doc.id))
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = String(doc.nomFichier ?? 'document')
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      setTimeout(() => URL.revokeObjectURL(url), 4000)
+    } catch (reason) { notify(translateError(lang, reason, 'bus.docFailed'), 'error') }
+  }
+
+  const saveExpiry = async (doc: IZRecord, date: string) => {
+    try {
+      await izApi.updateVehicleDocument(Number(doc.id), { expireLe: date })
+      await reload()
+      notify(t('bus.docSaved'), 'success')
+    } catch (reason) { notify(translateError(lang, reason, 'bus.docFailed'), 'error') }
+  }
+
+  const remove = async () => {
+    if (!deleting) return
+    const target = deleting
+    setDeleting(null)
+    try {
+      await izApi.deleteVehicleDocument(Number(target.id))
+      await reload()
+      notify(t('bus.docDeleted'), 'success')
+    } catch (reason) { notify(translateError(lang, reason, 'bus.docFailed'), 'error') }
+  }
+
+  return (
+    <div className="iz-card" style={{ marginTop: 16 }}>
+      <div className="iz-section-head">
+        <h3>{t('bus.documentsTitle')}</h3>
+        <span className="iz-small iz-muted">{t('bus.documentsHint')}</span>
+      </div>
+      {loading ? <Loading /> : error ? <Alert type="error">{error}</Alert> : documents.length === 0
+        ? <p className="iz-small iz-muted">{t('bus.documentsEmpty')}</p>
+        : <div className="iz-detail-grid">
+            {documents.map((doc) => <DocumentItem
+              key={String(doc.id)}
+              doc={doc}
+              canManage={canManage}
+              onDownload={() => void download(doc)}
+              onSave={(date) => void saveExpiry(doc, date)}
+              onDelete={() => setDeleting(doc)}
+            />)}
+          </div>}
+      {canManage && (
+        <div className="iz-flex iz-wrap" style={{ marginTop: 14, gap: 8 }}>
+          <select className="iz-input" value={type} onChange={(event) => setType(event.target.value)} style={{ maxWidth: 200 }}>
+            {DOCUMENT_TYPES.map((value) => <option key={value} value={value}>{translateValue(lang, value)}</option>)}
+          </select>
+          <input className="iz-input" type="date" value={expireLe} title={t('bus.docExpiry')} onChange={(event) => setExpireLe(event.target.value)} style={{ maxWidth: 170 }} />
+          <label className="iz-btn iz-btn-outline iz-btn-sm" style={{ cursor: 'pointer' }}>
+            {fichier ? fichier.nomFichier : t('bus.docChooseFile')}
+            <input type="file" accept="application/pdf,image/jpeg,image/png,image/webp" onChange={pick} style={{ display: 'none' }} />
+          </label>
+          <button className="iz-btn iz-btn-primary iz-btn-sm" disabled={!fichier || busy} onClick={() => void add()}>
+            {busy ? t('bus.docUploading') : t('bus.docAdd')}
+          </button>
+        </div>
+      )}
+      {deleting && <ConfirmDialog message={t('bus.docDeleteConfirm', { name: String(deleting.nomFichier ?? '') })} onCancel={() => setDeleting(null)} onConfirm={() => void remove()} />}
+    </div>
+  )
+}
+
+function DocumentItem({ doc, canManage, onDownload, onSave, onDelete }: {
+  doc: IZRecord
+  canManage: boolean
+  onDownload: () => void
+  onSave: (date: string) => void
+  onDelete: () => void
+}) {
+  const { t, lang } = useApp()
+  const current = typeof doc.expireLe === 'string' ? doc.expireLe : ''
+  const [date, setDate] = useState(current)
+  return (
+    <div className="iz-detail-item">
+      <span>{translateValue(lang, String(doc.type ?? ''))}</span>
+      <strong style={{ wordBreak: 'break-word' }}>{String(doc.nomFichier ?? '')}</strong>
+      <div><StatusBadge status={String(doc.statut ?? '')} /></div>
+      <div className="iz-small iz-muted" style={{ marginTop: 6 }}>
+        {t('bus.docExpiry')} : {current ? formatDocumentDate(current) : t('bus.docNoExpiry')}
+        {doc.taille ? ` — ${formatFileSize(Number(doc.taille))}` : ''}
+      </div>
+      <div className="iz-flex iz-wrap" style={{ marginTop: 10, gap: 6 }}>
+        <button className="iz-btn iz-btn-outline iz-btn-sm" onClick={onDownload}>{t('bus.docDownload')}</button>
+        {canManage && <button className="iz-btn iz-btn-danger iz-btn-sm" onClick={onDelete}>{t('common.delete')}</button>}
+      </div>
+      {canManage && (
+        <div className="iz-flex iz-wrap" style={{ marginTop: 8, gap: 6 }}>
+          <input className="iz-input" type="date" value={date} onChange={(event) => setDate(event.target.value)} style={{ maxWidth: 170 }} />
+          <button className="iz-btn iz-btn-primary iz-btn-sm" disabled={date === current} onClick={() => onSave(date)}>{t('common.save')}</button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function formatDocumentDate(value: string): string {
+  const [y, m, d] = value.split('-')
+  return d && m && y ? `${d}/${m}/${y}` : value
+}
+
+function formatFileSize(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes <= 0) return ''
+  if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1).replace('.', ',')} Mo`
+  return `${Math.max(1, Math.round(bytes / 1024))} Ko`
+}
+
 export function BusPage({ plate }: { plate: string }) {
   const { t, lang, user, route, navigate, notify } = useApp()
   const staff = (user?.role === 'admin' || user?.role === 'superadmin') || user?.role === 'controleur'
@@ -378,6 +534,7 @@ export function BusPage({ plate }: { plate: string }) {
           </div>
         </div>
       )}
+      {staff && data.immatriculation && <BusDocuments plate={String(data.immatriculation)} canManage={isAdmin} />}
       {staff && data.activeImpound && <div style={{ marginTop: 16 }}><Alert type="error">{t('bus.impoundAlert', { motif: String(data.activeImpound.motif ?? '') })}</Alert></div>}
       {staff && data.scans?.length > 0 && <div className="iz-card" style={{ marginTop: 16 }}><h3>{t('bus.lastScans')}</h3><ul>{data.scans.map((scan: IZRecord) => <li key={scan.id}>{String(scan.scanTime ?? '').slice(0, 16).replace('T', ' ')} — {translateValue(lang, scan.resultat)}</li>)}</ul></div>}
       {qr && (user?.role === 'admin' || user?.role === 'superadmin') && <VehicleQrDialog immatriculation={data.immatriculation} onClose={() => setQr(false)} />}

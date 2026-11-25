@@ -68,6 +68,7 @@ export function AdminLayout({ children }: { children: ReactNode }) {
     { path: '/admin/owners', label: t('admin.owners'), icon: '👥' },
     { path: '/admin/lines', label: t('admin.lines'), icon: '🛣️' },
     { path: '/admin/attestations', label: t('att.title'), icon: '📄' },
+    { path: '/admin/documents', label: t('docs.menu'), icon: '📁' },
     { path: '/admin/licenses', label: t('admin.licences'), icon: '⚠️' },
     { path: '/admin/payments', label: t('admin.payments'), icon: '💳' },
     { path: '/admin/payments/register', label: t('admin.paymentRegister'), icon: '🧾' },
@@ -1009,6 +1010,30 @@ export function AdminPayments() {
   )
 }
 
+/** Diagramme à barres des recettes encaissées (sans dépendance externe). */
+function RevenueChart({ series, period, empty }: { series: IZRecord[]; period: 'day' | 'month' | 'year'; empty: string }) {
+  const points = series.map((point) => ({ label: String(point.label ?? ''), montant: Number(point.montant ?? 0) }))
+  const max = points.reduce((best, point) => Math.max(best, point.montant), 0)
+  if (!points.length || max === 0) return <p className="iz-small iz-muted">{empty}</p>
+  const every = Math.ceil(points.length / 12)
+  return (
+    <div className="iz-chart" role="img" aria-label={empty}>
+      {points.map((point, index) => (
+        <div
+          key={point.label}
+          className="iz-chart-col"
+          title={`${point.label} — ${point.montant.toLocaleString('fr-FR')} Ar`}
+        >
+          <div className="iz-chart-track">
+            <div className="iz-chart-bar" style={{ height: `${Math.max(2, (point.montant / max) * 100)}%` }} />
+          </div>
+          <span className="iz-chart-label">{index % every === 0 ? (period === 'year' ? point.label.slice(5) : point.label.slice(8)) : ''}</span>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 export function AdminPaymentsRegister() {
   const { t, lang, notify, user, navigate } = useApp()
   const isSuper = user?.role === 'superadmin'
@@ -1019,6 +1044,8 @@ export function AdminPaymentsRegister() {
   const { data, loading, reload } = useAsync(() => izApi.paymentRegister(period, date), [period, date])
   const rows: IZRecord[] = data?.rows ?? []
   const summary = data?.summary ?? { total: 0, montant: 0, payes: 0, montantPaye: 0, enAttente: 0 }
+  const totals = data?.totals ?? { jour: 0, mois: 0, annee: 0 }
+  const series: IZRecord[] = data?.series ?? []
   const payload = (): RegisterPayload => ({
     period,
     from: String(data?.from ?? date),
@@ -1101,6 +1128,18 @@ export function AdminPaymentsRegister() {
         <StatCard value={`${Number(summary.montantPaye).toLocaleString('fr-FR')} Ar`} label={t('admin.collected')} />
         <StatCard value={summary.payes} label={t('admin.paidPayments')} />
         <StatCard value={summary.enAttente} label={t('admin.pending')} />
+      </div>
+      <div className="iz-grid iz-grid-3" style={{ marginTop: 14 }}>
+        <StatCard value={`${Number(totals.jour).toLocaleString('fr-FR')} Ar`} label={t('admin.collectedToday')} />
+        <StatCard value={`${Number(totals.mois).toLocaleString('fr-FR')} Ar`} label={t('admin.collectedMonth')} />
+        <StatCard value={`${Number(totals.annee).toLocaleString('fr-FR')} Ar`} label={t('admin.collectedYear')} />
+      </div>
+      <div className="iz-card" style={{ marginTop: 16 }}>
+        <div className="iz-section-head">
+          <h3>{t('admin.revenueChart')}</h3>
+          <span className="iz-small iz-muted">{t(period === 'day' ? 'admin.revenueDay' : period === 'month' ? 'admin.revenueMonth' : 'admin.revenueYear')}</span>
+        </div>
+        <RevenueChart series={series} period={period} empty={t('admin.noRevenue')} />
       </div>
       <div style={{ marginTop: 16 }}>
         {loading ? <Loading /> : (

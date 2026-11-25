@@ -220,6 +220,21 @@ export const izApi = {
     request<{ capacite: IZRecord | null; receveur: IZRecord | null }>(
       `/iz/control/vehicles/${encodeURIComponent(plate)}/attestations`,
     ),
+  vehicleDocuments: (plate: string) =>
+    request<IZRecord[]>(`/iz/control/vehicles/${encodeURIComponent(plate)}/documents`),
+  adminDocuments: (q = '') => request<IZRecord[]>(`/iz/admin/documents${queryString({ q })}`),
+  documentFileUrl: (id: number) => `${BASE}/iz/control/documents/${id}/fichier`,
+  createVehicleDocument: (plate: string, data: IZRecord) =>
+    send<IZRecord>(`/iz/admin/vehicles/${encodeURIComponent(plate)}/documents`, 'POST', data),
+  updateVehicleDocument: (id: number, data: IZRecord) =>
+    send<IZRecord>(`/iz/admin/documents/${id}`, 'PATCH', data),
+  deleteVehicleDocument: (id: number) =>
+    request<void>(`/iz/admin/documents/${id}`, { method: 'DELETE' }),
+  vehicleDocumentFile: async (id: number) => {
+    const response = await fetch(`${BASE}/iz/control/documents/${id}/fichier`, { credentials: 'include' })
+    if (!response.ok) throw new IZApiError('Téléchargement impossible.', response.status)
+    return response.blob()
+  },
 
   adminLines: () => request<IZRecord[]>('/iz/admin/lines'),
   createLine: (data: IZRecord) => send<IZRecord>('/iz/admin/lines', 'POST', data),

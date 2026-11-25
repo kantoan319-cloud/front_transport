@@ -486,7 +486,7 @@ export function StatusBadge({ status }: { status?: string | null }) {
   const value = status ?? '—'
   let className = 'iz-badge'
   if (/expiré|suspendu|fourrière|rejetée|non conforme|non encore valide|clôturée/i.test(value)) className += ' iz-badge-red'
-  else if (/attente|nouveau|en cours|brouillon|à venir|non renseign/i.test(value)) className += ' iz-badge-amber'
+  else if (/attente|nouveau|en cours|brouillon|à venir|non renseign|expire bientôt/i.test(value)) className += ' iz-badge-amber'
   else if (/valide|conforme|normal|ouvert|payé|validé|acceptée|traitée/i.test(value)) className += ' iz-badge-green'
   else if (/enregistrée/i.test(value)) className += ' iz-badge-blue'
   return <span className={className}><span className="iz-dot" />{translateValue(lang, value)}</span>
