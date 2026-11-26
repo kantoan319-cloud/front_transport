@@ -2,8 +2,8 @@ import { useMemo, useState } from 'react'
 import MapCanvas from '../MapCanvas'
 import type { MapPoint } from '../MapCanvas'
 import {
-  ArrowLeft, Bell, BookOpen, Check, CircleCheck, ClipboardList, LayoutDashboard,
-  MapPin, Megaphone, Plus, Search, Smartphone, TriangleAlert, UserRound, Warehouse,
+  ArrowLeft, Bell, BookOpen, Bus, Check, CircleCheck, ClipboardList, FileText, LayoutDashboard,
+  MapPin, Megaphone, Plus, Search, Smartphone, TriangleAlert, UserRound, Users, Warehouse,
 } from 'lucide-react'
 import { BusInformation, QrScanner, plateFromQr } from './bus'
 import type { FormEvent, ReactNode } from 'react'
@@ -25,9 +25,12 @@ export function ControlLayout({ children }: { children: ReactNode }) {
     { path: '/controle', label: t('control.dashboard'), icon: <LayoutDashboard size={17} /> },
     { path: '/notifications', label: t('nav.notifications'), icon: <Bell size={17} />, badge: true },
     { path: '/controle/scan', label: t('control.scanTitle'), icon: <Search size={17} /> },
+    { path: '/controle/vehicules', label: t('control.vehicles'), icon: <Bus size={17} /> },
+    { path: '/controle/proprietaires', label: t('control.owners'), icon: <Users size={17} /> },
     { path: '/controle/scans', label: t('control.scans'), icon: <ClipboardList size={17} /> },
     { path: '/controle/infractions', label: t('control.infractions'), icon: <TriangleAlert size={17} /> },
     { path: '/controle/signals', label: t('control.signals'), icon: <Megaphone size={17} /> },
+    { path: '/controle/rapports', label: t('report.menu'), icon: <FileText size={17} /> },
     { path: '/controle/fourriere', label: t('control.fourriere'), icon: <Warehouse size={17} /> },
     { path: '/signaler', label: t('control.makeSignal'), icon: <Plus size={17} /> },
     { path: '/controle/profil', label: t('control.myProfile'), icon: <UserRound size={17} /> },
@@ -83,6 +86,122 @@ export function ControlDashboard() {
             </button>
           </div>
         </>
+      )}
+    </>
+  )
+}
+
+/** Listes en lecture seule : les contrôleurs consultent sans rien modifier. */
+export function ControlVehiclesPage() {
+  const { t, navigate } = useApp()
+  const { data, loading, error } = useAsync(() => izApi.controlVehicles(), [])
+  return (
+    <>
+      <PageHead title={t('control.vehicles')} subtitle={t('control.vehiclesSubtitle')} />
+      {loading ? <Loading /> : error ? <Alert type="error">{error}</Alert> : (
+        <DataTable
+          rows={data ?? []}
+          rowKey={(row) => String(row.id)}
+          rowLabel={(row) => String(row.immatriculation ?? row.id)}
+          searchText={(row) => [row.immatriculation, row.proprietaireNom, row.proprietaireTelephone, row.cooperativeCode, row.ligne, row.statut].join(' ')}
+          initialSort="immatriculation"
+          empty={<Empty />}
+          columns={[
+            { key: 'immatriculation', label: t('search.plate'), sortValue: (row) => String(row.immatriculation ?? ''), render: (row) => <button className="iz-btn iz-btn-outline iz-btn-sm" onClick={() => navigate(`/bus?${new URLSearchParams({ plaque: String(row.immatriculation) })}`)}>{row.immatriculation}</button> },
+            { key: 'proprietaireNom', label: t('search.owner'), sortValue: (row) => String(row.proprietaireNom ?? ''), render: (row) => row.proprietaireNom ?? '—' },
+            { key: 'proprietaireTelephone', label: t('admin.phone'), sortValue: (row) => String(row.proprietaireTelephone ?? ''), render: (row) => row.proprietaireTelephone ?? '—' },
+            { key: 'cooperativeCode', label: t('search.cooperative'), sortValue: (row) => String(row.cooperativeCode ?? ''), render: (row) => row.cooperativeCode ?? '—' },
+            { key: 'ligne', label: t('search.line'), sortValue: (row) => String(row.ligne ?? ''), render: (row) => row.ligne ?? '—' },
+            { key: 'statut', label: t('bus.vehicleState'), sortValue: (row) => String(row.statut ?? ''), render: (row) => <StatusBadge status={row.statut} /> },
+          ]}
+        />
+      )}
+    </>
+  )
+}
+
+export function ControlOwnersPage() {
+  const { t } = useApp()
+  const { data, loading, error } = useAsync(() => izApi.controlOwners(), [])
+  return (
+    <>
+      <PageHead title={t('control.owners')} subtitle={t('control.ownersSubtitle')} />
+      {loading ? <Loading /> : error ? <Alert type="error">{error}</Alert> : (
+        <DataTable
+          rows={data ?? []}
+          rowKey={(row) => String(row.id)}
+          rowLabel={(row) => String(row.nom ?? row.id)}
+          searchText={(row) => [row.nom, row.telephone, row.cin, row.adresse, row.cooperativeCode].join(' ')}
+          initialSort="nom"
+          empty={<Empty />}
+          columns={[
+            { key: 'nom', label: t('search.owner'), sortValue: (row) => String(row.nom ?? ''), render: (row) => <strong>{row.nom}</strong> },
+            { key: 'telephone', label: t('admin.phone'), sortValue: (row) => String(row.telephone ?? ''), render: (row) => row.telephone ?? '—' },
+            { key: 'cin', label: t('admin.cin'), sortValue: (row) => String(row.cin ?? ''), render: (row) => row.cin ?? '—' },
+            { key: 'adresse', label: t('admin.address'), sortValue: (row) => String(row.adresse ?? ''), render: (row) => row.adresse ?? '—' },
+            { key: 'cooperativeCode', label: t('search.cooperative'), sortValue: (row) => String(row.cooperativeCode ?? ''), render: (row) => row.cooperativeCode ?? '—' },
+          ]}
+        />
+      )}
+    </>
+  )
+}
+
+/** Rapports du contrôleur vers l'administration, avec l'historique des envois. */
+export function ReportsPage() {
+  const { t, lang, notify } = useApp()
+  const { data, loading, error, reload } = useAsync(() => izApi.controlReports(), [])
+  const [sujet, setSujet] = useState('')
+  const [contenu, setContenu] = useState('')
+  const [busy, setBusy] = useState(false)
+  const submit = async (event: FormEvent) => {
+    event.preventDefault()
+    if (busy) return
+    setBusy(true)
+    try {
+      await izApi.createReport({ sujet: sujet.trim(), contenu: contenu.trim() })
+      setSujet('')
+      setContenu('')
+      await reload()
+      notify(t('report.sent'), 'success')
+    } catch (reason) {
+      notify(translateError(lang, reason, 'report.failed'), 'error')
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <>
+      <PageHead title={t('report.title')} subtitle={t('report.subtitle')} />
+      <form className="iz-card iz-form-grid" onSubmit={submit} style={{ marginBottom: 16 }}>
+        <Field label={t('report.subject')} full>
+          <input className="iz-input" required minLength={3} maxLength={160} value={sujet} onChange={(event) => setSujet(event.target.value)} />
+        </Field>
+        <Field label={t('report.content')} full>
+          <textarea className="iz-textarea" required minLength={10} maxLength={4000} value={contenu} onChange={(event) => setContenu(event.target.value)} />
+        </Field>
+        <button
+          type="submit" className="iz-btn iz-btn-primary"
+          disabled={busy || sujet.trim().length < 3 || contenu.trim().length < 10}
+        >
+          {busy ? t('common.saving') : t('report.send')}
+        </button>
+      </form>
+      {loading ? <Loading /> : error ? <Alert type="error">{error}</Alert> : (
+        <DataTable
+          rows={data ?? []}
+          rowKey={(row) => String(row.id)}
+          rowLabel={(row) => String(row.sujet ?? row.id)}
+          searchText={(row) => [row.sujet, row.contenu].join(' ')}
+          initialSort="createdAt"
+          empty={<Empty />}
+          columns={[
+            { key: 'createdAt', label: t('common.date'), sortValue: (row) => String(row.createdAt ?? ''), render: (row) => <span className="iz-small iz-nowrap">{when(row.createdAt)}</span> },
+            { key: 'sujet', label: t('report.subject'), sortValue: (row) => String(row.sujet ?? ''), render: (row) => <strong>{row.sujet}</strong> },
+            { key: 'contenu', label: t('report.content'), render: (row) => <span className="iz-small">{row.contenu}</span> },
+            { key: 'lu', label: t('common.status'), render: (row) => <span className={row.lu ? 'iz-badge iz-badge-green' : 'iz-badge iz-badge-amber'}><span className="iz-dot" />{t(row.lu ? 'report.read' : 'report.pending')}</span> },
+          ]}
+        />
       )}
     </>
   )

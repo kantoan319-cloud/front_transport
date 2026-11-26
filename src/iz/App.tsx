@@ -6,12 +6,12 @@ import {
 } from './public'
 import { NetworkMap } from './network-map'
 import {
-  ControlDashboard, ControlLayout, ControlSignalsPage, InfractionsPage,
-  ScanPage, ScansPage,
+  ControlDashboard, ControlLayout, ControlOwnersPage, ControlSignalsPage,
+  ControlVehiclesPage, InfractionsPage, ReportsPage, ScanPage, ScansPage,
 } from './control'
 import {
   AdminActivity, AdminAnalytics, AdminCooperatives, AdminDashboard, AdminLayout, AdminLicences,
-  AdminOwners, AdminPayments, AdminPaymentsRegister, AdminRequests,
+  AdminOwners, AdminPayments, AdminPaymentsRegister, AdminReports, AdminRequests,
   AdminUsers, AdminVehicles,
 } from './admin'
 import { AdminAttestations } from './attestations'
@@ -37,7 +37,13 @@ export function IzApp() {
   const render = () => {
     if (path === '/') return <HomePage />
     if (path === '/scan') return <PublicScanPage />
-    if (path === '/recherche') return <SearchPage />
+    if (path === '/recherche') {
+      if (userLoading) return <Loading />
+      // Sans compte : uniquement scanner, signaler et la carte.
+      return user
+        ? <SearchPage />
+        : <AccessDenied message={t('access.searchDenied')} />
+    }
     if (path === '/bus') {
       if (userLoading) return <Loading />
       const plate = new URLSearchParams(route.split('?')[1]).get('plaque') ?? ''
@@ -78,10 +84,13 @@ export function IzApp() {
       }
       let content = <ControlDashboard />
       if (path === '/controle/scan') content = <ScanPage key={route} />
+      else if (path === '/controle/vehicules') content = <ControlVehiclesPage />
+      else if (path === '/controle/proprietaires') content = <ControlOwnersPage />
       else if (path === '/controle/fourriere') content = <ImpoundsPage />
       else if (path === '/controle/scans') content = <ScansPage />
       else if (path === '/controle/infractions') content = <InfractionsPage />
       else if (path === '/controle/signals') content = <ControlSignalsPage />
+      else if (path === '/controle/rapports') content = <ReportsPage />
       else if (path === '/controle/profil') content = <ControllerProfilePage />
       else if (path === '/controle/manuel') content = <ManualPage scope="controle" />
       // Un administrateur garde son menu d'administration sur les pages de terrain.
@@ -103,6 +112,7 @@ export function IzApp() {
       else if (path === '/admin/attestations') content = <AdminAttestations />
       else if (path === '/admin/documents') content = <AdminDocuments />
       else if (path === '/admin/backup') content = <AdminBackup />
+      else if (path === '/admin/rapports') content = <AdminReports />
       else if (path === '/admin/licenses') content = <AdminLicences />
       else if (path === '/admin/payments') content = <AdminPayments />
       else if (path === '/admin/payments/register') content = <AdminPaymentsRegister />

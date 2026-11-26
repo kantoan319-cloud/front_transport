@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import type { FormEvent } from 'react'
+import type { FormEvent, ReactNode } from 'react'
 import {
   ArrowLeft, ArrowRight, Bus, ChartColumn, Handshake, MapPin, Megaphone, Search,
   ShieldCheck, Smartphone, Users,
@@ -18,6 +18,25 @@ const dateText = (value?: string | null) => (value ? String(value).slice(0, 10) 
 /* ------------------------------------------------------------------ */
 /* Accueil                                                             */
 /* ------------------------------------------------------------------ */
+
+/** Carte statistique : cliquable seulement si la page cible est autorisée. */
+function StatCard({ icon, value, label, path, attr }: {
+  icon: ReactNode
+  value?: number
+  label: string
+  path?: string
+  attr?: string
+}) {
+  const { navigate } = useApp()
+  const body = <>
+    <div className="iz-stat-icon">{icon}</div>
+    <div className="iz-stat-value">{value ?? '—'}</div>
+    <div className="iz-stat-label">{label}</div>
+  </>
+  return path
+    ? <button type="button" className="iz-card iz-stat iz-card-hover iz-stat-link" onClick={() => navigate(path)} title={attr}>{body}</button>
+    : <div className="iz-card iz-stat" title={attr}>{body}</div>
+}
 
 export function HomePage() {
   const { t, navigate, user } = useApp()
@@ -45,6 +64,8 @@ export function HomePage() {
     { icon: <Megaphone size={22} />, title: t('home.f3Title'), text: t('home.f3Text') },
     { icon: <ChartColumn size={22} />, title: t('home.f4Title'), text: t('home.f4Text') },
   ]
+  const isAdmin = user?.role === 'admin' || user?.role === 'superadmin'
+  const isStaff = isAdmin || user?.role === 'controleur'
   return (
     <>
       <section className="iz-hero">
@@ -52,8 +73,9 @@ export function HomePage() {
         <h1>{t('home.title')}</h1>
         <p>{t('home.subtitle')}</p>
         <div className="iz-hero-actions">
-          <button className="iz-btn iz-btn-primary" onClick={() => navigate('/recherche')}>
-            {t('home.ctaSearch')} <ArrowRight size={16} />
+          {/* Sans compte : scanner et signaler uniquement. */}
+          <button className="iz-btn iz-btn-primary" onClick={() => navigate(user ? '/recherche' : '/scan')}>
+            {user ? t('home.ctaSearch') : t('home.ctaScan')} <ArrowRight size={16} />
           </button>
           <button className="iz-btn iz-btn-outline" onClick={() => navigate('/signaler')}>
             {t('home.ctaSignal')}
@@ -63,26 +85,26 @@ export function HomePage() {
 
       <section className="iz-section" style={{ marginTop: 28 }}>
         <div className="iz-grid iz-grid-4">
-          <button type="button" className="iz-card iz-stat iz-card-hover iz-stat-link" onClick={() => navigate('/recherche')} title={t('home.searchTitleAttr')}>
-            <div className="iz-stat-icon"><Bus size={20} /></div>
-            <div className="iz-stat-value">{data?.vehicules ?? '—'}</div>
-            <div className="iz-stat-label">{t('home.statVehicles')}</div>
-          </button>
-          <button type="button" className="iz-card iz-stat iz-card-hover iz-stat-link" onClick={() => navigate('/cooperatives')} title={t('home.coopsTitleAttr')}>
-            <div className="iz-stat-icon"><Handshake size={20} /></div>
-            <div className="iz-stat-value">{data?.cooperatives ?? '—'}</div>
-            <div className="iz-stat-label">{t('home.statCoops')}</div>
-          </button>
-          <button type="button" className="iz-card iz-stat iz-card-hover iz-stat-link" onClick={() => navigate('/admin/owners')} title={t('home.ownersTitleAttr')}>
-            <div className="iz-stat-icon"><Users size={20} /></div>
-            <div className="iz-stat-value">{data?.proprietaires ?? '—'}</div>
-            <div className="iz-stat-label">{t('home.statOwners')}</div>
-          </button>
-          <button type="button" className="iz-card iz-stat iz-card-hover iz-stat-link" onClick={() => navigate('/suivi')} title={t('home.trackTitleAttr')}>
-            <div className="iz-stat-icon"><Megaphone size={20} /></div>
-            <div className="iz-stat-value">{data?.signalements ?? '—'}</div>
-            <div className="iz-stat-label">{t('home.statSignals')}</div>
-          </button>
+          <StatCard
+            icon={<Bus size={20} />} value={data?.vehicules} label={t('home.statVehicles')}
+            path={user ? '/recherche' : '/scan'}
+            attr={user ? t('home.searchTitleAttr') : t('home.ctaScan')}
+          />
+          <StatCard
+            icon={<Handshake size={20} />} value={data?.cooperatives} label={t('home.statCoops')}
+            path={user ? '/cooperatives' : undefined}
+            attr={t('home.coopsTitleAttr')}
+          />
+          <StatCard
+            icon={<Users size={20} />} value={data?.proprietaires} label={t('home.statOwners')}
+            path={isAdmin ? '/admin/owners' : isStaff ? '/controle/proprietaires' : undefined}
+            attr={t('home.ownersTitleAttr')}
+          />
+          <StatCard
+            icon={<Megaphone size={20} />} value={data?.signalements} label={t('home.statSignals')}
+            path={user ? '/suivi' : '/signaler'}
+            attr={user ? t('home.trackTitleAttr') : t('home.ctaSignal')}
+          />
         </div>
       </section>
 

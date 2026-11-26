@@ -197,19 +197,23 @@ export function BusInformation({ vehicle, staff = false, canEditPhoto = false, o
       setPhotoBusy(false)
     }
   }
-  const fields: [string, unknown][] = [
+  // Scan sans compte : uniquement le propriétaire (nom et téléphone) et la
+  // coopérative ; les agents voient la fiche complète.
+  const fields: [string, unknown][] = staff ? [
     ['bus.type', vehicle.type], ['bus.coop', vehicle.cooperativeNom ?? vehicle.cooperativeCode], ['bus.line', vehicle.ligne],
-    ...(staff ? [
-      ['bus.owner', vehicle.proprietaireNom],
-      ['bus.ownerCin', vehicle.proprietaireCin],
-      ['bus.ownerAddress', vehicle.proprietaireAdresse],
-      ['bus.ownerPhone', vehicle.proprietaireTelephone],
-      ['bus.driver', vehicle.conducteurNom],
-      ['bus.driverPermit', vehicle.conducteurPermis], ['bus.driverPhone', vehicle.conducteurTelephone],
-      ['bus.receveur', vehicle.receveurNom], ['bus.receveurPhone', vehicle.receveurTelephone],
-      ['bus.licenceNumber', vehicle.licenceNumero], ['admin.licenceNif', vehicle.licenceNif], ['admin.licenceStat', vehicle.licenceStat],
-      ['bus.licenceStart', vehicle.licenceDebut], ['bus.licenceEnd', vehicle.licenceFin],
-    ] as [string, unknown][] : []),
+    ['bus.owner', vehicle.proprietaireNom],
+    ['bus.ownerCin', vehicle.proprietaireCin],
+    ['bus.ownerAddress', vehicle.proprietaireAdresse],
+    ['bus.ownerPhone', vehicle.proprietaireTelephone],
+    ['bus.driver', vehicle.conducteurNom],
+    ['bus.driverPermit', vehicle.conducteurPermis], ['bus.driverPhone', vehicle.conducteurTelephone],
+    ['bus.receveur', vehicle.receveurNom], ['bus.receveurPhone', vehicle.receveurTelephone],
+    ['bus.licenceNumber', vehicle.licenceNumero], ['admin.licenceNif', vehicle.licenceNif], ['admin.licenceStat', vehicle.licenceStat],
+    ['bus.licenceStart', vehicle.licenceDebut], ['bus.licenceEnd', vehicle.licenceFin],
+  ] : [
+    ['bus.owner', vehicle.proprietaireNom],
+    ['bus.ownerPhone', vehicle.proprietaireTelephone],
+    ['bus.coop', vehicle.cooperativeNom ?? vehicle.cooperativeCode],
   ]
   return <>
     {(vehicle.photoUrl || (staff && vehicle.proprietairePhoto) || canEditPhoto) && (
@@ -456,13 +460,11 @@ export function BusPage({ plate }: { plate: string }) {
   const isAdmin = user?.role === 'admin' || user?.role === 'superadmin'
   const profilBloque = user?.role === 'controleur' && !user.profilComplet
   const { data, loading, error, reload, setData } = useAsync(() => staff ? izApi.controlVehicle(plate) : izApi.vehicle(plate), [plate, staff])
-  // Équipage et attestations : visibles par tous au scan ; le CIN des
-  // personnes reste réservé aux agents (l'appel public ne le renvoie pas).
+  // Équipage et attestations : réservés aux agents ; le scan sans compte
+  // n'affiche que le propriétaire, la coopérative et l'état du bus.
   const attestations = useAsync(
-    () => data?.immatriculation
-      ? (staff
-        ? izApi.vehicleAttestationsStaff(String(data.immatriculation))
-        : izApi.vehicleAttestationsPublic(String(data.immatriculation)))
+    () => staff && data?.immatriculation
+      ? izApi.vehicleAttestationsStaff(String(data.immatriculation))
       : Promise.resolve(null),
     [staff, data?.immatriculation],
   )

@@ -10,7 +10,7 @@ import {
 import { izApi } from './api'
 import type { IZAccountRole, IZCreateUser, IZRecord } from './api'
 import {
-  ConfirmDialog, Empty, ExportButton, Field, Loading, Modal, PageHead, PasswordInput,
+  Alert, ConfirmDialog, Empty, ExportButton, Field, Loading, Modal, PageHead, PasswordInput,
   StatCard, StatusBadge, useApp, useAsync,
 } from './components'
 import { DataTable } from './DataTable'
@@ -70,6 +70,7 @@ export function AdminLayout({ children }: { children: ReactNode }) {
     { path: '/controle/scan', label: t('admin.scanControl'), icon: <QrCode size={17} /> },
     { path: '/controle/fourriere', label: t('control.fourriere'), icon: <Warehouse size={17} /> },
     { path: '/controle/signals', label: t('admin.signalements'), icon: <Siren size={17} /> },
+    { path: '/admin/rapports', label: t('report.menu'), icon: <FileText size={17} /> },
     { path: '/admin/cooperatives', label: t('nav.coops'), icon: <Handshake size={17} /> },
     { path: '/admin/owners', label: t('admin.owners'), icon: <Users size={17} /> },
     { path: '/admin/lines', label: t('admin.lines'), icon: <Route size={17} /> },
@@ -1883,6 +1884,56 @@ export function AdminActivity() {
             { key: 'entiteId', label: t('admin.reference'), sortValue: (entry) => String(entry.entiteId ?? ''), render: (entry) => <span className="iz-small iz-mono">{entry.entiteId ?? '—'}</span> },
             { key: 'details', label: t('common.details'), sortValue: (entry) => details(entry), render: (entry) => <span className="iz-small">{details(entry)}</span> },
           ]}
+        />
+      )}
+    </>
+  )
+}
+
+/** Boîte de réception des rapports envoyés par les contrôleurs. */
+export function AdminReports() {
+  const { t, lang, notify } = useApp()
+  const { data, loading, error, reload } = useAsync(() => izApi.adminReports(), [])
+  const [busy, setBusy] = useState<number | null>(null)
+  const markRead = async (row: IZRecord) => {
+    setBusy(Number(row.id))
+    try {
+      await izApi.markReportRead(Number(row.id))
+      await reload()
+      notify(t('report.markedRead'), 'success')
+    } catch (reason) {
+      notify(translateError(lang, reason, 'common.error'), 'error')
+    } finally {
+      setBusy(null)
+    }
+  }
+  return (
+    <>
+      <PageHead title={t('report.received')} subtitle={t('report.receivedSubtitle')} />
+      {loading ? <Loading /> : error ? <Alert type="error">{error}</Alert> : (
+        <DataTable
+          rows={data ?? []}
+          rowKey={(row) => String(row.id)}
+          rowLabel={(row) => String(row.sujet ?? row.id)}
+          searchText={(row) => [row.auteurNom, row.sujet, row.contenu].join(' ')}
+          initialSort="createdAt"
+          empty={<Empty message={t('report.empty')} />}
+          columns={[
+            { key: 'createdAt', label: t('common.date'), sortValue: (row) => String(row.createdAt ?? ''), render: (row) => <span className="iz-small iz-nowrap">{when(row.createdAt)}</span> },
+            { key: 'auteurNom', label: t('report.author'), sortValue: (row) => String(row.auteurNom ?? ''), render: (row) => <strong>{row.auteurNom}</strong> },
+            { key: 'sujet', label: t('report.subject'), sortValue: (row) => String(row.sujet ?? ''), render: (row) => <>{row.sujet}</> },
+            { key: 'contenu', label: t('report.content'), render: (row) => <span className="iz-small">{row.contenu}</span> },
+            { key: 'lu', label: t('common.status'), render: (row) => <span className={row.lu ? 'iz-badge iz-badge-green' : 'iz-badge iz-badge-amber'}><span className="iz-dot" />{t(row.lu ? 'report.read' : 'report.pending')}</span> },
+          ]}
+          actions={(row) => (row.lu ? null : (
+            <button
+              className="iz-btn iz-btn-outline iz-btn-sm"
+              disabled={busy === Number(row.id)}
+              onClick={() => void markRead(row)}
+            >
+              {t('report.markRead')}
+            </button>
+          ))}
         />
       )}
     </>

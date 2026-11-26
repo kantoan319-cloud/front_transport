@@ -185,6 +185,8 @@ export const izApi = {
   // ---------- Contrôleurs ----------
   controlDashboard: () => request<IZRecord>('/iz/control/dashboard'),
   controlVehicle: (plate: string) => request<IZRecord>(`/iz/control/vehicles/${encodeURIComponent(plate)}`),
+  controlVehicles: (q = '') => request<IZRecord[]>(`/iz/control/vehicles${queryString({ q })}`),
+  controlOwners: (q = '') => request<IZRecord[]>(`/iz/control/owners${queryString({ q })}`),
   setVehiclePhoto: (id: number, photo: string | null) =>
     send<{ photoUrl: string | null }>(`/iz/control/vehicles/${id}/photo`, 'PUT', { photo }),
   impounds: () => request<IZRecord[]>('/iz/control/impounds'),
@@ -200,6 +202,8 @@ export const izApi = {
   updateInfraction: (id: number, data: IZRecord) =>
     send<IZRecord>(`/iz/control/infractions/${id}/statut`, 'PATCH', data),
   controlSignals: (statut = '') => request<IZRecord[]>(`/iz/control/signals${queryString({ statut })}`),
+  controlReports: () => request<IZRecord[]>('/iz/control/reports'),
+  createReport: (data: IZRecord) => send<{ id: number }>('/iz/control/reports', 'POST', data),
   createControlSignal: (data: IZRecord) =>
     send<{ id: number; reference: string; statut: string }>('/iz/control/signals', 'POST', data),
   resolveSignal: (id: number, data: IZRecord) =>
@@ -210,6 +214,9 @@ export const izApi = {
 
   // ---------- Administrateur ----------
   adminStats: () => request<IZRecord>('/iz/admin/stats'),
+  adminReports: () => request<IZRecord[]>('/iz/admin/reports'),
+  markReportRead: (id: number) =>
+    request<{ ok: boolean }>(`/iz/admin/reports/${id}/lu`, { method: 'PATCH' }),
   adminAnalytics: () => request<IZRecord>('/iz/admin/analytics'),
   adminPublicScans: () => request<IZRecord[]>('/iz/admin/public-scans'),
   deletePublicScan: (id: number) => request<void>(`/iz/admin/public-scans/${id}`, { method: 'DELETE' }),
