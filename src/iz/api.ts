@@ -80,13 +80,29 @@ function queryString(params: Record<string, unknown>): string {
 // au-dela, mieux vaut un message qu'un bouton bloque indefiniment.
 const TIMEOUT_MS = 60_000
 
+// AbortSignal.timeout n'existe pas sur les anciens navigateurs (WebView Android
+// avant Chrome 103, Safari avant 16). Sans ce repli, l'appel fetch echoue avant
+// de partir et l'utilisateur voit « impossible de contacter le serveur » a
+// chaque scan ou signalement.
+function delaiSignal(ms: number): AbortSignal | undefined {
+  if (typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function') {
+    return AbortSignal.timeout(ms)
+  }
+  if (typeof AbortController !== 'undefined') {
+    const controller = new AbortController()
+    setTimeout(() => controller.abort(), ms)
+    return controller.signal
+  }
+  return undefined
+}
+
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   let response: Response
   try {
     response = await fetch(`${BASE}${path}`, {
       ...init,
       credentials: 'include',
-      signal: init.signal ?? AbortSignal.timeout(TIMEOUT_MS),
+      signal: init.signal ?? delaiSignal(TIMEOUT_MS),
       headers: {
         ...(init.body ? { 'Content-Type': 'application/json' } : {}),
         ...init.headers,
@@ -126,7 +142,7 @@ async function telechargerBlob(path: string): Promise<{ blob: Blob; nomFichier: 
   try {
     response = await fetch(`${BASE}${path}`, {
       credentials: 'include',
-      signal: AbortSignal.timeout(300_000),
+      signal: delaiSignal(300_000),
     })
   } catch (error) {
     if (error instanceof DOMException && (error.name === 'TimeoutError' || error.name === 'AbortError')) {
@@ -338,7 +354,7 @@ export const izApi = {
   exportXlsx: async (cible: string) => {
     const response = await fetch(`${BASE}/iz/admin/export/${encodeURIComponent(cible)}`, {
       credentials: 'include',
-      signal: AbortSignal.timeout(TIMEOUT_MS),
+      signal: delaiSignal(TIMEOUT_MS),
     })
     if (!response.ok) {
       let message = `Erreur ${response.status}`
