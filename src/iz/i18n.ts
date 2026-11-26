@@ -1097,6 +1097,8 @@ const dictionary: Record<string, Entry> = {
   'qrDialog.generating': { fr: 'Génération du QR code…', mg: 'Eo am-pamoronana ny QR code…' },
   'qrDialog.help': { fr: 'Scannez ce code pour consulter la fiche du bus. Les informations réservées nécessitent une connexion.', mg: 'Scantéo ity kaody ity hijery ny taratasin’ny bus. Mila fifandraisana hahazoana ny vaovao voafetra.' },
   'qrDialog.localWarning': { fr: 'Ce code utilise une adresse locale. Ouvrez l’application depuis son adresse accessible aux téléphones avant de télécharger les étiquettes définitives.', mg: 'Mampiasa adiresy eo an-toerana ity kaody ity. Sokafy ny fampiharana amin’ny adiresy azon’ny telefaona alohan’ny hisintomana ny etikety farany.' },
+  'pwa.updateAvailable': { fr: 'Une nouvelle version du site est disponible.', mg: 'Misy dika vaovao ny tranonkala.' },
+  'pwa.reload': { fr: 'Recharger', mg: 'Havaozy' },
 }
 
 /**
