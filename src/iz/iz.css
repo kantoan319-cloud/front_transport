@@ -168,9 +168,15 @@ p { margin: 0; }
   content: ''; position: absolute; width: 340px; height: 340px; border-radius: 50%;
   right: -90px; bottom: -160px; border: 50px solid rgb(var(--tx-vert) / .06); pointer-events: none;
 }
-.iz-hero h1 { font-size: clamp(2rem, 4.6vw, 3.3rem); font-weight: 850; max-width: 720px; margin: 14px 0 16px; }
-.iz-hero p { max-width: 640px; color: rgb(var(--tx-gray-600)); font-size: 1.05rem; }
+.iz-hero h1 { font-size: clamp(2rem, 4.6vw, 3.3rem); font-weight: 850; max-width: 700px; margin: 14px 0 16px; }
+.iz-hero p { max-width: 620px; color: rgb(var(--tx-gray-600)); font-size: 1.05rem; }
 .iz-hero-actions { display: flex; gap: 12px; margin-top: 28px; flex-wrap: wrap; }
+.iz-hero-photo {
+  position: absolute; right: 44px; top: 50%; transform: translateY(-50%) rotate(-2deg);
+  width: clamp(220px, 26vw, 340px); border-radius: 20px; object-fit: cover;
+  border: 6px solid #fff; box-shadow: 0 22px 40px -18px rgb(15 55 40 / .5);
+}
+@media (max-width: 1080px) { .iz-hero-photo { display: none; } }
 .iz-hero-badge {
   display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px;
   border-radius: 999px; background: rgb(var(--tx-vert) / 0.12);

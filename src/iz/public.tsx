@@ -12,6 +12,7 @@ import { translate, translateError, translateValue } from './i18n'
 import {
   Alert, Empty, Field, Loading, Modal, PageHead, PasswordInput, StatusBadge, geolocate, useApp, useAsync,
 } from './components'
+import busPhoto from '../assets/bus.jpg'
 
 const dateText = (value?: string | null) => (value ? String(value).slice(0, 10) : '—')
 
@@ -81,6 +82,7 @@ export function HomePage() {
             {t('home.ctaSignal')}
           </button>
         </div>
+        <img className="iz-hero-photo" src={busPhoto} alt={t('home.photoAlt')} />
       </section>
 
       <section className="iz-section" style={{ marginTop: 28 }}>
