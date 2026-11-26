@@ -8,6 +8,7 @@ import {
   useState,
 } from 'react'
 import type { FormEvent, InputHTMLAttributes, ReactNode } from 'react'
+import { Bell, Download, Eye, EyeOff, Inbox, Moon, Sun, X } from 'lucide-react'
 import { translate, translateError, translateValue } from './i18n'
 import type { Lang } from './i18n'
 import type { IZUser } from './api'
@@ -233,7 +234,7 @@ export function Header() {
             {lang === 'fr' ? 'FR' : 'MG'}
           </button>
           <button className="iz-icon-btn" title={t('nav.theme')} onClick={toggleTheme}>
-            {theme === 'dark' ? '☀' : '☾'}
+            {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
           </button>
           <button
             className="iz-icon-btn"
@@ -287,7 +288,7 @@ export function NotificationsBell() {
       aria-label={t('nav.notifications')}
       onClick={() => navigate('/notifications')}
     >
-      <span aria-hidden="true">🔔</span>
+      <Bell size={20} aria-hidden="true" />
       {unreadNotifications > 0 && (
         <span className="iz-bell-badge">{unreadNotifications > 99 ? '99+' : unreadNotifications}</span>
       )}
@@ -432,7 +433,7 @@ export function PageHead({ title, subtitle, action }: { title: string; subtitle?
   )
 }
 
-export function StatCard({ value, label, icon }: { value: ReactNode; label: string; icon?: string }) {
+export function StatCard({ value, label, icon }: { value: ReactNode; label: string; icon?: ReactNode }) {
   return (
     <div className="iz-card iz-stat iz-card-hover">
       {icon && <div className="iz-stat-icon">{icon}</div>}
@@ -471,7 +472,7 @@ export function Empty({ message }: { message?: string }) {
   const { t } = useApp()
   return (
     <div className="iz-empty">
-      <div className="iz-empty-icon">◇</div>
+      <div className="iz-empty-icon"><Inbox size={32} /></div>
       {message ?? t('common.empty')}
     </div>
   )
@@ -513,7 +514,7 @@ export function ExportButton({ cible, label = 'Excel' }: { cible: string; label?
         }
       }}
     >
-      {busy ? t('export.busy') : `⬇ ${label}`}
+      {busy ? t('export.busy') : <><Download size={16} aria-hidden="true" /> {label}</>}
     </button>
   )
 }
@@ -553,7 +554,7 @@ export function PasswordInput({ value, onChange, className, ...props }: Password
         aria-pressed={visible}
         onClick={() => setVisible((current) => !current)}
       >
-        {visible ? '🙈' : '👁'}
+        {visible ? <EyeOff size={17} aria-hidden="true" /> : <Eye size={17} aria-hidden="true" />}
       </button>
     </span>
   )
@@ -575,7 +576,7 @@ export function Modal({
       <div className={`iz-modal${wide ? ' iz-modal-wide' : ''}`} role="dialog" aria-modal="true" aria-label={title} onMouseDown={(event) => event.stopPropagation()}>
         <div className="iz-modal-head">
           <h3>{title}</h3>
-          <button className="iz-icon-btn" onClick={onClose} title={t('common.close')}>×</button>
+          <button className="iz-icon-btn" onClick={onClose} title={t('common.close')}><X size={18} /></button>
         </div>
         <div className="iz-modal-body">{children}</div>
         {footer && <div className="iz-modal-foot">{footer}</div>}

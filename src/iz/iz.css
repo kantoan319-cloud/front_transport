@@ -275,6 +275,9 @@ html[data-theme='dark'] .iz-badge-blue { color: #93b8ff; }
 .iz-sidebar a.active, .iz-sidebar button.active { background: rgb(var(--tx-vert) / .12); color: rgb(var(--tx-vert)); }
 .iz-sidebar-search { margin: 0 2px 8px; }
 .iz-sidebar-empty { padding: 8px 10px; }
+.iz-side-icon { display: inline-flex; align-items: center; flex-shrink: 0; }
+.iz-btn svg, .iz-link-button svg, .iz-notif-go svg, .iz-sidebar a svg { flex-shrink: 0; }
+.iz-inline-icon { vertical-align: -2px; margin-right: 6px; }
 .iz-dashboard-main { min-width: 0; }
 .iz-page-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 22px; flex-wrap: wrap; }
 .iz-page-head h1 { font-size: 1.65rem; font-weight: 800; }
@@ -312,7 +315,7 @@ html[data-theme='dark'] .iz-badge-blue { color: #93b8ff; }
 .iz-notif-dot { width: 8px; height: 8px; border-radius: 50%; background: rgb(var(--tx-rouge)); flex-shrink: 0; }
 .iz-notif-message { color: rgb(var(--tx-gray-600)); font-size: .88rem; overflow-wrap: anywhere; }
 .iz-notif-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 4px; font-size: .76rem; color: rgb(var(--tx-gray-500)); }
-.iz-notif-go { color: rgb(var(--tx-vert)); font-weight: 800; align-self: center; }
+.iz-notif-go { color: rgb(var(--tx-vert)); font-weight: 800; align-self: center; display: inline-flex; align-items: center; }
 
 /* ---------- Modal, alert, toast ---------- */
 .iz-overlay {
@@ -353,6 +356,8 @@ html[data-theme='dark'] .iz-alert-info { color: #93b8ff; }
 /* ---------- Map ---------- */
 .iz-map-layout { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 16px; }
 .iz-map-box { height: 560px; border-radius: var(--radius); overflow: hidden; border: 1px solid rgb(var(--bd-gray-200)); position: relative; }
+.map-bus__body { display: flex; color: #0f172a; filter: drop-shadow(0 1px 2px rgb(0 0 0 / .35)); }
+html[data-theme='dark'] .map-bus__body, .map-bus.is-night .map-bus__body { color: #e2e8f0; }
 /* MapCanvas porte .map-page__canvas, dont les styles vivent dans MapPage.css
    (ancienne page carte, non importée par l'app iz) : sans cela le conteneur
    n'a aucune hauteur et la carte reste invisible. */

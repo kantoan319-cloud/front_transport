@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { ChangeEvent } from 'react'
+import { UserSearch } from 'lucide-react'
 import { izApi } from './api'
 import type { IZAgentProfile, IZRecord } from './api'
 import {
@@ -221,7 +222,7 @@ export function AgentIdentityButton({
   if (!numberId) return <>{name || '—'}</>
   return (
     <button type="button" className="iz-link-button" onClick={() => onOpen(numberId)} title={t('profile.viewAgent')}>
-      {name || t('profile.agent')} <span aria-hidden="true">🔎</span>
+      {name || t('profile.agent')} <UserSearch size={14} aria-hidden="true" />
     </button>
   )
 }

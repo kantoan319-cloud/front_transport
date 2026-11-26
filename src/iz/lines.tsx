@@ -1,4 +1,5 @@
 import { useMemo, useState, type FormEvent } from 'react'
+import { Check, LocateFixed, Pencil, RefreshCw } from 'lucide-react'
 import MapCanvas, { type MapLine, type MapPoint } from '../MapCanvas'
 import { Alert, Field, Loading, Modal, PageHead, useApp, useAsync } from './components'
 import { izApi, type IZRecord } from './api'
@@ -353,7 +354,7 @@ export function AdminLines() {
           </select>
         </label>
         <button className="iz-btn iz-btn-outline" onClick={() => { setSearch(''); setCoopFilter(''); setLineFilter('') }}>{t('lines.reset')}</button>
-        <button className="iz-btn iz-btn-ghost" onClick={() => linesState.reload()}>{t('lines.refresh')}</button>
+        <button className="iz-btn iz-btn-ghost" onClick={() => linesState.reload()}><RefreshCw size={15} /> {t('lines.refresh')}</button>
       </div>
 
       {linesState.error && <Alert type="error">{linesState.error}</Alert>}
@@ -478,7 +479,7 @@ export function AdminLines() {
             </Field>
             <div className="iz-flex iz-wrap" style={{ alignItems: 'end' }}>
               <button type="button" className={`iz-btn ${stopPickMode ? 'iz-btn-primary' : 'iz-btn-outline'} iz-btn-sm`} onClick={toggleStopPickMode}>
-                ⌖ {stopPickMode ? t('lines.clickMapNow') : t('lines.pickOnMap')}
+                <LocateFixed size={15} /> {stopPickMode ? t('lines.clickMapNow') : t('lines.pickOnMap')}
               </button>
               <button type="submit" className="iz-btn iz-btn-primary iz-btn-sm" disabled={busy}>{editingStopId ? t('common.save') : t('lines.addStop')}</button>
               {editingStopId && <button type="button" className="iz-btn iz-btn-ghost iz-btn-sm" onClick={() => { setEditingStopId(null); setStopForm(emptyStop()) }}>{t('common.cancel')}</button>}
@@ -570,13 +571,13 @@ export function AdminLines() {
                     {t('lines.step1', { count: form.trace.aller.length })}
                   </div>
                   <button type="button" className="iz-btn iz-btn-outline iz-btn-sm" onClick={() => setDrawMode(drawMode === 'aller' ? null : 'aller')}>
-                    {drawMode === 'aller' ? t('lines.finishOutbound') : t('lines.drawOutbound')}
+                    {drawMode === 'aller' ? <Check size={15} /> : <Pencil size={15} />} {drawMode === 'aller' ? t('lines.finishOutbound') : t('lines.drawOutbound')}
                   </button>
                   <div className={`iz-route-step${drawMode === 'retour' ? ' active' : ''}`} style={{ marginTop: 10 }}>
                     {t('lines.step2', { count: form.trace.retour.length })}
                   </div>
                   <button type="button" className="iz-btn iz-btn-outline iz-btn-sm" onClick={() => setDrawMode(drawMode === 'retour' ? null : 'retour')}>
-                    {drawMode === 'retour' ? t('lines.finishReturn') : t('lines.drawReturn')}
+                    {drawMode === 'retour' ? <Check size={15} /> : <Pencil size={15} />} {drawMode === 'retour' ? t('lines.finishReturn') : t('lines.drawReturn')}
                   </button>
                   <div className="iz-route-actions">
                     <button type="button" className="iz-btn iz-btn-ghost iz-btn-sm" disabled={!drawMode || !form.trace[drawMode].length} onClick={() => {

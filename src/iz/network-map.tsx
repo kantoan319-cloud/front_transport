@@ -1,4 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import {
+  Box, Compass, History, Layers, LocateFixed, Map as MapIcon, MoonStar,
+  Satellite, Siren, Target,
+} from 'lucide-react'
 import MapCanvas, { type MapLine, type MapPoint, type MapVehiclePosition } from '../MapCanvas'
 import { useApp, useAsync } from './components'
 import { translateValue } from './i18n'
@@ -389,7 +393,7 @@ export function NetworkMap() {
         </div>
         <div className="iz-flex iz-wrap">
           <button className="iz-btn iz-btn-outline iz-btn-sm" onClick={() => setBasemap(basemap === 'plan' ? 'satellite' : 'plan')}>
-            {basemap === 'plan' ? t('map.satellite') : t('map.plan')}
+            {basemap === 'plan' ? <><Satellite size={15} /> {t('map.satellite')}</> : <><MapIcon size={15} /> {t('map.plan')}</>}
           </button>
           <button className="iz-btn iz-btn-outline iz-btn-sm" aria-label={t('map.view3d')} aria-pressed={viewMode === '3d'} onClick={() => {
             const nextMode = viewMode === '2d' ? '3d' : '2d'
@@ -397,10 +401,10 @@ export function NetworkMap() {
             setFocus((current) => ({ ...center, zoom, pitch: nextMode === '3d' ? 55 : 0,
               bearing: follow && simulatedVehicle ? simulatedVehicle.bearing : 0, key: (current?.key ?? 0) + 1 }))
           }}>
-            {viewMode.toUpperCase()}
+            <Box size={15} /> {viewMode.toUpperCase()}
           </button>
           <button className="iz-btn iz-btn-outline iz-btn-sm" aria-label={t('map.nightAria')} aria-pressed={night} onClick={() => setNight(!night)}>
-            {night ? t('map.nightOn') : t('map.nightOff')}
+            <MoonStar size={15} /> {night ? t('map.nightOn') : t('map.nightOff')}
           </button>
         </div>
       </div>
@@ -523,7 +527,7 @@ export function NetworkMap() {
             </div>
           )}
 
-          <h3 className="iz-map-section-title">{t('nmap.itineraryTitle')}</h3>
+          <h3 className="iz-map-section-title"><Compass size={14} className="iz-inline-icon" />{t('nmap.itineraryTitle')}</h3>
           <div className="iz-form-grid">
             <label className="iz-field">
               <span className="iz-label">{t('nmap.departure')}</span>
@@ -540,7 +544,7 @@ export function NetworkMap() {
           </button>
           {routeStatus && <p className="iz-small iz-muted" role="status" style={{ marginTop: 8 }}>{routeStatus}</p>}
 
-          <h3 className="iz-map-section-title">{t('nmap.incidentsTitle')}</h3>
+          <h3 className="iz-map-section-title"><Siren size={14} className="iz-inline-icon" />{t('nmap.incidentsTitle')}</h3>
           <div className="iz-traffic-status">
             <span className="iz-dot" style={{ background: '#64748b' }} />
             <span>{incidentsLoading ? t('nmap.loadingIncidents') : incidentsError ? t('nmap.incidentsUnavailable')
@@ -548,7 +552,7 @@ export function NetworkMap() {
           </div>
           <p className="iz-small iz-muted">{t('nmap.incidentNote')}</p>
 
-          <h3 className="iz-map-section-title">{t('map.layers')}</h3>
+          <h3 className="iz-map-section-title"><Layers size={14} className="iz-inline-icon" />{t('map.layers')}</h3>
           <div className="iz-layer-grid">
             {([['lignes', 'coops.lines'], ['arrets', 'map.stops'], ['vehicules', 'map.vehicles'], ['incidents', 'map.incidents']] as const).map(([key, label]) => (
               <label className="iz-check-row" key={key}>
@@ -562,7 +566,7 @@ export function NetworkMap() {
             ))}
           </div>
 
-          <h3 className="iz-map-section-title">{t('map.history')}</h3>
+          <h3 className="iz-map-section-title"><History size={14} className="iz-inline-icon" />{t('map.history')}</h3>
           <div className="iz-map-list iz-map-incidents">
             {incidents?.length ? incidents.slice(0, 8).map((incident) => (
               <div key={incident.id} className="iz-incident-row">
@@ -573,7 +577,7 @@ export function NetworkMap() {
             )) : <p className="iz-muted iz-small">{incidentsLoading ? t('common.loading') : incidentsError ? t('map.historyUnavailable') : t('map.noIncident')}</p>}
           </div>
 
-          <h3 className="iz-map-section-title">{t('map.legend')}</h3>
+          <h3 className="iz-map-section-title"><Target size={14} className="iz-inline-icon" />{t('map.legend')}</h3>
           <div className="iz-legend">
             <span><i style={{ background: '#2563eb' }} /> {t('nmap.stopFallback')}</span>
             <span><i style={{ background: '#dc2626' }} /> {t('nmap.itineraryLegend')}</span>
@@ -583,7 +587,7 @@ export function NetworkMap() {
           </div>
 
           <button className="iz-btn iz-btn-outline iz-btn-sm" style={{ width: '100%', marginTop: 14 }} onClick={geolocaliser}>
-            {t('map.geolocate')}
+            <LocateFixed size={15} /> {t('map.geolocate')}
           </button>
           {geoStatus && <p className="iz-small iz-muted" style={{ marginTop: 6 }}>{t(geoStatus)}</p>}
         </aside>

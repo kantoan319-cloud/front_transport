@@ -826,7 +826,13 @@ export default function MapCanvas(props: MapCanvasProps) {
     if (!markerRef.current) {
       const element = document.createElement('div')
       element.className = 'map-bus'
-      element.innerHTML = '<div class="map-bus__beam"></div><div class="map-bus__body">🚌</div>'
+      element.innerHTML = '<div class="map-bus__beam"></div><div class="map-bus__body">'
+        + '<svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+        + '<path d="M4 6 2 7"/><path d="M10 6h4"/><path d="m22 7-2-1"/>'
+        + '<rect width="16" height="16" x="4" y="3" rx="2"/>'
+        + '<path d="M4 11h16"/><path d="M8 15h.01"/><path d="M16 15h.01"/>'
+        + '<path d="M6 19v2"/><path d="M18 21v-2"/>'
+        + '</svg></div>'
       markerRef.current = new Marker({ element, anchor: 'center' })
         .setLngLat([vehicule.longitude, vehicule.latitude])
         .addTo(map)

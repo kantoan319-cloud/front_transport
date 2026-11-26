@@ -5,7 +5,7 @@ import { useApp } from './components'
 export interface DashLink {
   path: string
   label: string
-  icon?: string
+  icon?: ReactNode
   badge?: boolean
 }
 
@@ -41,7 +41,7 @@ export function DashboardShell({
             className={route === link.path ? 'active' : ''}
             onClick={(event) => { event.preventDefault(); navigate(link.path) }}
           >
-            {link.icon && <span>{link.icon}</span>}
+            {link.icon && <span className="iz-side-icon">{link.icon}</span>}
             {link.label}
             {link.badge && unreadNotifications > 0 && (
               <span className="iz-side-badge">{unreadNotifications > 99 ? '99+' : unreadNotifications}</span>

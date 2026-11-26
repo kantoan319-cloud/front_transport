@@ -1,5 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { FormEvent } from 'react'
+import {
+  ArrowLeft, ArrowRight, Bus, ChartColumn, Handshake, MapPin, Megaphone, Search,
+  ShieldCheck, Smartphone, Users,
+} from 'lucide-react'
 import MapCanvas from '../MapCanvas'
 import type { MapLine, MapPoint } from '../MapCanvas'
 import { izApi } from './api'
@@ -36,10 +40,10 @@ export function HomePage() {
     }
   }
   const features = [
-    { icon: '🔎', title: t('home.f1Title'), text: t('home.f1Text') },
-    { icon: '🛡️', title: t('home.f2Title'), text: t('home.f2Text') },
-    { icon: '📣', title: t('home.f3Title'), text: t('home.f3Text') },
-    { icon: '📊', title: t('home.f4Title'), text: t('home.f4Text') },
+    { icon: <Search size={22} />, title: t('home.f1Title'), text: t('home.f1Text') },
+    { icon: <ShieldCheck size={22} />, title: t('home.f2Title'), text: t('home.f2Text') },
+    { icon: <Megaphone size={22} />, title: t('home.f3Title'), text: t('home.f3Text') },
+    { icon: <ChartColumn size={22} />, title: t('home.f4Title'), text: t('home.f4Text') },
   ]
   return (
     <>
@@ -49,7 +53,7 @@ export function HomePage() {
         <p>{t('home.subtitle')}</p>
         <div className="iz-hero-actions">
           <button className="iz-btn iz-btn-primary" onClick={() => navigate('/recherche')}>
-            {t('home.ctaSearch')} →
+            {t('home.ctaSearch')} <ArrowRight size={16} />
           </button>
           <button className="iz-btn iz-btn-outline" onClick={() => navigate('/signaler')}>
             {t('home.ctaSignal')}
@@ -60,22 +64,22 @@ export function HomePage() {
       <section className="iz-section" style={{ marginTop: 28 }}>
         <div className="iz-grid iz-grid-4">
           <button type="button" className="iz-card iz-stat iz-card-hover iz-stat-link" onClick={() => navigate('/recherche')} title={t('home.searchTitleAttr')}>
-            <div className="iz-stat-icon">🚐</div>
+            <div className="iz-stat-icon"><Bus size={20} /></div>
             <div className="iz-stat-value">{data?.vehicules ?? '—'}</div>
             <div className="iz-stat-label">{t('home.statVehicles')}</div>
           </button>
           <button type="button" className="iz-card iz-stat iz-card-hover iz-stat-link" onClick={() => navigate('/cooperatives')} title={t('home.coopsTitleAttr')}>
-            <div className="iz-stat-icon">🤝</div>
+            <div className="iz-stat-icon"><Handshake size={20} /></div>
             <div className="iz-stat-value">{data?.cooperatives ?? '—'}</div>
             <div className="iz-stat-label">{t('home.statCoops')}</div>
           </button>
           <button type="button" className="iz-card iz-stat iz-card-hover iz-stat-link" onClick={() => navigate('/admin/owners')} title={t('home.ownersTitleAttr')}>
-            <div className="iz-stat-icon">👥</div>
+            <div className="iz-stat-icon"><Users size={20} /></div>
             <div className="iz-stat-value">{data?.proprietaires ?? '—'}</div>
             <div className="iz-stat-label">{t('home.statOwners')}</div>
           </button>
           <button type="button" className="iz-card iz-stat iz-card-hover iz-stat-link" onClick={() => navigate('/suivi')} title={t('home.trackTitleAttr')}>
-            <div className="iz-stat-icon">📣</div>
+            <div className="iz-stat-icon"><Megaphone size={20} /></div>
             <div className="iz-stat-value">{data?.signalements ?? '—'}</div>
             <div className="iz-stat-label">{t('home.statSignals')}</div>
           </button>
@@ -111,7 +115,7 @@ export function HomePage() {
         </div>
         <div className="iz-grid">
           <div className="iz-card iz-card-hover">
-            <div className="iz-feature-icon">📱</div>
+            <div className="iz-feature-icon"><Smartphone size={22} /></div>
             <h3 style={{ fontSize: '1rem', marginBottom: 6 }}>{t('home.androidCard')}</h3>
             <p className="iz-muted iz-small">
               {t('home.androidText')}
@@ -137,10 +141,10 @@ export function HomePage() {
           </div>
           <div className="iz-grid iz-grid-2">
             <button type="button" className="iz-card iz-card-hover iz-link-card" onClick={() => navigate('/cooperatives')}>
-              <div className="iz-feature-icon">🤝</div>
+              <div className="iz-feature-icon"><Handshake size={22} /></div>
               <h3 style={{ fontSize: '1rem', marginBottom: 6 }}>{t('nav.coops')}</h3>
               <p className="iz-muted iz-small">{t('home.coopsSummary', { coops: data?.cooperatives ?? '—', vehicles: data?.vehicules ?? '—' })}</p>
-              <span className="iz-btn iz-btn-outline iz-btn-sm" style={{ marginTop: 12 }}>{t('common.details')} →</span>
+              <span className="iz-btn iz-btn-outline iz-btn-sm" style={{ marginTop: 12 }}>{t('common.details')} <ArrowRight size={15} /></span>
             </button>
           </div>
         </section>
@@ -303,9 +307,9 @@ export function SearchPage() {
       ) : vehicleTable(vehicles)}
       {view === 'list' && data && data.total > data.limit && (
         <div className="iz-flex" style={{ justifyContent: 'center', marginTop: 18 }}>
-          <button className="iz-btn iz-btn-outline iz-btn-sm" disabled={page <= 1} onClick={() => setPage(page - 1)}>←</button>
+          <button className="iz-btn iz-btn-outline iz-btn-sm" disabled={page <= 1} onClick={() => setPage(page - 1)} aria-label="Précédent"><ArrowLeft size={15} /></button>
           <span className="iz-small">{page} / {Math.ceil(data.total / data.limit)}</span>
-          <button className="iz-btn iz-btn-outline iz-btn-sm" disabled={page * data.limit >= data.total} onClick={() => setPage(page + 1)}>→</button>
+          <button className="iz-btn iz-btn-outline iz-btn-sm" disabled={page * data.limit >= data.total} onClick={() => setPage(page + 1)} aria-label="Suivant"><ArrowRight size={15} /></button>
         </div>
       )}
       {selected && <VehicleDetail vehicle={selected} onClose={() => setSelected(null)} />}
@@ -500,7 +504,7 @@ export function SignalPage() {
             </Field>
             <div className="full">
               <p className="iz-small iz-muted" style={{ marginTop: 0 }}>
-                {t('signal.gpsNotice')}
+                <MapPin size={13} className="iz-inline-icon" />{t('signal.gpsNotice')}
               </p>
               <button type="button" className="iz-btn iz-btn-outline" onClick={async () => {
                 const coords = await geolocate(10000)

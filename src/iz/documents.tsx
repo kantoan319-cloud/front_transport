@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import type { ChangeEvent } from 'react'
+import { ArrowDown, ArrowLeft, ArrowUp, Bus } from 'lucide-react'
 import { izApi } from './api'
 import type { IZRecord } from './api'
 import { translateError, translateValue } from './i18n'
@@ -106,7 +107,7 @@ export function AdminDocuments() {
           title={ascending ? t('docs.sortAscending') : t('docs.sortDescending')}
           onClick={() => setAscending((current) => !current)}
         >
-          {ascending ? '▲' : '▼'}
+          {ascending ? <ArrowUp size={15} /> : <ArrowDown size={15} />}
         </button>
         <div className="iz-doc-views" role="group" aria-label={t('docs.viewMode')}>
           {views.map((item) => (
@@ -163,7 +164,7 @@ function VehicleRow({ vehicle, onOpen }: { vehicle: IZRecord; onOpen: () => void
   const { t } = useApp()
   return (
     <article className="iz-doc-row">
-      <div className="iz-doc-vehicle-icon" aria-hidden="true">🚐</div>
+      <div className="iz-doc-vehicle-icon" aria-hidden="true"><Bus size={18} /></div>
       <div className="iz-doc-main">
         <strong>{String(vehicle.immatriculation ?? '')}</strong>
         <span className="iz-small iz-muted">
@@ -185,7 +186,7 @@ function VehicleCard({ vehicle, large, onOpen }: { vehicle: IZRecord; large: boo
   const { t } = useApp()
   return (
     <article className={`iz-doc-card${large ? ' iz-doc-card-lg' : ''}`}>
-      <div className={`iz-doc-vehicle-icon${large ? ' iz-doc-vehicle-icon-lg' : ''}`} aria-hidden="true">🚐</div>
+      <div className={`iz-doc-vehicle-icon${large ? ' iz-doc-vehicle-icon-lg' : ''}`} aria-hidden="true"><Bus size={large ? 26 : 20} /></div>
       <strong className="iz-doc-name">{String(vehicle.immatriculation ?? '')}</strong>
       {large && <span className="iz-small iz-muted">{t('docs.line')} : {String(vehicle.ligne ?? '—')}</span>}
       <span className="iz-small iz-muted">{String(vehicle.cooperativeNom ?? '—')}</span>
@@ -269,7 +270,7 @@ function VehicleDocuments({ vehicle, onBack }: { vehicle: IZRecord; onBack: () =
     <>
       <PageHead title={t('docs.vehicleDocs', { plate })} subtitle={t('docs.vehicleSubtitle')} />
       <div className="iz-flex iz-wrap" style={{ marginBottom: 12, gap: 8, alignItems: 'center' }}>
-        <button type="button" className="iz-btn iz-btn-ghost iz-btn-sm" onClick={onBack}>← {t('docs.back')}</button>
+        <button type="button" className="iz-btn iz-btn-ghost iz-btn-sm" onClick={onBack}><ArrowLeft size={15} /> {t('docs.back')}</button>
         <span className="iz-small iz-muted">
           {t('docs.line')} : {String(vehicle.ligne ?? '—')} · {t('docs.coop')} : {String(vehicle.cooperativeNom ?? '—')} · {t('docs.owner')} : {String(vehicle.proprietaireNom ?? '—')}
         </span>

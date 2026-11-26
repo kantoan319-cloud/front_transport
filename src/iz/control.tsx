@@ -1,6 +1,10 @@
 import { useMemo, useState } from 'react'
 import MapCanvas from '../MapCanvas'
 import type { MapPoint } from '../MapCanvas'
+import {
+  ArrowLeft, Bell, BookOpen, Check, CircleCheck, ClipboardList, LayoutDashboard,
+  MapPin, Megaphone, Plus, Search, Smartphone, TriangleAlert, UserRound, Warehouse,
+} from 'lucide-react'
 import { BusInformation, QrScanner, plateFromQr } from './bus'
 import type { FormEvent, ReactNode } from 'react'
 import { izApi } from './api'
@@ -18,16 +22,16 @@ const when = (value?: string | null) => (value ? String(value).slice(0, 16).repl
 export function ControlLayout({ children }: { children: ReactNode }) {
   const { t, navigate } = useApp()
   const links = [
-    { path: '/controle', label: t('control.dashboard'), icon: '📊' },
-    { path: '/notifications', label: t('nav.notifications'), icon: '🔔', badge: true },
-    { path: '/controle/scan', label: t('control.scanTitle'), icon: '🔍' },
-    { path: '/controle/scans', label: t('control.scans'), icon: '📋' },
-    { path: '/controle/infractions', label: t('control.infractions'), icon: '⚠️' },
-    { path: '/controle/signals', label: t('control.signals'), icon: '📣' },
-    { path: '/controle/fourriere', label: t('control.fourriere'), icon: 'P' },
-    { path: '/signaler', label: t('control.makeSignal'), icon: '+' },
-    { path: '/controle/profil', label: t('control.myProfile'), icon: '👤' },
-    { path: '/controle/manuel', label: t('control.manual'), icon: '📘' },
+    { path: '/controle', label: t('control.dashboard'), icon: <LayoutDashboard size={17} /> },
+    { path: '/notifications', label: t('nav.notifications'), icon: <Bell size={17} />, badge: true },
+    { path: '/controle/scan', label: t('control.scanTitle'), icon: <Search size={17} /> },
+    { path: '/controle/scans', label: t('control.scans'), icon: <ClipboardList size={17} /> },
+    { path: '/controle/infractions', label: t('control.infractions'), icon: <TriangleAlert size={17} /> },
+    { path: '/controle/signals', label: t('control.signals'), icon: <Megaphone size={17} /> },
+    { path: '/controle/fourriere', label: t('control.fourriere'), icon: <Warehouse size={17} /> },
+    { path: '/signaler', label: t('control.makeSignal'), icon: <Plus size={17} /> },
+    { path: '/controle/profil', label: t('control.myProfile'), icon: <UserRound size={17} /> },
+    { path: '/controle/manuel', label: t('control.manual'), icon: <BookOpen size={17} /> },
   ]
   return (
     <DashboardShell
@@ -35,7 +39,7 @@ export function ControlLayout({ children }: { children: ReactNode }) {
       links={links}
     >
       <div className="iz-flex iz-small iz-muted" style={{ marginBottom: 14 }}>
-        <button className="iz-btn iz-btn-ghost iz-btn-sm" onClick={() => navigate('/')}>← {t('nav.home')}</button>
+        <button className="iz-btn iz-btn-ghost iz-btn-sm" onClick={() => navigate('/')}><ArrowLeft size={15} /> {t('nav.home')}</button>
       </div>
       {children}
     </DashboardShell>
@@ -61,19 +65,19 @@ export function ControlDashboard() {
       {loading ? <Loading /> : (
         <>
           <div className="iz-grid iz-grid-4">
-            <StatCard icon="🔍" value={data?.scans?.total ?? 0} label={t('control.scans')} />
-            <StatCard icon="✅" value={data?.scans?.conformes ?? 0} label={t('control.conforme')} />
-            <StatCard icon="⚠️" value={data?.infractions?.ouvertes ?? 0} label={t('control.infractions')} />
-            <StatCard icon="📣" value={data?.signals?.nouveaux ?? 0} label={t('control.signals')} />
+            <StatCard icon={<Search size={20} />} value={data?.scans?.total ?? 0} label={t('control.scans')} />
+            <StatCard icon={<CircleCheck size={20} />} value={data?.scans?.conformes ?? 0} label={t('control.conforme')} />
+            <StatCard icon={<TriangleAlert size={20} />} value={data?.infractions?.ouvertes ?? 0} label={t('control.infractions')} />
+            <StatCard icon={<Megaphone size={20} />} value={data?.signals?.nouveaux ?? 0} label={t('control.signals')} />
           </div>
           <div className="iz-grid iz-grid-2" style={{ marginTop: 22 }}>
             <button className="iz-card iz-card-hover" style={{ textAlign: 'left' }} onClick={() => navigate('/controle/scan')}>
-              <div className="iz-feature-icon">🔍</div>
+              <div className="iz-feature-icon"><Search size={22} /></div>
               <h3>{t('control.scanTitle')}</h3>
               <p className="iz-muted iz-small">{t('control.scanSubtitle')}</p>
             </button>
             <button className="iz-card iz-card-hover" style={{ textAlign: 'left' }} onClick={() => navigate('/controle/signals')}>
-              <div className="iz-feature-icon">📣</div>
+              <div className="iz-feature-icon"><Megaphone size={22} /></div>
               <h3>{t('control.signals')}</h3>
               <p className="iz-muted iz-small">{data?.signals?.nouveaux ?? 0} {t('control.signals')}</p>
             </button>
@@ -139,7 +143,7 @@ export function ScanPage() {
             <button className="iz-btn iz-btn-primary" disabled={busy || profilBloque} type="submit">
               {busy ? <span className="iz-spinner" /> : null}{t('control.scan')}
             </button>
-            <button className="iz-btn iz-btn-outline" type="button" onClick={locate}>📍 GPS</button>
+            <button className="iz-btn iz-btn-outline" type="button" onClick={locate}><MapPin size={15} /> GPS</button>
           </div>
         </form>
       </div>
@@ -396,7 +400,7 @@ export function ControlSignalsPage() {
       {isAdmin && (
         <div className="iz-card" style={{ marginBottom: 16 }}>
           <div className="iz-flex iz-wrap" style={{ justifyContent: 'space-between', marginBottom: 8 }}>
-            <h3 style={{ fontSize: '.95rem', margin: 0 }}>{t('control.positionsSent')}</h3>
+            <h3 style={{ fontSize: '.95rem', margin: 0 }}><MapPin size={15} className="iz-inline-icon" />{t('control.positionsSent')}</h3>
             <span className="iz-small iz-muted">
               <span className="iz-badge iz-badge-orange">{t('track.signalLabel')}</span>{' '}
               <span className="iz-badge">Scan QR</span> · {t('control.points', { count: mapPoints.length })}
@@ -468,7 +472,7 @@ export function ControlSignalsPage() {
           actions={(signal) => (
             <>
               <button className="iz-btn iz-btn-primary iz-btn-sm" onClick={() => resolve(Number(signal.id), 'En cours')}>{t('control.process')}</button>{' '}
-              <button className="iz-btn iz-btn-outline iz-btn-sm" onClick={() => resolve(Number(signal.id), 'Résolu')}>✓</button>
+              <button className="iz-btn iz-btn-outline iz-btn-sm" onClick={() => resolve(Number(signal.id), 'Résolu')} title={t('common.status')}><Check size={15} /></button>
               {isAdmin && (
                 <> <button className="iz-btn iz-btn-danger iz-btn-sm" onClick={() => setDeleting(signal)}>{t('common.delete')}</button></>
               )}
@@ -478,7 +482,7 @@ export function ControlSignalsPage() {
       )}
       {isAdmin && (
         <div className="iz-card" style={{ marginTop: 18 }}>
-          <h3 style={{ fontSize: '.95rem', marginBottom: 10 }}>{t('control.publicScans')}</h3>
+          <h3 style={{ fontSize: '.95rem', marginBottom: 10 }}><Smartphone size={15} className="iz-inline-icon" />{t('control.publicScans')}</h3>
           {scans?.length ? (
             <div className="iz-table-wrap">
               <table className="iz-report-table">

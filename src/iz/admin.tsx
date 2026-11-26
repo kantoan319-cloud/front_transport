@@ -1,6 +1,12 @@
 import { useMemo, useRef, useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
 import QRCode from 'qrcode'
+import {
+  Archive, ArrowLeft, ArrowRight, Bell, BookOpen, Bus, ChartColumn, CircleCheck,
+  ClipboardList, CreditCard, Download, FileText, FolderOpen, Handshake, History,
+  Hourglass, LayoutDashboard, LockKeyhole, Printer, QrCode, ReceiptText, RefreshCw, Route, Siren,
+  TriangleAlert, UserRound, Users, Warehouse,
+} from 'lucide-react'
 import { izApi } from './api'
 import type { IZAccountRole, IZCreateUser, IZRecord } from './api'
 import {
@@ -54,35 +60,35 @@ const sixMonthEnd = (start: string) => {
 export function AdminLayout({ children }: { children: ReactNode }) {
   const { t, navigate, user } = useApp()
   const historyLink = user?.role === 'superadmin'
-    ? { path: '/admin/activity', label: t('admin.historyAdmins'), icon: '🕘' }
-    : { path: '/admin/activity', label: t('admin.historyControllers'), icon: '🕘' }
+    ? { path: '/admin/activity', label: t('admin.historyAdmins'), icon: <History size={17} /> }
+    : { path: '/admin/activity', label: t('admin.historyControllers'), icon: <History size={17} /> }
   const links = [
-    { path: '/admin', label: t('admin.dashboard'), icon: '📊' },
-    { path: '/notifications', label: t('nav.notifications'), icon: '🔔', badge: true },
-    { path: '/admin/analytics', label: t('admin.analytics'), icon: '📈' },
-    { path: '/admin/vehicles', label: t('admin.vehicles'), icon: '🚐' },
-    { path: '/controle/scan', label: t('admin.scanControl'), icon: 'QR' },
-    { path: '/controle/fourriere', label: t('control.fourriere'), icon: 'P' },
-    { path: '/controle/signals', label: t('admin.signalements'), icon: '!' },
-    { path: '/admin/cooperatives', label: t('nav.coops'), icon: '🤝' },
-    { path: '/admin/owners', label: t('admin.owners'), icon: '👥' },
-    { path: '/admin/lines', label: t('admin.lines'), icon: '🛣️' },
-    { path: '/admin/attestations', label: t('att.title'), icon: '📄' },
-    { path: '/admin/documents', label: t('docs.menu'), icon: '📁' },
-    { path: '/admin/licenses', label: t('admin.licences'), icon: '⚠️' },
-    { path: '/admin/payments', label: t('admin.payments'), icon: '💳' },
-    { path: '/admin/payments/register', label: t('admin.paymentRegister'), icon: '🧾' },
-    { path: '/admin/requests', label: t('admin.requests'), icon: '📝' },
-    { path: '/admin/users', label: t('admin.users'), icon: '🔐' },
-    { path: '/admin/profiles', label: t('admin.profiles'), icon: '👤' },
-    { path: '/admin/backup', label: t('backup.menu'), icon: '💾' },
-    { path: '/admin/manuel', label: t('admin.manual'), icon: '📘' },
+    { path: '/admin', label: t('admin.dashboard'), icon: <LayoutDashboard size={17} /> },
+    { path: '/notifications', label: t('nav.notifications'), icon: <Bell size={17} />, badge: true },
+    { path: '/admin/analytics', label: t('admin.analytics'), icon: <ChartColumn size={17} /> },
+    { path: '/admin/vehicles', label: t('admin.vehicles'), icon: <Bus size={17} /> },
+    { path: '/controle/scan', label: t('admin.scanControl'), icon: <QrCode size={17} /> },
+    { path: '/controle/fourriere', label: t('control.fourriere'), icon: <Warehouse size={17} /> },
+    { path: '/controle/signals', label: t('admin.signalements'), icon: <Siren size={17} /> },
+    { path: '/admin/cooperatives', label: t('nav.coops'), icon: <Handshake size={17} /> },
+    { path: '/admin/owners', label: t('admin.owners'), icon: <Users size={17} /> },
+    { path: '/admin/lines', label: t('admin.lines'), icon: <Route size={17} /> },
+    { path: '/admin/attestations', label: t('att.title'), icon: <FileText size={17} /> },
+    { path: '/admin/documents', label: t('docs.menu'), icon: <FolderOpen size={17} /> },
+    { path: '/admin/licenses', label: t('admin.licences'), icon: <TriangleAlert size={17} /> },
+    { path: '/admin/payments', label: t('admin.payments'), icon: <CreditCard size={17} /> },
+    { path: '/admin/payments/register', label: t('admin.paymentRegister'), icon: <ReceiptText size={17} /> },
+    { path: '/admin/requests', label: t('admin.requests'), icon: <ClipboardList size={17} /> },
+    { path: '/admin/users', label: t('admin.users'), icon: <LockKeyhole size={17} /> },
+    { path: '/admin/profiles', label: t('admin.profiles'), icon: <UserRound size={17} /> },
+    { path: '/admin/backup', label: t('backup.menu'), icon: <Archive size={17} /> },
+    { path: '/admin/manuel', label: t('admin.manual'), icon: <BookOpen size={17} /> },
     historyLink,
   ]
   return (
     <DashboardShell title={t('nav.admin')} links={links}>
       <div className="iz-flex iz-small iz-muted" style={{ marginBottom: 14 }}>
-        <button className="iz-btn iz-btn-ghost iz-btn-sm" onClick={() => navigate('/')}>← {t('nav.home')}</button>
+        <button className="iz-btn iz-btn-ghost iz-btn-sm" onClick={() => navigate('/')}><ArrowLeft size={15} /> {t('nav.home')}</button>
       </div>
       {children}
     </DashboardShell>
@@ -98,14 +104,14 @@ export function AdminDashboard() {
       {loading ? <Loading /> : (
         <>
           <div className="iz-grid iz-grid-4">
-            <StatCard icon="🚐" value={data?.vehicles?.total ?? 0} label={t('admin.vehicles')} />
-            <StatCard icon="✅" value={data?.vehicles?.valides ?? 0} label={t('search.valid')} />
+            <StatCard icon={<Bus size={20} />} value={data?.vehicles?.total ?? 0} label={t('admin.vehicles')} />
+            <StatCard icon={<CircleCheck size={20} />} value={data?.vehicles?.valides ?? 0} label={t('search.valid')} />
             <button type="button" className="iz-card iz-stat iz-card-hover iz-stat-link" onClick={() => navigate('/admin/licenses')} title={t('admin.viewExpired')}>
-              <div className="iz-stat-icon">⚠️</div>
+              <div className="iz-stat-icon"><TriangleAlert size={20} /></div>
               <div className="iz-stat-value">{data?.vehicles?.expires ?? 0}</div>
-              <div className="iz-stat-label">{t('search.expired')} →</div>
+              <div className="iz-stat-label">{t('search.expired')} <ArrowRight size={13} /></div>
             </button>
-            <StatCard icon="🤝" value={data?.cooperatives?.total ?? 0} label={t('nav.coops')} />
+            <StatCard icon={<Handshake size={20} />} value={data?.cooperatives?.total ?? 0} label={t('nav.coops')} />
           </div>
           <div className="iz-grid iz-grid-4" style={{ marginTop: 16 }}>
             <StatCard value={data?.scans?.total ?? 0} label={t('control.scans')} />
@@ -454,7 +460,7 @@ export function AdminVehicles() {
       subtitle={t('admin.vehiclesSubtitle')}
       addLabel={t('admin.newVehicle')}
       extra={<div className="iz-flex iz-wrap" style={{ marginBottom: 14 }}>
-        <button className="iz-btn iz-btn-outline iz-btn-sm" onClick={() => navigate('/admin/licenses')}>{t('admin.expiredCta')}</button>
+        <button className="iz-btn iz-btn-outline iz-btn-sm" onClick={() => navigate('/admin/licenses')}><TriangleAlert size={15} /> {t('admin.expiredCta')}</button>
       </div>}
       searchText={(row) => [row.immatriculation, row.proprietaireNom, row.cooperativeCode, row.ligne, row.licenceNumero, row.conducteurNom, row.receveurNom].join(' ')}
       searchPlaceholder={t('admin.searchVehicles')}
@@ -920,7 +926,7 @@ export function AdminPayments() {
         title={t('admin.payments')}
         action={(
           <div className="iz-flex iz-wrap">
-            <button className="iz-btn iz-btn-outline iz-btn-sm" onClick={() => navigate('/admin/payments/register')}>{t('admin.registerBtn')}</button>
+            <button className="iz-btn iz-btn-outline iz-btn-sm" onClick={() => navigate('/admin/payments/register')}><ReceiptText size={15} /> {t('admin.registerBtn')}</button>
             <ExportButton cible="paiements" label="Excel" />
             <button className="iz-btn iz-btn-primary" onClick={() => setOpen(true)}>+ {t('admin.newPayment')}</button>
           </div>
@@ -1099,8 +1105,8 @@ export function AdminPaymentsRegister() {
         subtitle={t('admin.registerSubtitle')}
         action={(
           <div className="iz-flex iz-wrap">
-            <button className="iz-btn iz-btn-ghost iz-btn-sm" onClick={() => navigate('/admin/payments')}>{t('admin.backPayments')}</button>
-            <button className="iz-btn iz-btn-outline iz-btn-sm" disabled={busy !== null} onClick={() => void exportPdf('pdf')}>{busy === 'pdf' ? t('admin.generating') : t('admin.generatePdf')}</button>
+            <button className="iz-btn iz-btn-ghost iz-btn-sm" onClick={() => navigate('/admin/payments')}><ArrowLeft size={15} /> {t('admin.backPayments')}</button>
+            <button className="iz-btn iz-btn-outline iz-btn-sm" disabled={busy !== null} onClick={() => void exportPdf('pdf')}>{busy === 'pdf' ? t('admin.generating') : <><Download size={15} /> {t('admin.generatePdf')}</>}</button>
             <button className="iz-btn iz-btn-primary iz-btn-sm" disabled={busy !== null} onClick={() => void exportPdf('print')}>{busy === 'print' ? t('admin.preparing') : t('admin.printRegister')}</button>
           </div>
         )}
@@ -1240,12 +1246,12 @@ export function AdminAnalytics() {
   return (
     <>
       <PageHead
-        title={`📊 ${t('admin.analytics')}`}
+        title={t('admin.analytics')}
         subtitle={t('admin.analyticsSubtitle')}
         action={(
           <div className="iz-flex iz-wrap iz-no-print">
-            <button className="iz-btn iz-btn-outline iz-btn-sm" onClick={() => void reload()}>{t('admin.refresh')}</button>
-            <button className="iz-btn iz-btn-primary iz-btn-sm" onClick={print}>{t('admin.print')}</button>
+            <button className="iz-btn iz-btn-outline iz-btn-sm" onClick={() => void reload()}><RefreshCw size={15} /> {t('admin.refresh')}</button>
+            <button className="iz-btn iz-btn-primary iz-btn-sm" onClick={print}><Printer size={15} /> {t('admin.print')}</button>
           </div>
         )}
       />
@@ -1261,10 +1267,10 @@ export function AdminAnalytics() {
           </div>
 
           <div className="iz-grid iz-grid-4">
-            <StatCard icon="🚐" value={licences.total ?? 0} label={t('admin.registeredBuses')} />
-            <StatCard icon="✅" value={licences.valides ?? 0} label={t('admin.validLicences')} />
-            <StatCard icon="⏳" value={licences.expirent ?? 0} label={t('admin.expiringSoon')} />
-            <StatCard icon="⚠️" value={licences.expirees ?? 0} label={t('admin.expiredLicences')} />
+            <StatCard icon={<Bus size={20} />} value={licences.total ?? 0} label={t('admin.registeredBuses')} />
+            <StatCard icon={<CircleCheck size={20} />} value={licences.valides ?? 0} label={t('admin.validLicences')} />
+            <StatCard icon={<Hourglass size={20} />} value={licences.expirent ?? 0} label={t('admin.expiringSoon')} />
+            <StatCard icon={<TriangleAlert size={20} />} value={licences.expirees ?? 0} label={t('admin.expiredLicences')} />
           </div>
 
           <ReportTable

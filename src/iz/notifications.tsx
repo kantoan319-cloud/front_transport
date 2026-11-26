@@ -1,4 +1,9 @@
 import { useState } from 'react'
+import type { LucideIcon } from 'lucide-react'
+import {
+  Bell, CheckCircle2, ChevronRight, ClipboardList, CreditCard, Megaphone,
+  TriangleAlert, Warehouse,
+} from 'lucide-react'
 import { izApi } from './api'
 import type { IZRecord } from './api'
 import { translateError, translateValue } from './i18n'
@@ -6,15 +11,15 @@ import { Empty, Loading, PageHead, StatusBadge, useApp, useAsync } from './compo
 
 const when = (value?: string | null) => (value ? String(value).slice(0, 16).replace('T', ' ') : '—')
 
-const ICONES: Record<string, string> = {
-  'Nouveau signalement': '📣',
-  'Signalement traité': '📣',
-  'Mise en fourrière': 'P',
-  'Licence expirée': '⚠️',
-  'Licence délivrée': '✅',
-  'Paiement en attente': '💳',
-  'Paiement validé': '💳',
-  'Demande de licence': '📝',
+const ICONES: Record<string, LucideIcon> = {
+  'Nouveau signalement': Megaphone,
+  'Signalement traité': Megaphone,
+  'Mise en fourrière': Warehouse,
+  'Licence expirée': TriangleAlert,
+  'Licence délivrée': CheckCircle2,
+  'Paiement en attente': CreditCard,
+  'Paiement validé': CreditCard,
+  'Demande de licence': ClipboardList,
 }
 
 export function NotificationsPage() {
@@ -90,6 +95,7 @@ export function NotificationsPage() {
           {items.map((item) => {
             const motif = String(item.motif ?? '')
             const lu = Boolean(item.lu)
+            const Icone = ICONES[motif] ?? Bell
             return (
               <button
                 key={String(item.id)}
@@ -97,7 +103,7 @@ export function NotificationsPage() {
                 className={`iz-notif-item${lu ? '' : ' unread'}`}
                 onClick={() => void open(item)}
               >
-                <span className="iz-notif-icone" aria-hidden="true">{ICONES[motif] ?? '🔔'}</span>
+                <span className="iz-notif-icone" aria-hidden="true"><Icone size={18} /></span>
                 <span className="iz-notif-corps">
                   <span className="iz-notif-titre">
                     {translateValue(lang, item.titre)}
@@ -109,7 +115,7 @@ export function NotificationsPage() {
                     <span>{when(item.createdAt)}</span>
                   </span>
                 </span>
-                {item.lien ? <span className="iz-notif-go" aria-hidden="true">→</span> : null}
+                {item.lien ? <span className="iz-notif-go" aria-hidden="true"><ChevronRight size={16} /></span> : null}
               </button>
             )
           })}

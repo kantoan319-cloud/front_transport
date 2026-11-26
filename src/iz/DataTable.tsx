@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
+import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react'
 import { useApp } from './components'
 
 export interface DataColumn<T> {
@@ -216,7 +217,7 @@ export function DataTable<T>({
               aria-label={ascending ? t('common.asc') : t('common.desc')}
               title={ascending ? t('common.ascShort') : t('common.descShort')}
             >
-              {ascending ? '↑' : '↓'}
+              {ascending ? <ArrowUp size={15} /> : <ArrowDown size={15} />}
             </button>
           </div>
         )}
@@ -250,11 +251,11 @@ export function DataTable<T>({
             {selection?.label && ` · ${selection.label(visible.filter(selection.isSelected).length)}`}
           </span>
           <div className="iz-flex">
-            <button type="button" className="iz-btn iz-btn-outline iz-btn-sm" disabled={current <= 1} onClick={() => setPage(1)} aria-label={t('common.first')}>«</button>
-            <button type="button" className="iz-btn iz-btn-outline iz-btn-sm" disabled={current <= 1} onClick={() => setPage(current - 1)} aria-label={t('common.previous')}>‹</button>
+            <button type="button" className="iz-btn iz-btn-outline iz-btn-sm" disabled={current <= 1} onClick={() => setPage(1)} aria-label={t('common.first')}><ChevronsLeft size={15} /></button>
+            <button type="button" className="iz-btn iz-btn-outline iz-btn-sm" disabled={current <= 1} onClick={() => setPage(current - 1)} aria-label={t('common.previous')}><ChevronLeft size={15} /></button>
             <span className="iz-small">{current} / {pages}</span>
-            <button type="button" className="iz-btn iz-btn-outline iz-btn-sm" disabled={current >= pages} onClick={() => setPage(current + 1)} aria-label={t('common.next')}>›</button>
-            <button type="button" className="iz-btn iz-btn-outline iz-btn-sm" disabled={current >= pages} onClick={() => setPage(pages)} aria-label={t('common.last')}>»</button>
+            <button type="button" className="iz-btn iz-btn-outline iz-btn-sm" disabled={current >= pages} onClick={() => setPage(current + 1)} aria-label={t('common.next')}><ChevronRight size={15} /></button>
+            <button type="button" className="iz-btn iz-btn-outline iz-btn-sm" disabled={current >= pages} onClick={() => setPage(pages)} aria-label={t('common.last')}><ChevronsRight size={15} /></button>
           </div>
         </div>
       )}
