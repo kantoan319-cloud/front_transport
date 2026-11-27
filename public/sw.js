@@ -4,7 +4,7 @@
    connexion ; sans reseau l'app affiche son ecran mais signale l'absence de
    serveur. Les navigations restent prioritaires au reseau (cache HTTP ignore)
    pour recevoir tout de suite le nouvel index.html apres un deploiement. */
-const CACHE = 'bus-cu-abe-v9'
+const CACHE = 'bus-cu-abe-v10'
 const SHELL = [
   '/',
   '/manifest.webmanifest',
@@ -70,7 +70,7 @@ function remember(event, key, response) {
 self.addEventListener('fetch', (event) => {
   const request = event.request
   const url = new URL(request.url)
-  if (request.method !== 'GET' || url.origin !== self.location.origin || url.pathname.startsWith('/api')) return
+  if (request.method !== 'GET' || url.origin !== self.location.origin || url.pathname.startsWith('/api') || url.pathname.startsWith('/downloads/')) return
 
   if (request.mode === 'navigate') {
     event.respondWith((async () => {

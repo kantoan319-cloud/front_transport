@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
+import QRCode from 'qrcode'
 import {
-  ArrowLeft, ArrowRight, Bus, ChartColumn, Handshake, MapPin, Megaphone, Search,
+  ArrowLeft, ArrowRight, Bus, ChartColumn, Download, Handshake, MapPin, Megaphone, Search,
   ShieldCheck, Smartphone, Users,
 } from 'lucide-react'
 import MapCanvas from '../MapCanvas'
@@ -15,6 +16,34 @@ import {
 import busPhoto from '../assets/bus.jpg'
 
 const dateText = (value?: string | null) => (value ? String(value).slice(0, 10) : '—')
+
+/* Fichiers de telechargement : servis depuis public/downloads/. En local, le
+   QR code pointe vers le site de production, seul joignable depuis un telephone. */
+const PROD_ORIGIN = 'https://front-transport-chi.vercel.app'
+const downloadBase = (/^(localhost|127\.0\.0\.1)$/.test(window.location.hostname)
+  ? PROD_ORIGIN
+  : window.location.origin)
+const downloadUrl = (file: string) => `${downloadBase}/downloads/${file}`
+
+/** QR code d'un lien de telechargement (genere cote client, sans service externe). */
+function DownloadQr({ url, caption }: { url: string; caption: string }) {
+  const [src, setSrc] = useState<string | null>(null)
+  useEffect(() => {
+    let active = true
+    QRCode.toDataURL(url, { margin: 1, width: 264 }).then((data) => {
+      if (active) setSrc(data)
+    }).catch(() => undefined)
+    return () => { active = false }
+  }, [url])
+  return (
+    <figure style={{ margin: 0, textAlign: 'center' }}>
+      {src
+        ? <img src={src} alt={caption} width={132} height={132} style={{ display: 'block', borderRadius: 10, border: '1px solid rgb(var(--bd-gray-200))' }} />
+        : <div style={{ width: 132, height: 132, borderRadius: 10, background: 'rgb(var(--bg-gray-100))' }} />}
+      <figcaption className="iz-small iz-muted" style={{ marginTop: 6, maxWidth: 148, marginInline: 'auto' }}>{caption}</figcaption>
+    </figure>
+  )
+}
 
 /* ------------------------------------------------------------------ */
 /* Accueil                                                             */
@@ -144,16 +173,48 @@ export function HomePage() {
             <p className="iz-muted iz-small">
               {t('home.androidText')}
             </p>
-            <div className="iz-flex iz-wrap" style={{ marginTop: 12 }}>
-              <a className="iz-btn iz-btn-primary iz-btn-sm" href="/downloads/gestion-bus.apk" download>
-                {t('home.mobileDownload')}
-              </a>
-              <button className="iz-btn iz-btn-outline iz-btn-sm" onClick={installPwa}>{t('home.mobileInstall')}</button>
+            <div className="iz-flex iz-wrap" style={{ marginTop: 12, gap: 18, alignItems: 'center', justifyContent: 'space-between' }}>
+              <div className="iz-flex iz-wrap" style={{ gap: 8 }}>
+                <a className="iz-btn iz-btn-primary iz-btn-sm" href={downloadUrl('gestion-bus.apk')} download title={t('home.apkTitle')}>
+                  <Download size={15} /> {t('home.mobileDownload')}
+                </a>
+                <button className="iz-btn iz-btn-outline iz-btn-sm" onClick={installPwa}>{t('home.mobileInstall')}</button>
+              </div>
+              <DownloadQr url={downloadUrl('gestion-bus.apk')} caption={t('home.qrCaption')} />
             </div>
           </div>
         </div>
         <p className="iz-small iz-muted" style={{ marginTop: 10 }}>{t('home.mobileHelp')}</p>
       </section>
+
+      {/* Logiciel de bureau : reserve aux administrateurs et super administrateurs. */}
+      {isAdmin && (
+        <section className="iz-section">
+          <div className="iz-section-head">
+            <div>
+              <div className="iz-eyebrow">{t('nav.brand')} CU/ABE</div>
+              <h2>{t('home.desktopTitle')}</h2>
+              <p className="iz-muted">{t('home.desktopSubtitle')}</p>
+            </div>
+          </div>
+          <div className="iz-grid iz-grid-2">
+            {[
+              { label: t('home.desktop64'), file: 'gestion-bus-64.exe' },
+              { label: t('home.desktop32'), file: 'gestion-bus-32.exe' },
+            ].map((item) => (
+              <div className="iz-card iz-card-hover" key={item.file}>
+                <div className="iz-feature-icon"><Download size={22} /></div>
+                <h3 style={{ fontSize: '1rem', marginBottom: 6 }}>{item.label}</h3>
+                <p className="iz-muted iz-small">{t('home.desktopText')}</p>
+                <a className="iz-btn iz-btn-primary iz-btn-sm" style={{ marginTop: 12 }} href={downloadUrl(item.file)} download>
+                  <Download size={15} /> {t('home.desktopDownload')}
+                </a>
+              </div>
+            ))}
+          </div>
+          <p className="iz-small iz-muted" style={{ marginTop: 10 }}>{t('home.desktopHelp')}</p>
+        </section>
+      )}
 
       {user && (
         <section className="iz-section">
