@@ -96,10 +96,14 @@ function delaiSignal(ms: number): AbortSignal | undefined {
   return undefined
 }
 
-async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
-  let response: Response
+// Render (offre gratuite) met le service en veille : le proxy repond 502/503/504
+// le temps du reveil. Un GET rejoue une fois apres une courte pause ; les
+// ecritures ne sont jamais rejouees (risque de doublon).
+const SERVEUR_INDISPONIBLE = new Set([502, 503, 504])
+
+async function envoyer(url: string, init: RequestInit, essais: number): Promise<Response> {
   try {
-    response = await fetch(`${BASE}${path}`, {
+    return await fetch(url, {
       ...init,
       credentials: 'include',
       signal: init.signal ?? delaiSignal(TIMEOUT_MS),
@@ -109,10 +113,28 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
       },
     })
   } catch (error) {
+    const expire = error instanceof DOMException && (error.name === 'TimeoutError' || error.name === 'AbortError')
+    if (!expire && !init.signal && essais > 1) {
+      await new Promise((resolve) => setTimeout(resolve, 1200))
+      return envoyer(url, init, essais - 1)
+    }
+    throw error
+  }
+}
+
+async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const mode = (init.method ?? 'GET').toUpperCase()
+  let response: Response
+  try {
+    response = await envoyer(`${BASE}${path}`, init, mode === 'GET' ? 2 : 1)
+  } catch (error) {
     if (error instanceof DOMException && (error.name === 'TimeoutError' || error.name === 'AbortError')) {
       throw new IZApiError('Le serveur met trop de temps à répondre. Réessayez.', 0)
     }
     throw new IZApiError('Impossible de contacter le serveur.', 0)
+  }
+  if (SERVEUR_INDISPONIBLE.has(response.status)) {
+    throw new IZApiError('Le serveur redémarre. Réessayez dans quelques instants.', response.status)
   }
   if (!response.ok) {
     let message = `Erreur ${response.status}`

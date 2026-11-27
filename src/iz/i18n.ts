@@ -85,6 +85,7 @@ const dictionary: Record<string, Entry> = {
   'api.httpError': { fr: 'Erreur {{status}}', mg: 'Hadisoana {{status}}' },
   'Le serveur met trop de temps à répondre. Réessayez.': { fr: 'Le serveur met trop de temps à répondre. Réessayez.', mg: 'Maka ela loatra ny serveur hamaly. Andramo indray.' },
   'Impossible de contacter le serveur.': { fr: 'Impossible de contacter le serveur.', mg: 'Tsy afaka mifandray amin’ny serveur.' },
+  'Le serveur redémarre. Réessayez dans quelques instants.': { fr: 'Le serveur redémarre. Réessayez dans quelques instants.', mg: 'Mihodina indray ny serveur. Andramo kely indray.' },
   'Email ou mot de passe incorrect.': { fr: 'Email ou mot de passe incorrect.', mg: 'Diso ny mailaka na ny tenimiafina.' },
   'Compte introuvable.': { fr: 'Compte introuvable.', mg: 'Tsy hita ny kaonty.' },
   'Mot de passe actuel incorrect.': { fr: 'Mot de passe actuel incorrect.', mg: 'Diso ny tenimiafina ankehitriny.' },
