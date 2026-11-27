@@ -285,6 +285,7 @@ html[data-theme='dark'] .iz-badge-blue { color: #93b8ff; }
 .iz-btn svg, .iz-link-button svg, .iz-notif-go svg, .iz-sidebar a svg { flex-shrink: 0; }
 .iz-inline-icon { vertical-align: -2px; margin-right: 6px; }
 .iz-dashboard-main { min-width: 0; }
+.iz-menu-toggle { display: none; }
 .iz-page-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 22px; flex-wrap: wrap; }
 .iz-page-head h1 { font-size: 1.65rem; font-weight: 800; }
 .iz-page-head p { color: rgb(var(--tx-gray-600)); margin-top: 4px; }
@@ -472,11 +473,21 @@ html[data-theme='dark'] .iz-chart-bar { background: linear-gradient(180deg, #6ee
   .iz-grid-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .iz-dashboard { grid-template-columns: minmax(0, 1fr); }
   .iz-dashboard > * { min-width: 0; }
-  /* Menu au-dessus du contenu, en grille : plus de défilement latéral. */
+  /* Menu repliable : replié par défaut sur téléphone et dans l'APK, il
+     s'ouvre au toucher du bouton. */
+  .iz-menu-toggle {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    width: 100%; padding: 12px 14px; border-radius: 12px; text-align: left;
+    border: 1px solid rgb(var(--bd-gray-200)); background: rgb(var(--surface));
+    color: rgb(var(--tx-black)); font: inherit; font-weight: 700; font-size: .9rem;
+    box-shadow: var(--shadow-sm); cursor: pointer;
+  }
+  .iz-menu-toggle span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .iz-sidebar {
-    position: static; display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    position: static; display: none; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
     gap: 4px; overflow-x: visible;
   }
+  .iz-sidebar.open { display: grid; }
   .iz-sidebar-title { display: none; }
   .iz-sidebar-search { grid-column: 1 / -1; width: 100%; margin: 0 0 6px; }
   .iz-sidebar a, .iz-sidebar button { white-space: normal; width: 100%; }

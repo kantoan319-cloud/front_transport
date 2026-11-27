@@ -64,6 +64,7 @@ const dictionary: Record<string, Entry> = {
   'sidebar.search': { fr: 'Rechercher un paramètre…', mg: 'Mitady fizarana…' },
   'sidebar.searchLabel': { fr: 'Rechercher un paramètre', mg: 'Mitady fizarana' },
   'sidebar.empty': { fr: 'Aucun résultat.', mg: 'Tsy misy valiny.' },
+  'sidebar.menu': { fr: 'Menu', mg: 'Menio' },
   'common.grid': { fr: 'Mosaïque', mg: 'Mozaika' },
   'common.viewMode': { fr: 'Affichage', mg: 'Fampisehoana' },
   'common.previous': { fr: 'Page précédente', mg: 'Pejy teo aloha' },
